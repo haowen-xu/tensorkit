@@ -1,0 +1,4 @@
+frozendict >= 1.2
+heapdict >= 1.0.0
+
+git+https://github.com/haowen-xu/ml-essentials.git

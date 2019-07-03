@@ -1,0 +1,14 @@
+# setup the backend
+from tensorkit.settings_ import settings
+
+if settings.backend == 'pytorch':
+    from . import pytorch_ as backend
+    from .pytorch_ import *
+else:
+    RuntimeError(f'Backend {settings.backend} not supported.')
+
+del settings
+
+
+# export symbols
+__all__ = backend.__all__
