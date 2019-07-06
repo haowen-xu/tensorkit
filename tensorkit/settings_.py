@@ -55,6 +55,11 @@ class Settings(Config):
         default=False,
         envvar='TENSORKIT_CHECK_NUMERICS'
     )
+    prefer_backend_impl: bool = ConfigField(
+        bool,
+        default=True,
+        envvar='TENSORKIT_PREFER_BACKEND_IMPL'
+    )
 
 
 settings = Settings()

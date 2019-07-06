@@ -6,7 +6,6 @@ from .. import tensor as T
 from ..stochastic import StochasticTensor
 from .base import Distribution
 
-
 __all__ = ['Normal']
 
 
@@ -22,10 +21,9 @@ class Normal(Distribution):
                 check_numerics: Optional[bool] = None,
                 random_state: Optional[T.random.RandomState] = None):
         # validate the arguments
-        if (std is None and logstd is None) or \
-                (std is not None and logstd is not None):
-            raise ValueError('One and only one of `std` and `logstd` should '
-                             'be specified.')
+        if (std is None) == (logstd is None):
+            raise ValueError('Either `std` or `logstd` must be specified, '
+                             'but not both.')
 
         mean = T.as_tensor(mean)
         if std is not None:
@@ -43,30 +41,13 @@ class Normal(Distribution):
         stdx_shape = T.shape(stdx)
         param_shape = T.broadcast_shape(mean_shape, stdx_shape)
 
-        is_reparameterized = bool(is_reparameterized)
-
-        event_ndims = int(event_ndims)
-        if event_ndims < 0:
-            raise ValueError(f'event_ndims < 0 is invalid: got {event_ndims}')
-        if event_ndims > len(param_shape):
-            raise ValueError(f'event_ndims > len(param_shape) is invalid: '
-                             f'event_ndims {event_ndims} vs param_shape '
-                             f'{param_shape}')
-
-        if event_ndims > 0:
-            batch_shape = param_shape[:-event_ndims]
-            event_shape = param_shape[-event_ndims:]
-        else:
-            batch_shape = param_shape
-            event_shape = ()
-
         # construct the object
         super().__init__(
             dtype=dtype,
             is_continuous=True,
             is_reparameterized=is_reparameterized,
-            batch_shape=batch_shape,
-            event_shape=event_shape,
+            value_shape=param_shape,
+            event_ndims=event_ndims,
             min_event_ndims=0,
             check_numerics=check_numerics,
             random_state=random_state,
@@ -101,11 +82,7 @@ class Normal(Distribution):
                compute_prob: Optional[bool] = None) -> StochasticTensor:
         # validate arguments
         sample_shape = ((n_samples,) if n_samples else ()) + self._param_shape
-
-        if is_reparameterized is None:
-            is_reparameterized = self.is_reparamterized
-        else:
-            is_reparameterized = bool(is_reparameterized)
+        is_reparameterized = self._check_reparameterized(is_reparameterized)
 
         # generate the samples
         samples = T.random.randn(shape=sample_shape, dtype=self.dtype,
@@ -122,7 +99,7 @@ class Normal(Distribution):
             group_ndims=group_ndims,
             is_reparameterized=is_reparameterized,
         )
-        if compute_prob is not False:
+        if compute_prob is True:
             _ = t.log_prob()
 
         return t
@@ -137,5 +114,5 @@ class Normal(Distribution):
 
         ret = c - self.logstd - precision * T.square(given - self.mean)
         if event_ndims > 0:
-            ret = T.sum(precision, list(range(-event_ndims, 0)))
+            ret = T.reduce_sum(precision, list(range(-event_ndims, 0)))
         return ret

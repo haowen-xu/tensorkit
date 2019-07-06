@@ -1,10 +1,10 @@
-from . import core, dtypes, random_
-
+from . import core, dtypes
 from .core import *
 from .dtypes import *
+from .nn_ import *
 from .random_ import *
 
-__all__ = ['name'] + (
-    core.__all__ + dtypes.__all__ + random_.__all__
-)
 name = 'pytorch'
+
+__all__ = core.__all__ + dtypes.__all__ + ['nn', 'random']
+del core, dtypes

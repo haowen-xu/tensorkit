@@ -12,12 +12,30 @@ class Distribution(object):
                  dtype: T.DTypeLike,
                  is_continuous: bool,
                  is_reparameterized: bool,
-                 batch_shape: T.ShapeArgType,
-                 event_shape: T.ShapeArgType,
+                 value_shape: T.ShapeArgType,
+                 event_ndims: int,
                  min_event_ndims: int,
-                 check_numerics: Optional[bool] = None,
-                 random_state: Optional[T.random.RandomState] = None):
+                 check_numerics: Optional[bool],
+                 random_state: Optional[T.random.RandomState]):
         # validate the arguments
+        value_shape = T.as_shape(value_shape)
+        event_ndims = int(event_ndims)
+        min_event_ndims = int(min_event_ndims)
+
+        if event_ndims < min_event_ndims:
+            raise ValueError(f'`event_ndims < {min_event_ndims}` is invalid: '
+                             f'got {event_ndims}')
+        if event_ndims > len(value_shape):
+            raise ValueError(f'`event_ndims > {len(value_shape)}` is invalid: '
+                             f'got {event_ndims}, value shape is {value_shape}')
+
+        if event_ndims > 0:
+            batch_shape = value_shape[:-event_ndims]
+            event_shape = value_shape[-event_ndims:]
+        else:
+            batch_shape = value_shape
+            event_shape = ()
+
         if check_numerics is not None:
             check_numerics = bool(check_numerics)
         else:
@@ -27,9 +45,9 @@ class Distribution(object):
         self._dtype = T.as_dtype(dtype)
         self._is_continuous = bool(is_continuous)
         self._is_reparamaterized = bool(is_reparameterized)
-        self._batch_shape = tuple(map(int, batch_shape))
-        self._event_shape = tuple(map(int, event_shape))
-        self._min_event_ndims = int(min_event_ndims)
+        self._batch_shape = batch_shape
+        self._event_shape = event_shape
+        self._min_event_ndims = min_event_ndims
         self._check_numerics = check_numerics
         self._random_state = random_state
 
@@ -73,10 +91,10 @@ class Distribution(object):
                ) -> 'StochasticTensor':
         raise NotImplementedError()
 
-    def log_prob(self, given: T.Tensor, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: T.TensorLike, group_ndims: int = 0) -> T.Tensor:
         raise NotImplementedError()
 
-    def prob(self, given: T.Tensor, group_ndims: int = 0) -> T.Tensor:
+    def prob(self, given: T.TensorLike, group_ndims: int = 0) -> T.Tensor:
         return T.exp(self.log_prob(given=given, group_ndims=group_ndims))
 
     def _maybe_check_numerics(self, name: str, tensor: T.Tensor) -> T.Tensor:
@@ -90,6 +108,16 @@ class Distribution(object):
             raise ValueError('Invalid `group_ndims`: group_ndims + '
                              'self.event_ndims < self.min_event_ndims')
         return event_ndims
+
+    def _check_reparameterized(self, is_reparamaterized: Optional[bool]):
+        if is_reparamaterized and not self.is_reparamterized:
+            raise ValueError(
+                f'Distribution {self!r} is not re-parameterized, thus cannot '
+                f'generate re-paramterized samples.')
+
+        if is_reparamaterized is None:
+            is_reparamaterized = self.is_reparamterized
+        return is_reparamaterized
 
 
 # back reference to the StochasticTensor

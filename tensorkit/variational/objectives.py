@@ -14,7 +14,7 @@ def elbo_objective(log_joint: T.TensorLike,
     latent_log_prob = T.as_tensor(latent_log_prob)
     objective = log_joint - latent_log_prob
     if axis is not None:
-        objective = T.mean(objective, axis=axis, keepdims=keepdims)
+        objective = T.reduce_mean(objective, axis=axis, keepdims=keepdims)
     return objective
 
 
