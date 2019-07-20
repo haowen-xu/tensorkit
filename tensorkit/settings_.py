@@ -60,6 +60,11 @@ class Settings(Config):
         default=True,
         envvar='TENSORKIT_PREFER_BACKEND_IMPL'
     )
+    disable_jit: bool = ConfigField(
+        bool,
+        default=False,
+        envvar='TENSORKIT_DISABLE_JIT'
+    )
 
 
 settings = Settings()

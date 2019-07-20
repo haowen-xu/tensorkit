@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..tensor import typing as TT
 from ..settings_ import settings
 
 __all__ = ['Distribution']
@@ -9,10 +10,10 @@ __all__ = ['Distribution']
 class Distribution(object):
 
     def __init__(self,
-                 dtype: T.DTypeLike,
+                 dtype: TT.DTypeLike,
                  is_continuous: bool,
                  is_reparameterized: bool,
-                 value_shape: T.ShapeArgType,
+                 value_shape: TT.ShapeLike,
                  event_ndims: int,
                  min_event_ndims: int,
                  check_numerics: Optional[bool],
@@ -64,11 +65,11 @@ class Distribution(object):
         return self._is_reparamaterized
 
     @property
-    def batch_shape(self) -> T.ShapeTuple:
+    def batch_shape(self) -> T.Shape:
         return self._batch_shape
 
     @property
-    def event_shape(self) -> T.ShapeTuple:
+    def event_shape(self) -> T.Shape:
         return self._event_shape
 
     @property
@@ -91,10 +92,10 @@ class Distribution(object):
                ) -> 'StochasticTensor':
         raise NotImplementedError()
 
-    def log_prob(self, given: T.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
         raise NotImplementedError()
 
-    def prob(self, given: T.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
         return T.exp(self.log_prob(given=given, group_ndims=group_ndims))
 
     def _maybe_check_numerics(self, name: str, tensor: T.Tensor) -> T.Tensor:
@@ -118,6 +119,18 @@ class Distribution(object):
         if is_reparamaterized is None:
             is_reparamaterized = self.is_reparamterized
         return is_reparamaterized
+
+    def copy(self, **kwargs):
+        raise NotImplementedError()
+
+    def _copy_helper(self, attrs: Iterable[str], **kwargs):
+        for attr in attrs:
+            if not hasattr(self, attr):
+                val = getattr(self, f'_{attr}')
+            else:
+                val = getattr(self, attr)
+            kwargs.setdefault(attr, val)
+        return self.__class__(**kwargs)
 
 
 # back reference to the StochasticTensor

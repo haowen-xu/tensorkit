@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 
 from .. import tensor as T
+from ..tensor import typing as TT
 from ..stochastic import StochasticTensor
 from .base import Distribution
 
@@ -12,10 +13,10 @@ __all__ = ['Normal']
 class Normal(Distribution):
 
     def __init__(self,
-                mean: T.TensorLike,
-                std: Optional[T.TensorLike] = None,
+                mean: TT.TensorLike,
+                std: Optional[TT.TensorLike] = None,
                 *,
-                logstd: Optional[T.TensorLike] = None,
+                logstd: Optional[TT.TensorLike] = None,
                 is_reparameterized: bool = True,
                 event_ndims: int = 0,
                 check_numerics: Optional[bool] = None,
@@ -28,8 +29,10 @@ class Normal(Distribution):
         mean = T.as_tensor(mean)
         if std is not None:
             std = T.as_tensor(std)
-        if logstd is not None:
+            original_std_arg = 'std'
+        else:
             logstd = T.as_tensor(logstd)
+            original_std_arg = 'logstd'
 
         stdx = std if std is not None else logstd
         dtype = T.dtype(mean)
@@ -53,15 +56,20 @@ class Normal(Distribution):
             random_state=random_state,
         )
         self._param_shape = param_shape
+        self._original_std_arg = original_std_arg
 
         # validate mean, std and logstd
         self._mean = self._maybe_check_numerics('mean', mean)
         if std is not None:
             self._std = self._maybe_check_numerics('std', std)
-            self._logstd = self._maybe_check_numerics('logstd', T.exp(std))
+            self._logstd = None
         else:
             self._logstd = self._maybe_check_numerics('logstd', logstd)
-            self._std = self._maybe_check_numerics('std', T.log(logstd))
+            self._std = None
+
+    @property
+    def original_std_arg(self) -> str:
+        return self._original_std_arg
 
     @property
     def mean(self) -> T.Tensor:
@@ -69,10 +77,16 @@ class Normal(Distribution):
 
     @property
     def std(self) -> T.Tensor:
+        if self._std is None:
+            logstd = T.log(self._logstd)
+            self._std = self._maybe_check_numerics('std', logstd)
         return self._std
 
     @property
     def logstd(self) -> T.Tensor:
+        if self._logstd is None:
+            std = T.exp(self._std)
+            self._logstd = self._maybe_check_numerics('logstd', std)
         return self._logstd
 
     def sample(self,
@@ -104,7 +118,7 @@ class Normal(Distribution):
 
         return t
 
-    def log_prob(self, given: T.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
         event_ndims = self._add_to_event_ndims(group_ndims)
 
         c = T.as_tensor(-0.5 * np.log(2 * np.pi))
@@ -116,3 +130,10 @@ class Normal(Distribution):
         if event_ndims > 0:
             ret = T.reduce_sum(precision, list(range(-event_ndims, 0)))
         return ret
+
+    def copy(self, **kwargs):
+        return self._copy_helper(
+            ('mean', self.original_std_arg, 'is_reparameterized',
+             'event_ndims', 'check_numerics', 'random_state'),
+            **kwargs
+        )

@@ -1,0 +1,8 @@
+-r requirements.txt
+
+coverage >= 4.3.4
+mock >= 2.0.0
+pytest >= 3.0
+
+# dependencies for backends
+torch >= 1.1.0

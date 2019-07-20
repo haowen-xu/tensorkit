@@ -2,6 +2,7 @@ import torch
 from torch.nn import functional as F
 
 from .core import *
+from .typing import *
 
 __all__ = ['nn']
 

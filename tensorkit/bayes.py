@@ -4,6 +4,7 @@ from typing import *
 from frozendict import frozendict
 
 from . import tensor as T
+from .tensor import typing as TT
 from .distributions import Distribution
 from .stochastic import StochasticTensor
 
@@ -14,7 +15,7 @@ ModelBuilderFunctionType = Callable[..., 'BayesianNet']
 
 class BayesianNet(object):
 
-    def __init__(self, observed: Mapping[str, T.TensorLike] = None):
+    def __init__(self, observed: Mapping[str, TT.TensorLike] = None):
         def check_name(s):
             if not isinstance(s, str):
                 raise TypeError(f'name must be a str: got {s!r}')
@@ -28,7 +29,7 @@ class BayesianNet(object):
         self._stochastic_tensors = {}
 
     @property
-    def observed(self) -> Mapping[str, T.TensorLike]:
+    def observed(self) -> Mapping[str, TT.TensorLike]:
         return self._observed
 
     def add(self,
@@ -115,8 +116,8 @@ class BayesianNet(object):
     def chain(self,
               model_builder: ModelBuilderFunctionType,
               latent_names: Optional[Iterable[str]] = None,
-              latent_axis: Optional[T.AxisOrAxes] = None,
-              observed: Mapping[str, T.TensorLike] = None,
+              latent_axis: Optional[TT.AxisOrAxes] = None,
+              observed: Mapping[str, TT.TensorLike] = None,
               **kwargs):
         from .variational.chain import VariationalChain
 

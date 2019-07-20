@@ -1,13 +1,14 @@
 import operator
 from typing import *
 
-import numpy as np
 import torch
 from mltk.utils import InheritanceDict
+from torch.jit import script
 
 from ....settings_ import settings
 from ....utils import validate_int_tuple_arg
 from .dtypes import _DTYPES, _NUMPY_DTYPES
+from .typing import *
 
 {%- set UNIVARIATE_OPS = [
     'abs', 'neg',
@@ -19,10 +20,11 @@ from .dtypes import _DTYPES, _NUMPY_DTYPES
 ] %}
 
 __all__ = [
+    # jit
+    'jit',
+
     # typing
-    'Tensor', 'Variable', 'DType',
-    'TensorTypes', 'TensorLike', 'DTypeLike', 'ShapeTuple', 'ShapeArgType',
-    'AxisOrAxes', 'as_shape',
+    'Tensor', 'Variable', 'DType', 'Shape', 'as_shape',
 
     # dtypes
     'as_dtype', 'float_x', 'iinfo', 'finfo', 'is_floating_point',
@@ -33,7 +35,7 @@ __all__ = [
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
     'broadcast_shape', 'broadcast_to', 'explicit_broadcast', 'flatten_to_ndims',
-    'undo_flatten_to_ndims',
+    'undo_flatten_to_ndims', 'gather',
 
     # read / assign
     'read',
@@ -67,37 +69,29 @@ __all__ = [
     {{format_all_list(UNIVARIATE_OPS + BIVARIATE_OPS)}},
 ]
 
+
+# ---- jit ----
+def jit(fn):
+    if not settings.disable_jit:
+        fn = script(fn)
+    return fn
+
+
 # ---- typing ----
-Tensor = torch.Tensor
-Variable = torch.Tensor
-DType = torch.dtype
-
-
-TensorTypes = Union[Tensor, Variable]
-TensorLike = Union[TensorTypes, 'TensorWrapper', np.ndarray]
-DTypeLike = Union[str, np.dtype, DType]
-ShapeTuple = Tuple[int, ...]
-ShapeArgType = Sequence[int]
-AxisOrAxes = Union[int, Tuple[int, ...]]
-
-
-def as_shape(s: ShapeArgType) -> ShapeTuple:
-    return tuple(s)
+def as_shape(s: ShapeLike) -> Shape:
+    return Shape(s)
 
 
 # ---- dtypes ----
 def as_dtype(dtype: DTypeLike) -> DType:
-    try:
-        if isinstance(dtype, str):
-            return _DTYPES[dtype]
-        elif isinstance(dtype, np.dtype):
-            return _NUMPY_DTYPES[dtype]
-        elif isinstance(dtype, DType):
-            return dtype
-    except KeyError:
-        pass
-
-    raise ValueError(f'Not a valid dtype: {type!r}')
+    if isinstance(dtype, DType):
+        return dtype
+    elif dtype in _DTYPES:
+        return _DTYPES[dtype]
+    elif dtype in _NUMPY_DTYPES:
+        return _NUMPY_DTYPES[dtype]
+    else:
+        raise ValueError(f'Not a valid dtype: {dtype!r}')
 
 
 def float_x() -> DType:
@@ -148,35 +142,71 @@ def register_as_tensor(type_: type, convertor: AsTensorFunc):
     _as_tensor_convertors[type_] = convertor
 
 
-def zeros(shape: ShapeArgType, dtype: DTypeLike = settings.float_x) -> Tensor:
+def zeros(shape: ShapeLike, dtype: DTypeLike = settings.float_x) -> Tensor:
     dtype = as_dtype(dtype)
     return torch.zeros(as_shape(shape), dtype=dtype)
 
 
-def ones(shape: ShapeArgType, dtype: DTypeLike = settings.float_x) -> Tensor:
+def ones(shape: ShapeLike, dtype: DTypeLike = settings.float_x) -> Tensor:
     dtype = as_dtype(dtype)
     return torch.ones(as_shape(shape), dtype=dtype)
 
 
 # ---- shape utils ----
-def shape(x: TensorLike) -> ShapeTuple:
-    return tuple(as_tensor(x).shape)
+def shape(x: TensorLike) -> Shape:
+    return as_tensor(x).shape
 
 
 def rank(x: TensorLike) -> int:
     return as_tensor(x).numel()
 
 
-def reshape(x: TensorLike, shape: ShapeArgType) -> Tensor:
+def reshape(x: TensorLike, shape: ShapeLike) -> Tensor:
     return as_tensor(x).reshape(as_shape(shape))
 
 
+@jit
+def _repeat(x, repeats):
+    # type: (torch.Tensor, List[int]) -> torch.Tensor
+
+    x_shape = x.shape
+    x_rank = len(x_shape)
+    repeats_len = len(repeats)
+
+    # argument check
+    if repeats_len < x_rank:
+        repeats = [1] * (len(x_shape) - len(repeats)) + repeats
+    elif repeats_len > x_rank:
+        raise ValueError('Length of `repeats` is larger than `rank(x)`: '
+                         'repeats {} vs rank(x) {}'.format(repeats, x_rank))
+
+    # detect the repeat mode
+    mode = 0  # 0 = return directly, 1 = expand, 2 = repeat
+
+    for i in range(len(x_shape)):
+        a = x_shape[i]
+        b = repeats[i]
+        if b != 1:
+            if a != 1:
+                mode = 2
+            else:
+                mode = max(1, mode)
+
+    # do repeat the tensor according to different mode
+    if mode == 0:
+        return x
+    elif mode == 1:
+        expands = list([-1 if a == 1 else a for a in repeats])  # type: List[int]
+        return x.expand(expands)
+    else:
+        return x.repeat(repeats)
+
+
 def repeat(x: TensorLike, repeats: Iterable[int]) -> Tensor:
-    # TODO: avoid copying if not necessary
-    return as_tensor(x).repeat(tuple(repeats))
+    return _repeat(as_tensor(x), list(repeats))
 
 
-def expand(x: TensorLike, desired_shape: ShapeArgType) -> Tensor:
+def expand(x: TensorLike, desired_shape: ShapeLike) -> Tensor:
     desired_shape = as_shape(desired_shape)
     return as_tensor(x).expand(desired_shape)
 
@@ -210,7 +240,7 @@ def expand_dim(x: TensorLike, axis: int) -> Tensor:
     return as_tensor(x).unsqueeze(axis)
 
 
-def broadcast_shape(x: ShapeArgType, y: ShapeArgType) -> ShapeTuple:
+def broadcast_shape(x: ShapeLike, y: ShapeLike) -> Shape:
     x = tuple(x)
     y = tuple(y)
     common_len = min(len(x), len(y))
@@ -228,7 +258,7 @@ def broadcast_shape(x: ShapeArgType, y: ShapeArgType) -> ShapeTuple:
             right.append(a)
 
     left = x[:-common_len] or y[:-common_len]
-    return left + tuple(right)
+    return Shape(left + tuple(right))
 
 
 def _broadcast_to_internal(t, t_shape, out_shape):
@@ -238,11 +268,11 @@ def _broadcast_to_internal(t, t_shape, out_shape):
     t_repeats = tuple(b if a == 1 else 1
                       for a, b in zip(t_shape, out_shape))
     if any(s != 1 for s in t_repeats):
-        t = tile(t, t_repeats)
+        t = repeat(t, t_repeats)
     return t
 
 
-def broadcast_to(x: TensorLike, new_shape: ShapeArgType) -> Tensor:
+def broadcast_to(x: TensorLike, new_shape: ShapeLike) -> Tensor:
     x = as_tensor(x)
     x_shape = shape(x)
     new_shape = tuple(new_shape)
@@ -275,9 +305,9 @@ def explicit_broadcast(x: TensorLike,
 
 
 def flatten_to_ndims(x: TensorLike, ndims: int
-                     ) -> Tuple[Tensor, Optional[ShapeTuple]]:
+                     ) -> Tuple[Tensor, Optional[Shape]]:
     x = as_tensor(x)
-    x_shape = shape(x)
+    x_shape = x.shape
     if len(x_shape) == ndims:
         return x, None
     elif ndims < 1:
@@ -293,10 +323,10 @@ def flatten_to_ndims(x: TensorLike, ndims: int
         return reshape(x, (-1,) + back_shape), front_shape
 
 
-def undo_flatten_to_ndims(x: TensorLike, front_shape: Optional[ShapeTuple]
+def undo_flatten_to_ndims(x: TensorLike, front_shape: Optional[Shape]
                           ) -> Tensor:
     x = as_tensor(x)
-    x_shape = shape(x)
+    x_shape = x.shape
 
     if front_shape is None:
         return x
@@ -306,6 +336,32 @@ def undo_flatten_to_ndims(x: TensorLike, front_shape: Optional[ShapeTuple]
             raise ValueError('Invalid input: rank(x) < 1, but front_shape is '
                              'not None.')
         return reshape(x, front_shape + x_shape[1:])
+
+
+def gather(x: TensorLike, indices: TensorLike, axis: int = 0):
+    x = as_tensor(x)
+    indices = as_tensor(indices)
+    x_shape = x.shape
+    i_shape = indices.shape
+
+    if axis < 0:
+        axis += len(x_shape)
+    if axis < 0 or axis >= len(x_shape):
+        raise ValueError(f'Index out of range: '
+                         f'x.shape {x.shape} vs axis {axis}')
+
+    if len(i_shape) == 0:
+        y = torch.index_select(x, dim=axis, index=indices.reshape([1]))
+        y = y.reshape(x_shape[:axis] + x_shape[axis+1:])
+
+    elif len(i_shape) == 1:
+        y = torch.index_select(x, dim=axis, index=indices)
+
+    else:
+        y = torch.index_select(x, dim=axis, index=indices.flatten())
+        y = y.reshape(x_shape[:axis] + i_shape + x_shape[axis+1:])
+
+    return y
 
 
 # ---- read / assign ----
@@ -345,7 +401,7 @@ def truediv(x: TensorLike, y: TensorLike) -> Tensor:
     if not is_floating_point(dtype):
         if dtype in (torch.uint8, torch.int16):
             x = x.to(torch.float32)
-            y = x.to(torch.float32)
+            y = y.to(torch.float32)
         else:
             x = x.to(torch.float64)
             y = y.to(torch.float64)

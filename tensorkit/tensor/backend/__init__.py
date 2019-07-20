@@ -10,5 +10,10 @@ else:
 del settings
 
 
+# inject docstrings
+from . import _docstrings
+del _docstrings
+
+
 # export symbols
 __all__ = backend.__all__

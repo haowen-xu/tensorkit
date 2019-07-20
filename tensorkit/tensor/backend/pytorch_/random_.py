@@ -6,6 +6,7 @@ from ....settings_ import settings
 from . import dtypes
 from .core import *
 from .nn_ import nn
+from .typing import *
 
 __all__ = ['random']
 
