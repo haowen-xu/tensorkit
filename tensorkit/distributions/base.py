@@ -1,7 +1,7 @@
 from typing import *
 
 from .. import tensor as T
-from ..tensor import typing as TT
+from ..tensor import typing as Z
 from ..settings_ import settings
 
 __all__ = ['Distribution']
@@ -10,10 +10,10 @@ __all__ = ['Distribution']
 class Distribution(object):
 
     def __init__(self,
-                 dtype: TT.DTypeLike,
+                 dtype: Z.DTypeLike,
                  is_continuous: bool,
                  is_reparameterized: bool,
-                 value_shape: TT.ShapeLike,
+                 value_shape: Z.ShapeLike,
                  event_ndims: int,
                  min_event_ndims: int,
                  check_numerics: Optional[bool],
@@ -92,10 +92,10 @@ class Distribution(object):
                ) -> 'StochasticTensor':
         raise NotImplementedError()
 
-    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
         raise NotImplementedError()
 
-    def prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
         return T.exp(self.log_prob(given=given, group_ndims=group_ndims))
 
     def _maybe_check_numerics(self, name: str, tensor: T.Tensor) -> T.Tensor:

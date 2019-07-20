@@ -93,49 +93,77 @@ class TensorCoreTestCase(unittest.TestCase):
         t = T.as_tensor(x, dtype=T.int32)
         self.assertIsInstance(t, T.Tensor)
         self.assertEqual(T.dtype(t), T.int32)
-        np.testing.assert_equal(T.read(t), x)
+        np.testing.assert_equal(T.to_numpy(t), x)
 
         t2 = T.cast(t, T.float32)
         self.assertIsInstance(t2, T.Tensor)
         self.assertEqual(T.dtype(t2), T.float32)
-        np.testing.assert_equal(T.read(t2), x)
+        np.testing.assert_equal(T.to_numpy(t2), x)
+
+    def test_tensor_constructions(self):
+        # test as_tensor
+        t = T.as_tensor(1)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertFalse(T.is_floating_point(T.dtype(t)))
+        self.assertEqual(T.shape(t), ())
+        self.assertEqual(T.to_numpy(t), 1)
+
+        t = T.as_tensor([1., 2., 3.])
+        self.assertIsInstance(t, T.Tensor)
+        self.assertTrue(T.is_floating_point(T.dtype(t)))
+        self.assertEqual(T.shape(t), (3,))
+        np.testing.assert_equal(T.to_numpy(t), np.array([1, 2, 3]))
+
+        x = np.random.randn(2, 3).astype(np.float32)
+        t = T.as_tensor(x)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float32)
+        self.assertEqual(T.shape(t), (2, 3))
+        np.testing.assert_equal(T.to_numpy(t), x)
+
+        x = T.as_tensor(np.asarray([1, 2, 3], dtype=np.int32))
+        t = T.as_tensor(x)
+        self.assertIs(t, x)
+
+        with pytest.raises(Exception):
+            _ = T.as_tensor(object())  # not a tensor, should raise error
 
     def test_math_univariate_op(self):
         np.random.seed(1234)
         x = np.random.randn(2, 3)
 
-        assert_allclose(T.read(T.abs(x)), np.abs(x))
-        assert_allclose(T.read(T.neg(x)), -x)
-        assert_allclose(T.read(T.exp(x)), np.exp(x))
-        assert_allclose(T.read(T.log(np.abs(x))), np.log(np.abs(x)))
-        assert_allclose(T.read(T.log1p(np.abs(x) - 1. + 1e-7)),
+        assert_allclose(T.to_numpy(T.abs(x)), np.abs(x))
+        assert_allclose(T.to_numpy(T.neg(x)), -x)
+        assert_allclose(T.to_numpy(T.exp(x)), np.exp(x))
+        assert_allclose(T.to_numpy(T.log(np.abs(x))), np.log(np.abs(x)))
+        assert_allclose(T.to_numpy(T.log1p(np.abs(x) - 1. + 1e-7)),
                         np.log1p(np.abs(x) - 1. + 1e-7))
-        assert_allclose(T.read(T.sin(x)), np.sin(x))
-        assert_allclose(T.read(T.cos(x)), np.cos(x))
-        assert_allclose(T.read(T.square(x)), x ** 2)
+        assert_allclose(T.to_numpy(T.sin(x)), np.sin(x))
+        assert_allclose(T.to_numpy(T.cos(x)), np.cos(x))
+        assert_allclose(T.to_numpy(T.square(x)), x ** 2)
 
     def test_math_bivariate_op(self):
         np.random.seed(1234)
         x = np.random.randn(2, 3)
         y = np.random.randn(3)
 
-        assert_allclose(T.read(T.add(x, y)), x + y)
-        assert_allclose(T.read(T.sub(x, y)), x - y)
-        assert_allclose(T.read(T.mul(x, y)), x * y)
-        assert_allclose(T.read(T.pow(np.abs(x), y)), np.abs(x) ** y)
+        assert_allclose(T.to_numpy(T.add(x, y)), x + y)
+        assert_allclose(T.to_numpy(T.sub(x, y)), x - y)
+        assert_allclose(T.to_numpy(T.mul(x, y)), x * y)
+        assert_allclose(T.to_numpy(T.pow(np.abs(x), y)), np.abs(x) ** y)
 
         # for division, of course y should not equal to zero
         y = np.asarray(y == 0, dtype=y.dtype) + y
-        assert_allclose(T.read(T.div(x, y)), x / y)
-        assert_allclose(T.read(T.truediv(x, y)), x / y)
+        assert_allclose(T.to_numpy(T.div(x, y)), x / y)
+        assert_allclose(T.to_numpy(T.truediv(x, y)), x / y)
 
         # for floordiv and mod, we only require the backend tensor engine
         # to produce identical results with numpy when x > 0 and y > 0
         x = np.abs(x)
         y = np.abs(y)
-        assert_allclose(T.read(T.floordiv(x, y)), x // y)
-        assert_allclose(T.read(T.mod(x, y)), x % y)
-        assert_allclose(T.read(T.fmod(x, y)), x % y)
+        assert_allclose(T.to_numpy(T.floordiv(x, y)), x // y)
+        assert_allclose(T.to_numpy(T.mod(x, y)), x % y)
+        assert_allclose(T.to_numpy(T.fmod(x, y)), x % y)
 
         # truediv should raise error for dtype mismatch
         with pytest.raises(TypeError, match='x and y must have the same dtype'):
@@ -151,7 +179,7 @@ class TensorCoreTestCase(unittest.TestCase):
         y = y + (y == 0).astype(y.dtype)
         out = T.truediv(x, y)
         self.assertEqual(T.dtype(out), T.float32)
-        assert_allclose(T.read(out),
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float32) / y.astype(np.float32))
 
         # input int16, output float32
@@ -160,7 +188,7 @@ class TensorCoreTestCase(unittest.TestCase):
         y = y + (y == 0).astype(y.dtype)
         out = T.truediv(x, y)
         self.assertEqual(T.dtype(out), T.float32)
-        assert_allclose(T.read(out),
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float32) / y.astype(np.float32))
 
         # input int32, output float64
@@ -169,5 +197,5 @@ class TensorCoreTestCase(unittest.TestCase):
         y = y + (y == 0).astype(y.dtype)
         out = T.truediv(x, y)
         self.assertEqual(T.dtype(out), T.float64)
-        assert_allclose(T.read(out),
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float64) / y.astype(np.float64))

@@ -1,7 +1,7 @@
 from typing import *
 
 from .. import tensor as T
-from ..tensor import typing as TT
+from ..tensor import typing as Z
 from ..stochastic import StochasticTensor
 from .base import Distribution
 
@@ -14,9 +14,9 @@ class BaseCategorical(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[TT.TensorLike],
-                 probs: Optional[TT.TensorLike],
-                 dtype: TT.DTypeLike,
+                 logits: Optional[Z.TensorLike],
+                 probs: Optional[Z.TensorLike],
+                 dtype: Z.DTypeLike,
                  event_ndims: int,
                  min_event_ndims: int,
                  check_numerics: Optional[bool],
@@ -143,9 +143,9 @@ class Categorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[TT.TensorLike] = None,
-                 probs: Optional[TT.TensorLike] = None,
-                 dtype: TT.DTypeLike = T.random.CATEGORICAL_DTYPE,
+                 logits: Optional[Z.TensorLike] = None,
+                 probs: Optional[Z.TensorLike] = None,
+                 dtype: Z.DTypeLike = T.random.CATEGORICAL_DTYPE,
                  event_ndims: int = 0,
                  check_numerics: Optional[bool] = None,
                  random_state: Optional[T.random.RandomState] = None,
@@ -172,7 +172,7 @@ class Categorical(BaseCategorical):
             **{self.original_arg: arg}
         )
 
-    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
         log_p = T.nn.cross_entropy_with_logits(
             logits=self.logits, labels=given, negative=True)
         return log_p
@@ -192,9 +192,9 @@ class OnehotCategorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[TT.TensorLike] = None,
-                 probs: Optional[TT.TensorLike] = None,
-                 dtype: TT.DTypeLike = T.random.CATEGORICAL_DTYPE,
+                 logits: Optional[Z.TensorLike] = None,
+                 probs: Optional[Z.TensorLike] = None,
+                 dtype: Z.DTypeLike = T.random.CATEGORICAL_DTYPE,
                  event_ndims: int = 1,
                  check_numerics: Optional[bool] = None,
                  random_state: Optional[T.random.RandomState] = None,

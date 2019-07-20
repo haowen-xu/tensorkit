@@ -1,12 +1,13 @@
 from .. import tensor as T
+from ..tensor import typing as Z
 from .utils import _require_multi_samples
 
 __all__ = ['importance_sampling_log_likelihood']
 
 
-def importance_sampling_log_likelihood(log_joint: T.TensorLike,
-                                       latent_log_prob: T.TensorLike,
-                                       axis: T.AxisOrAxes,
+def importance_sampling_log_likelihood(log_joint: Z.TensorLike,
+                                       latent_log_prob: Z.TensorLike,
+                                       axis: Z.AxisOrAxes,
                                        keepdims=False):
     _require_multi_samples(axis, 'importance sampling log-likelihood')
     log_joint = T.as_tensor(log_joint)

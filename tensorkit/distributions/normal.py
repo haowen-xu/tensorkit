@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 from .. import tensor as T
-from ..tensor import typing as TT
+from ..tensor import typing as Z
 from ..stochastic import StochasticTensor
 from .base import Distribution
 
@@ -13,10 +13,10 @@ __all__ = ['Normal']
 class Normal(Distribution):
 
     def __init__(self,
-                mean: TT.TensorLike,
-                std: Optional[TT.TensorLike] = None,
+                mean: Z.TensorLike,
+                std: Optional[Z.TensorLike] = None,
                 *,
-                logstd: Optional[TT.TensorLike] = None,
+                logstd: Optional[Z.TensorLike] = None,
                 is_reparameterized: bool = True,
                 event_ndims: int = 0,
                 check_numerics: Optional[bool] = None,
@@ -118,7 +118,7 @@ class Normal(Distribution):
 
         return t
 
-    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
         event_ndims = self._add_to_event_ndims(group_ndims)
 
         c = T.as_tensor(-0.5 * np.log(2 * np.pi))

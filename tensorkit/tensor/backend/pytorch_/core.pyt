@@ -1,6 +1,7 @@
 import operator
 from typing import *
 
+import numpy as np
 import torch
 from mltk.utils import InheritanceDict
 from torch.jit import script
@@ -38,7 +39,7 @@ __all__ = [
     'undo_flatten_to_ndims', 'gather',
 
     # read / assign
-    'read',
+    'to_numpy',
 
     # math operators
     'div', 'truediv', 'floordiv', 'mod', 'square',
@@ -365,9 +366,9 @@ def gather(x: TensorLike, indices: TensorLike, axis: int = 0):
 
 
 # ---- read / assign ----
-def read(x: TensorLike) -> Tensor:
+def to_numpy(x: TensorLike) -> np.ndarray:
     x = as_tensor(x)
-    return x.data
+    return x.data.numpy()
 
 
 # ---- math operators ----

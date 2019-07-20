@@ -18,6 +18,13 @@ backend.jit.__doc__ = """
 backend.as_shape.__doc__ = """
     Convert `s` into a backend tensor shape object.
 
+    >>> from tensorkit import tensor as T
+
+    >>> isinstance(T.as_shape([1, 2]), T.Shape)
+    True
+    >>> tuple(T.as_shape([1, 2]))
+    (1, 2)
+
     Args:
         s: A sequence of integers, interpreted as a tensor shape.
 """
@@ -27,12 +34,30 @@ backend.as_shape.__doc__ = """
 backend.as_dtype.__doc__ = """
     Get the DType for specified dtype-like object.
 
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+
+    >>> T.as_dtype('float32') is T.float32
+    True
+    >>> T.as_dtype(np.int64) is T.int64
+    True
+
     Args:
         dtype: The DType-like input, e.g., T.int32, "float32", np.int64.
 """
 
 backend.float_x.__doc__ = """
     Get the default float DType, as configured in `tensorkit.settings.float_x`.
+
+    >>> from tensorkit import tensor as T, settings
+
+    >>> settings.float_x = 'float64'
+    >>> T.float_x() is T.float64
+    True
+
+    >>> settings.float_x = 'float32'
+    >>> T.float_x() is T.float32
+    True
 """
 
 backend.iinfo.__doc__ = """
@@ -52,6 +77,13 @@ backend.finfo.__doc__ = """
 backend.is_floating_point.__doc__ = """
     Query whether or not the specified DType is a float DType.
 
+    >>> from tensorkit import tensor as T
+
+    >>> T.is_floating_point(T.float32)
+    True
+    >>> T.is_floating_point(T.int32)
+    False
+
     Args: 
         dtype: The queried DType.
 """
@@ -59,6 +91,17 @@ backend.is_floating_point.__doc__ = """
 
 backend.cast.__doc__ = """
     Cast the input tensor into specified DType.
+
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+
+    >>> x = T.as_tensor(np.random.randn(2, 3).astype(np.float32))
+    >>> T.dtype(x) is T.float32
+    True
+
+    >>> y = T.cast(x, T.float64)
+    >>> T.dtype(y) is T.float64
+    True
 
     Args:
         x: The input tensor.
@@ -68,8 +111,38 @@ backend.cast.__doc__ = """
 backend.dtype.__doc__ = """
     Get the DType of the input type.
 
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+
+    >>> t = T.as_tensor(np.random.randn(2, 3).astype(np.float32)) 
+    >>> T.dtype(t) is T.float32
+    True
+
     Args:
         x: The input tensor.
+"""
+
+
+# tensor constructors
+backend.as_tensor.__doc__ = """
+    Convert arbitrary data into a Tensor.
+    
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+    
+    >>> t = T.as_tensor([1, 2, 3], dtype=T.int32)
+    >>> isinstance(t, T.Tensor)
+    True
+    >>> tuple(t.shape)
+    (3,)
+    >>> t.dtype is T.int32
+    True
+    >>> T.to_numpy(t)
+    array([1, 2, 3], dtype=int32)
+
+    Args:
+        data: The data to be converted.
+        dtype: Cast the data into this DType.
 """
 
 

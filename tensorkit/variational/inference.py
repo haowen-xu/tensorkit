@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..tensor import typing as Z
 from .estimators import *
 from .evaluation import *
 from .objectives import *
@@ -17,9 +18,9 @@ __all__ = [
 class VariationalInference(object):
 
     def __init__(self,
-                 log_joint: T.TensorLike,
-                 latent_log_prob: T.TensorLike,
-                 axis: Optional[T.AxisOrAxes] = None):
+                 log_joint: Z.TensorLike,
+                 latent_log_prob: Z.TensorLike,
+                 axis: Optional[Z.AxisOrAxes] = None):
         self._log_joint = T.as_tensor(log_joint)
         self._latent_log_prob = T.as_tensor(latent_log_prob)
         self._axis = axis
@@ -38,7 +39,7 @@ class VariationalInference(object):
         return self._latent_log_prob
 
     @property
-    def axis(self) -> Optional[T.AxisOrAxes]:
+    def axis(self) -> Optional[Z.AxisOrAxes]:
         return self._axis
 
     @property

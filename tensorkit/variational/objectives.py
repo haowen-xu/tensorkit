@@ -1,14 +1,15 @@
 from typing import *
 
 from .. import tensor as T
+from ..tensor import typing as Z
 from .utils import _require_multi_samples
 
 __all__ = ['elbo_objective', 'monte_carlo_objective']
 
 
-def elbo_objective(log_joint: T.TensorLike,
-                   latent_log_prob: T.TensorLike,
-                   axis: Optional[T.AxisOrAxes] = None,
+def elbo_objective(log_joint: Z.TensorLike,
+                   latent_log_prob: Z.TensorLike,
+                   axis: Optional[Z.AxisOrAxes] = None,
                    keepdims: bool = False) -> T.Tensor:
     log_joint = T.as_tensor(log_joint)
     latent_log_prob = T.as_tensor(latent_log_prob)
@@ -18,9 +19,9 @@ def elbo_objective(log_joint: T.TensorLike,
     return objective
 
 
-def monte_carlo_objective(log_joint: T.TensorLike,
-                          latent_log_prob: T.TensorLike,
-                          axis: Optional[T.AxisOrAxes] = None,
+def monte_carlo_objective(log_joint: Z.TensorLike,
+                          latent_log_prob: Z.TensorLike,
+                          axis: Optional[Z.AxisOrAxes] = None,
                           keepdims: bool = False) -> T.Tensor:
     _require_multi_samples(axis, 'monte carlo objective')
     log_joint = T.as_tensor(log_joint)

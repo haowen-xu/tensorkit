@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..tensor import typing as Z
 from ..bayes import BayesianNet
 from .inference import VariationalInference
 
@@ -12,9 +13,9 @@ class VariationalChain(object):
     def __init__(self,
                  q: BayesianNet,
                  p: BayesianNet,
-                 log_joint: Optional[T.TensorLike] = None,
+                 log_joint: Optional[Z.TensorLike] = None,
                  latent_names: Optional[Iterable[str]] = None,
-                 latent_axis: Optional[T.AxisOrAxes] = None):
+                 latent_axis: Optional[Z.AxisOrAxes] = None):
         if latent_names is None:
             latent_names = tuple(q)
         else:
@@ -55,7 +56,7 @@ class VariationalChain(object):
         return self._latent_names
 
     @property
-    def latent_axis(self) -> Optional[T.AxisOrAxes]:
+    def latent_axis(self) -> Optional[Z.AxisOrAxes]:
         return self._latent_axis
 
     @property

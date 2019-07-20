@@ -1,7 +1,7 @@
 from typing import *
 
 from .. import tensor as T
-from ..tensor import typing as TT
+from ..tensor import typing as Z
 from ..stochastic import StochasticTensor
 from .base import Distribution
 
@@ -12,9 +12,9 @@ class Bernoulli(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[TT.TensorLike] = None,
-                 probs: Optional[TT.TensorLike] = None,
-                 dtype: TT.DTypeLike = T.int32,
+                 logits: Optional[Z.TensorLike] = None,
+                 probs: Optional[Z.TensorLike] = None,
+                 dtype: Z.DTypeLike = T.int32,
                  event_ndims: int = 0,
                  check_numerics: Optional[bool] = None,
                  random_state: Optional[T.random.RandomState] = None,
@@ -99,7 +99,7 @@ class Bernoulli(Distribution):
 
         return t
 
-    def log_prob(self, given: TT.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
         return T.nn.binary_cross_entropy_with_logits(
             logits=self.logits, labels=given, negative=True)
 
