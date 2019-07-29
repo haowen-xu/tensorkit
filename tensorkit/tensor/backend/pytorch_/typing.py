@@ -17,6 +17,6 @@ Shape = torch.Size
 
 # type annotations
 TensorLike = Union[Tensor, Variable, 'TensorWrapper', np.ndarray]
-DTypeLike = Union[str, np.dtype, DType]
+DTypeLike = Union[str, np.dtype, DType, Type[int], Type[float]]
 ShapeLike = Sequence[int]
-AxisOrAxes = Union[int, Tuple[int, ...]]
+AxisOrAxes = Union[int, Tuple[int, ...], List[int]]

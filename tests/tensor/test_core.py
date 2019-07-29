@@ -1,4 +1,5 @@
 import unittest
+from typing import *
 
 import numpy as np
 import pytest
@@ -15,8 +16,13 @@ class TensorCoreTestCase(unittest.TestCase):
         t = T.as_tensor(np.random.randn(2, 3))
         self.assertIsInstance(t, T.Tensor)
 
+        # TODO: check T.Variable
+
+        self.assertIsInstance(T.int32, T.DType)
+
         s = T.as_shape([1, 2, 3])
         self.assertIsInstance(s, T.Shape)
+        self.assertEqual(tuple(s), (1, 2, 3))
 
     def test_dtypes(self):
         # test dtypes
@@ -100,7 +106,9 @@ class TensorCoreTestCase(unittest.TestCase):
         self.assertEqual(T.dtype(t2), T.float32)
         np.testing.assert_equal(T.to_numpy(t2), x)
 
-    def test_tensor_constructions(self):
+    def test_tensor_constructors(self):
+        np.random.seed(1234)
+
         # test as_tensor
         t = T.as_tensor(1)
         self.assertIsInstance(t, T.Tensor)
@@ -127,6 +135,83 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception):
             _ = T.as_tensor(object())  # not a tensor, should raise error
+
+        # test register_as_tensor
+        class MyArray(object):
+            def __init__(self, data):
+                self.data = data
+
+        x = np.random.normal(size=[1, 2, 3]).astype(np.float32)
+        with pytest.raises(Exception):
+            _ = T.as_tensor(MyArray(x))
+
+        def to_tensor(data: MyArray, dtype: Optional[T.DType]) -> T.Tensor:
+            return T.as_tensor(data.data, dtype)
+
+        T.register_as_tensor(MyArray, to_tensor)
+
+        t = T.as_tensor(MyArray(x))
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float32)
+        np.testing.assert_allclose(T.to_numpy(t), x)
+
+        t = T.as_tensor(MyArray(x), T.float64)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float64)
+        np.testing.assert_allclose(T.to_numpy(t), x)
+
+        # test zeros
+        t = T.zeros([1, 2, 3], T.float16)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float16)
+        np.testing.assert_equal(t, np.zeros([1, 2, 3]))
+
+        # test ones
+        t = T.ones([1, 2, 3], T.float16)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float16)
+        np.testing.assert_equal(t, np.ones([1, 2, 3]))
+
+    def test_shape_utils(self):
+        # test shape
+        x = np.random.randn(2, 3, 4)
+        t = T.as_tensor(x)
+        s = T.shape(t)
+        self.assertIsInstance(s, T.Shape)
+        self.assertEqual(tuple(s), (2, 3, 4))
+
+        # test rank
+        self.assertEqual(T.rank(t), 3)
+
+        # test reshape
+        t2 = T.reshape(t, [3, 8])
+        self.assertEqual(tuple(T.shape(t2)), (3, 8))
+        np.testing.assert_equal(T.to_numpy(t2), np.reshape(x, [3, 8]))
+
+        with pytest.raises(Exception):
+            _ = T.reshape(t, [4, 8])
+
+        # test squeeze
+        x = np.random.randn(1, 2, 1, 3, 1, 4, 1)
+        t = T.as_tensor(x)
+
+        t2 = T.squeeze(x)
+        s2 = (2, 3, 4)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        t2 = T.squeeze(t, -1)
+        s2 = (1, 2, 1, 3, 1, 4)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        t2 = T.squeeze(t, [-1, 0, 4, 6])
+        s2 = (2, 1, 3, 4)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        with pytest.raises(Exception, match='Axis .* cannot be squeezed'):
+            _ = T.squeeze(t, [-1, -2])
 
     def test_math_univariate_op(self):
         np.random.seed(1234)

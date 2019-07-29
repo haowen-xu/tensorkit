@@ -70,7 +70,6 @@ __all__ = [
     {{format_all_list(UNIVARIATE_OPS + BIVARIATE_OPS)}},
 ]
 
-
 # ---- jit ----
 def jit(fn):
     if not settings.disable_jit:
@@ -159,7 +158,7 @@ def shape(x: TensorLike) -> Shape:
 
 
 def rank(x: TensorLike) -> int:
-    return as_tensor(x).numel()
+    return len(as_tensor(x).shape)
 
 
 def reshape(x: TensorLike, shape: ShapeLike) -> Tensor:
@@ -212,29 +211,35 @@ def expand(x: TensorLike, desired_shape: ShapeLike) -> Tensor:
     return as_tensor(x).expand(desired_shape)
 
 
+@jit
+def _squeeze_slow_branch(x, axis):
+    # type: (Tensor, List[int]) -> Tensor
+    old_shape = x.shape
+    new_shape_mask = [True] * len(old_shape)
+    for a in axis:
+        if old_shape[a] == 1:
+            new_shape_mask[a] = False
+        else:
+            raise ValueError('Axis {} cannot be squeezed, since its '
+                             'size is {} != 1'.format(a, old_shape[a]))
+    new_shape = torch.jit.annotate(List[int], [])
+    for i in range(len(old_shape)):
+        if new_shape_mask[i]:
+            new_shape.append(old_shape[i])
+    return x.reshape(new_shape)
+
+
 def squeeze(x: TensorLike, axis: Optional[AxisOrAxes] = None) -> Tensor:
     axis = validate_int_tuple_arg('axis', axis, nullable=True)
     x = as_tensor(x)
 
     if axis is not None:
         if len(axis) == 1:
-            x = torch.squeeze(x, axis)
+            return torch.squeeze(x, axis[0])
         else:
-            old_shape = shape(x)
-            new_shape_mask = [True] * len(old_shape)
-            for a in axis:
-                if old_shape[a] == 1:
-                    new_shape_mask[a] = False
-                else:
-                    raise ValueError(f'Axis {a} cannot be squeezed, since its '
-                                     f'size is {old_shape[a]} != 1')
-            new_shape = [s for i, s in enumerate(old_shape)
-                         if new_shape_mask[i]]
-            x = reshape(x, tuple(new_shape))
+            return _squeeze_slow_branch(x, list(axis))
     else:
-        x = torch.squeeze(x)
-
-    return x
+        return torch.squeeze(x)
 
 
 def expand_dim(x: TensorLike, axis: int) -> Tensor:

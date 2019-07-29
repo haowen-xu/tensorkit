@@ -145,6 +145,118 @@ backend.as_tensor.__doc__ = """
         dtype: Cast the data into this DType.
 """
 
+backend.register_as_tensor.__doc__ = """
+    Register a function to convert an object of a custom type into a Tensor.
+    
+    >>> from typing import Optional
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+    
+    >>> class MyArray(object):
+    ...     def __init__(self, data):
+    ...         self.data = data
+
+    >>> def my_array_to_tensor(data: MyArray, dtype: Optional[T.DType]
+    ...                        ) -> T.Tensor:
+    ...     return T.as_tensor(data.data, dtype)
+
+    >>> T.register_as_tensor(MyArray, my_array_to_tensor)
+    >>> t = T.as_tensor(MyArray(np.asarray([1, 2, 3], dtype=np.int32)))
+    >>> T.to_numpy(t)
+    array([1, 2, 3], dtype=int32)
+
+    Args:
+        type_: The custom type.
+        convertor: A function ``(data: Any, dtype: DType) -> Tensor``,
+            to convert the given `data` into a tensor.
+"""
+
+backend.zeros.__doc__ = """
+    Construct a tensor with all elements equal to zero.
+
+    >>> from tensorkit import tensor as T
+    >>> t = T.zeros([2, 3], dtype=T.float32)
+    >>> T.to_numpy(t)
+    array([[0., 0., 0.],
+           [0., 0., 0.]], dtype=float32)
+
+    Args:
+        shape: The shape of the tensor.
+        dtype: The dtype of the tensor.
+"""
+
+backend.ones.__doc__ = """
+    Construct a tensor with all elements equal to one.
+
+    >>> from tensorkit import tensor as T
+    >>> t = T.ones([2, 3], dtype=T.float32)
+    >>> T.to_numpy(t)
+    array([[1., 1., 1.],
+           [1., 1., 1.]], dtype=float32)
+
+    Args:
+        shape: The shape of the tensor.
+        dtype: The dtype of the tensor.
+"""
+
+
+# shape utils
+backend.shape.__doc__ = """
+    Get the shape of the given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> shape = T.shape(T.zeros([2, 3]))
+    >>> isinstance(shape, T.Shape)
+    True
+    >>> tuple(shape)
+    (2, 3)
+    
+    Args:
+        x: The tensor.
+"""
+
+backend.rank.__doc__ = """
+    Get the rank of the given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> T.rank(T.zeros([2, 3]))
+    2
+    
+    Args:
+        x: The tensor.
+"""
+
+backend.reshape.__doc__ = """
+    Reshape the given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.zeros([2, 3, 4])
+    >>> t2 = T.reshape(t, [3, 8])
+    >>> tuple(T.shape(t2))
+    (3, 8)
+    
+    Args:
+        x: The tensor to be reshaped.
+        shape: The new shape for the tensor.
+"""
+
+backend.squeeze.__doc__ = """
+    Squeeze `1` s in the shape of a given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.zeros([1, 2, 1, 3, 4, 1])
+    >>> tuple(T.shape(T.squeeze(t)))
+    (2, 3, 4)
+    >>> tuple(T.shape(T.squeeze(t, -1)))
+    (1, 2, 1, 3, 4)
+    >>> tuple(T.shape(T.squeeze(t, [0, -1])))
+    (2, 1, 3, 4)
+    
+    Args:
+        x: The tensor to be squeezed.
+        axis: The axis(es) to be squeezed.  If not specified, squeeze all axes.
+"""
+
 
 # univariate element-wise math operations
 def _f(method, name=None, expr=None):
