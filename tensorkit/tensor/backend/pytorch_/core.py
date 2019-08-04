@@ -40,9 +40,6 @@ __all__ = [
     'reduce_sum', 'reduce_mean', 'log_sum_exp', 'log_mean_exp',
     'reduce_max', 'reduce_min',
 
-    # bits operators
-    'invert', 'and_', 'or_', 'xor',
-
     # logical operators
     'boolean', 'to_boolean',
     'logical_not', 'logical_and', 'logical_or', 'logical_xor',
@@ -61,6 +58,7 @@ __all__ = [
     'abs', 'neg', 'exp', 'log', 'log1p', 'sin', 'cos', 'add', 'sub', 'mul',
     'fmod', 'pow',
 ]
+
 
 # ---- jit ----
 def jit(fn):
@@ -173,9 +171,7 @@ def reshape(x: TensorLike, shape: ShapeLike) -> Tensor:
 
 
 @jit
-def _repeat(x, repeats):
-    # type: (torch.Tensor, List[int]) -> torch.Tensor
-
+def _repeat(x: Tensor, repeats: List[int]) -> Tensor:
     x_shape = x.shape
     x_rank = len(x_shape)
     repeats_len = len(repeats)
@@ -205,7 +201,7 @@ def _repeat(x, repeats):
         return x
     elif mode == 1:
         expands = repeats[:extra_len] + \
-            list([-1 if a == 1 else a for a in repeats[extra_len:]])  # type: List[int]
+            list([-1 if a == 1 else a for a in repeats[extra_len:]])
         return x.expand(expands)
     else:
         return x.repeat(repeats)
@@ -221,8 +217,7 @@ def expand(x: TensorLike, desired_shape: ShapeLike) -> Tensor:
 
 
 @jit
-def _squeeze_slow_branch(x, axis):
-    # type: (Tensor, List[int]) -> Tensor
+def _squeeze_slow_branch(x: Tensor, axis: List[int]) -> Tensor:
     old_shape = x.shape
     new_shape_mask = [True] * len(old_shape)
     for a in axis:
@@ -257,13 +252,11 @@ def expand_dim(x: TensorLike, axis: int) -> Tensor:
 
 
 @jit
-def _broadcast_shape(x, y):
-    # type: (List[int], List[int]) -> List[int]
+def _broadcast_shape(x: List[int], y: List[int]) -> List[int]:
     common_len = min(len(x), len(y))
 
     right = torch.jit.annotate(List[int], [])
     for i in range(common_len):
-        # for a, b in zip(x[-common_len:], y[-common_len:]):
         a = x[i - common_len]
         b = y[i - common_len]
         if a == 1:
@@ -288,8 +281,9 @@ def broadcast_shape(x: ShapeLike, y: ShapeLike) -> Shape:
 
 
 @jit
-def _broadcast_to_sub(t, t_shape, out_shape):
-    # type: (Tensor, List[int], List[int]) -> Tensor
+def _broadcast_to_sub(t: Tensor,
+                      t_shape: List[int],
+                      out_shape: List[int]) -> Tensor:
     t_rank = len(t_shape)
     out_rank = len(out_shape)
 
@@ -313,8 +307,7 @@ def _broadcast_to_sub(t, t_shape, out_shape):
 
 
 @jit
-def _broadcast_to(x, new_shape):
-    # type: (Tensor, List[int]) -> Tensor
+def _broadcast_to(x: Tensor, new_shape: List[int]) -> Tensor:
     x_shape = list(x.shape)
     x_rank = len(x_shape)
     new_rank = len(new_shape)
@@ -352,8 +345,7 @@ def explicit_broadcast(x: TensorLike,
 
 
 @jit
-def _flatten_to_ndims(x, ndims):
-    # type: (Tensor, int) -> Tuple[Tensor, List[int]]
+def _flatten_to_ndims(x: Tensor, ndims: int) -> Tuple[Tensor, List[int]]:
     if ndims < 1:
         raise ValueError('`ndims >= 1` must hold when `rank(x) >= 1`: '
                          'got ndims {}'.format(ndims))
@@ -397,8 +389,7 @@ def unflatten_from_ndims(x: TensorLike, front_shape: Optional[Shape]
 
 # ---- split / join / indexing / gathering ----
 @jit
-def _index_select(x, indices, axis):
-    # type: (Tensor, Tensor, int) -> Tensor
+def _index_select(x: Tensor, indices: Tensor, axis: int) -> Tensor:
     x_shape = x.shape
     i_shape = indices.shape
 
@@ -676,24 +667,7 @@ def log_mean_exp(x: TensorLike,
     return x_max + torch.log(mean_exp)
 
 
-# ---- bits operators ----
-def invert(x: TensorLike) -> Tensor:
-    return ~as_tensor(x)
-
-
-def and_(x: TensorLike, y: TensorLike) -> Tensor:
-    return as_tensor(x) & as_tensor(y)
-
-
-def or_(x: TensorLike, y: TensorLike) -> Tensor:
-    return as_tensor(x) | as_tensor(y)
-
-
-def xor(x: TensorLike, y: TensorLike) -> Tensor:
-    return as_tensor(x) ^ as_tensor(y)
-
-
-# ---- logical operators ----
+# ---- logical operations ----
 boolean = torch.uint8
 
 
@@ -709,7 +683,7 @@ def logical_not(x: TensorLike) -> Tensor:
     return ~x
 
 
-def _logical_bi_op(op, x: TensorLike, y: TensorLike) -> Tensor:
+def logical_and(x: TensorLike, y: TensorLike) -> Tensor:
     x = as_tensor(x)
     y = as_tensor(y)
 
@@ -720,19 +694,35 @@ def _logical_bi_op(op, x: TensorLike, y: TensorLike) -> Tensor:
         raise TypeError(f'Expected y to be {boolean}, got {y!r} of type '
                         f'{y.dtype} instead.')
 
-    return op(x, y)
-
-
-def logical_and(x: TensorLike, y: TensorLike) -> Tensor:
-    return _logical_bi_op(operator.and_, x, y)
+    return x & y
 
 
 def logical_or(x: TensorLike, y: TensorLike) -> Tensor:
-    return _logical_bi_op(operator.or_, x, y)
+    x = as_tensor(x)
+    y = as_tensor(y)
+
+    if x.dtype != boolean:
+        raise TypeError(f'Expected x to be {boolean}, got {x!r} of type '
+                        f'{x.dtype} instead.')
+    if y.dtype != boolean:
+        raise TypeError(f'Expected y to be {boolean}, got {y!r} of type '
+                        f'{y.dtype} instead.')
+
+    return x | y
 
 
 def logical_xor(x: TensorLike, y: TensorLike) -> Tensor:
-    return _logical_bi_op(operator.xor, x, y)
+    x = as_tensor(x)
+    y = as_tensor(y)
+
+    if x.dtype != boolean:
+        raise TypeError(f'Expected x to be {boolean}, got {x!r} of type '
+                        f'{x.dtype} instead.')
+    if y.dtype != boolean:
+        raise TypeError(f'Expected y to be {boolean}, got {y!r} of type '
+                        f'{y.dtype} instead.')
+
+    return x ^ y
 
 
 # ---- comparison operators ----
@@ -877,25 +867,25 @@ class TensorWrapper(object):
 
     # logical operations
     def __invert__(self):
-        return invert(self.tensor)
+        return logical_not(self.tensor)
 
     def __and__(self, other):
-        return and_(self.tensor, other)
+        return logical_and(self.tensor, other)
 
     def __rand__(self, other):
-        return and_(other, self.tensor)
+        return logical_and(other, self.tensor)
 
     def __or__(self, other):
-        return or_(self.tensor, other)
+        return logical_or(self.tensor, other)
 
     def __ror__(self, other):
-        return or_(other, self.tensor)
+        return logical_or(other, self.tensor)
 
     def __xor__(self, other):
-        return xor(self.tensor, other)
+        return logical_xor(self.tensor, other)
 
     def __rxor__(self, other):
-        return xor(other, self.tensor)
+        return logical_xor(other, self.tensor)
 
     # boolean operations
     def __lt__(self, other):

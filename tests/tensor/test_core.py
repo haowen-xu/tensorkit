@@ -471,8 +471,8 @@ class TensorCoreTestCase(unittest.TestCase):
 
     def test_math_univariate_op(self):
         np.random.seed(1234)
-        x = np.random.randn(2, 3)
 
+        x = np.random.randn(2, 3)
         assert_allclose(T.to_numpy(T.abs(x)), np.abs(x))
         assert_allclose(T.to_numpy(T.neg(x)), -x)
         assert_allclose(T.to_numpy(T.exp(x)), np.exp(x))
@@ -607,3 +607,89 @@ class TensorCoreTestCase(unittest.TestCase):
                 T.to_numpy(T_op(t, axis=[0, -1], keepdims=True)),
                 np_op(x, axis=(0, -1), keepdims=True)
             )
+
+    def test_logical_op(self):
+        def read_bool(t):
+            return T.to_numpy(t).astype(np.bool)
+
+        def with_raise(name, fn):
+            with pytest.raises(Exception,
+                               match=f'Expected {name} to be {T.boolean}'):
+                _ = fn()
+
+        x = np.asarray([[True, True, False, False],
+                        [False, False, True, True]])
+        y = np.asarray([True, False, False, True])
+        t1 = T.to_boolean(x)
+        t2 = T.to_boolean(y)
+
+        # test to_boolean
+        self.assertEqual(T.dtype(t1), T.boolean)
+        np.testing.assert_equal(read_bool(t1), x)
+
+        # test logical_not
+        out = T.logical_not(t1)
+        np.testing.assert_equal(read_bool(out), np.logical_not(x))
+        with_raise('x', lambda: T.logical_not(T.as_tensor([1, 2, 3])))
+
+        # test logical_and
+        out = T.logical_and(t1, t2)
+        np.testing.assert_equal(read_bool(out), np.logical_and(x, y))
+        with_raise('x', lambda: T.logical_and(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_and(t1, T.as_tensor([1, 2, 3, 4])))
+
+        # test logical_or
+        out = T.logical_or(t1, t2)
+        np.testing.assert_equal(read_bool(out), np.logical_or(x, y))
+        with_raise('x', lambda: T.logical_or(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_or(t1, T.as_tensor([1, 2, 3, 4])))
+
+        # test logical_xor
+        out = T.logical_xor(t1, t2)
+        np.testing.assert_equal(read_bool(out), np.logical_xor(x, y))
+        with_raise('x', lambda: T.logical_xor(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_xor(t1, T.as_tensor([1, 2, 3, 4])))
+
+    def test_comparison_op(self):
+        def read_bool(t):
+            self.assertEqual(T.dtype(t), T.boolean)
+            return T.to_numpy(t).astype(np.bool)
+
+        np.random.seed(1234)
+        x = np.random.randn(2, 3, 4)
+        y = np.random.randn(1, 3, 4)
+        x = np.concatenate([y, x], axis=0)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
+
+        # test equal
+        np.testing.assert_equal(read_bool(T.equal(t1, t2)), (x == y))
+
+        # test not_equal
+        np.testing.assert_equal(read_bool(T.not_equal(t1, t2)), (x != y))
+
+        # test less
+        np.testing.assert_equal(read_bool(T.less(t1, t2)), (x < y))
+
+        # test less_equal
+        np.testing.assert_equal(read_bool(T.less_equal(t1, t2)), (x <= y))
+
+        # test greater
+        np.testing.assert_equal(read_bool(T.greater(t1, t2)), (x > y))
+
+        # test greater_equal
+        np.testing.assert_equal(read_bool(T.greater_equal(t1, t2)), (x >= y))
+
+        # test minimum
+        np.testing.assert_equal(T.to_numpy(T.minimum(t1, t2)), np.minimum(x, y))
+
+        # test maximum
+        np.testing.assert_equal(T.to_numpy(T.maximum(t1, t2)), np.maximum(x, y))
+
+        # test clip
+        self.assertTrue(np.any(x < -0.5))
+        self.assertTrue(np.any(x > 0.5))
+        np.testing.assert_equal(
+            T.to_numpy(T.clip(t1, -0.5, 0.5)),
+            np.clip(x, -0.5, 0.5)
+        )

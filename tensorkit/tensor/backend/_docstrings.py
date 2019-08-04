@@ -1,3 +1,7 @@
+import operator
+
+import numpy as np
+
 from . import backend
 
 __all__ = []
@@ -639,3 +643,64 @@ _f(backend.log_mean_exp, expr='\\log \\frac{1}{K} \\sum_{k=1}^K \\exp(x_k)',
             x_{max} &= \\max x_k
         \\end{align*}
    """)
+
+
+# logical operations
+backend.to_boolean.__doc__ = """
+    Convert a tensor into boolean tensor.
+    
+    The output tensor will have `T.boolean` dtype.  Some backend may not
+    have a dedicated boolean dtype, and it may be an alias of another integral
+    type, e.g., it might be `T.uint8`.
+
+    >>> from tensorkit import tensor as T
+    >>> t = T.to_boolean([True, False])
+    >>> t.dtype == T.boolean
+    True
+
+    Args:
+        x: The input tensor. 
+"""
+
+backend.logical_not.__doc__ = """
+    Compute the element-wise logical not of a given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.to_boolean([True, False])
+    >>> t2 = T.logical_not(t)
+    >>> T.to_numpy(t2).astype(np.bool)
+    array([False,  True])
+    
+    Args:
+        x: The input tensor.
+"""
+
+
+def _f(method, name, op):
+    x = np.asarray([True, True, False, False])
+    y = np.asarray([True, False, False, True])
+    t = op(x, y)
+
+    method.__doc__ = f"""
+    Compute element-wise logical {name} of two given tensors.
+    
+    >>> from tensorkit import tensor as T
+    >>> x = T.to_boolean([True, True, False, False])
+    >>> y = T.to_boolean([True, False, False, True])
+    >>> t = T.logical_{name}(x, y)
+    >>> T.to_numpy(t).astype(np.bool)
+    {repr(t)}
+
+    Args:
+        x: The first input tensor.
+        y: The second input tensor.
+    """
+
+
+_f(backend.logical_and, 'and', operator.and_)
+_f(backend.logical_or, 'or', operator.or_)
+_f(backend.logical_xor, 'xor', operator.xor)
+
+
+# comparison operations
+
