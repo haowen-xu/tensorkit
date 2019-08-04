@@ -1,4 +1,5 @@
 import unittest
+from functools import partial
 from typing import *
 
 import numpy as np
@@ -553,3 +554,56 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception, match='`tensors` must not be empty'):
             _ = T.add_n([])
+
+    def test_reduction_op(self):
+        def log_f_exp(f, x, axis=None, keepdims=False):
+            x_max_keepdims = np.max(x, axis=axis, keepdims=True)
+            if not keepdims:
+                x_max = np.squeeze(x_max_keepdims, axis=axis)
+            else:
+                x_max = x_max_keepdims
+            f_exp = f(np.exp(x - x_max_keepdims), axis=axis, keepdims=keepdims)
+            return x_max + np.log(f_exp)
+
+        log_sum_exp = partial(log_f_exp, np.sum)
+        log_mean_exp = partial(log_f_exp, np.mean)
+
+        # prepare for the data
+        np.random.seed(1234)
+        x = np.random.randn(2, 3, 4)
+        t = T.as_tensor(x)
+
+        # test sum, mean, max, min
+        for name in ['sum', 'mean', 'min', 'max',
+                     'log_sum_exp', 'log_mean_exp']:
+            T_op = getattr(T, 'reduce_' + name, getattr(T, name, None))
+            np_op = getattr(np, name,
+                            {
+                                'log_sum_exp': log_sum_exp,
+                                'log_mean_exp': log_mean_exp,
+                            }.get(name))
+
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t)),
+                np_op(x)
+            )
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t, keepdims=True)),
+                np_op(x, keepdims=True)
+            )
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t, axis=-1)),
+                np_op(x, axis=-1)
+            )
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t, axis=-1, keepdims=True)),
+                np_op(x, axis=-1, keepdims=True)
+            )
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t, axis=[0, -1])),
+                np_op(x, axis=(0, -1))
+            )
+            np.testing.assert_allclose(
+                T.to_numpy(T_op(t, axis=[0, -1], keepdims=True)),
+                np_op(x, axis=(0, -1), keepdims=True)
+            )

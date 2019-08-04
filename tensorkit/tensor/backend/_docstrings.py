@@ -514,7 +514,7 @@ def _f(method, name=None, expr=None):
     if name is None:
         name = method.__name__
     if expr is None:
-        expr = f'\\\\{name}(x)'
+        expr = rf'\\{name}(x)'
     method.__doc__ = f"""
     Compute the output of element-wise :math:`{expr}`.
     
@@ -538,7 +538,7 @@ def _f(method, name=None, expr=None):
     if name is None:
         name = method.__name__
     if expr is None:
-        expr = f'\\\\{name}(x,y)'
+        expr = rf'\\{name}(x,y)'
     method.__doc__ = f"""
     Compute the output of element-wise :math:`{expr}`.
     
@@ -586,3 +586,56 @@ backend.add_n.__doc__ = """
         tensors: The sequence of tensors.
 """
 
+
+# reduction operations
+def _f(method, name=None, expr=None, desc=None):
+    if name is None:
+        name = method.__name__
+    if expr is None:
+        expr = rf'\\{name}(x)'
+    if desc is not None:
+        desc = f'\n{desc}'
+    else:
+        desc = ''
+    method.__doc__ = f"""
+    Compute :math:`{expr}` along specified dimension.{desc}
+
+    Args:
+        x: The input tensor.
+        axis: The axis for computing :math:`{expr}`.  If not specified,
+            all dimensions will be considered.
+        keepdims: Whether or not to keep the reduced dimension?
+            Defaults to :obj:`False`.
+    """
+
+
+_f(backend.reduce_sum, name='sum')
+_f(backend.reduce_mean, name='mean')
+_f(backend.reduce_max, name='max')
+_f(backend.reduce_min, name='min')
+_f(backend.log_sum_exp, expr='\\log \\sum_{k=1}^K \\exp(x_k)',
+   desc="""
+    .. math::
+
+        \\begin{align*}
+            \\log \\sum_{k=1}^K \\exp(x_k)
+                &= \\log \\left[\\exp(x_{max})
+                    \\sum_{k=1}^K \\exp(x_k - x_{max})\\right] \\\\
+                &= x_{max} + \\log
+                    \\sum_{k=1}^K \\exp(x_k - x_{max}) \\\\
+            x_{max} &= \\max x_k
+        \\end{align*}
+   """)
+_f(backend.log_mean_exp, expr='\\log \\frac{1}{K} \\sum_{k=1}^K \\exp(x_k)',
+   desc="""
+    .. math::
+
+        \\begin{align*}
+            \\log \\frac{1}{K} \\sum_{k=1}^K \\exp(x_k)
+                &= \\log \\left[\\exp(x_{max}) \\frac{1}{K}
+                    \\sum_{k=1}^K \\exp(x_k - x_{max})\\right] \\\\
+                &= x_{max} + \\log \\frac{1}{K}
+                    \\sum_{k=1}^K \\exp(x_k - x_{max}) \\\\
+            x_{max} &= \\max x_k
+        \\end{align*}
+   """)

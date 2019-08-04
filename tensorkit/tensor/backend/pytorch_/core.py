@@ -7,7 +7,6 @@ from mltk.utils import InheritanceDict
 from torch.jit import script
 
 from ....settings_ import settings
-from ....utils import validate_int_tuple_arg
 from .dtypes import _DTYPES, _NUMPY_DTYPES, int32
 from .typing import *
 
@@ -240,7 +239,8 @@ def _squeeze_slow_branch(x, axis):
 
 
 def squeeze(x: TensorLike, axis: Optional[AxisOrAxes] = None) -> Tensor:
-    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+    if axis is not None:
+        axis = list(axis) if isinstance(axis, (tuple, list)) else [axis]
     x = as_tensor(x)
 
     if axis is not None:
@@ -351,27 +351,33 @@ def explicit_broadcast(x: TensorLike,
     return x, y
 
 
-def flatten_to_ndims(x: TensorLike, ndims: int
-                     ) -> Tuple[Tensor, Optional[Shape]]:
-    x = as_tensor(x)
-    x_shape = x.shape
-    if len(x_shape) == ndims:
-        return x, None
-    elif ndims < 1:
-        raise ValueError(f'`ndims >= 1` must hold when `rank(x) >= 1`: '
-                         f'got ndims {ndims!r}')
+@jit
+def _flatten_to_ndims(x, ndims):
+    # type: (Tensor, int) -> Tuple[Tensor, List[int]]
+    if ndims < 1:
+        raise ValueError('`ndims >= 1` must hold when `rank(x) >= 1`: '
+                         'got ndims {}'.format(ndims))
+    if len(x.shape) < ndims:
+        raise ValueError('rank(x) < ndims: x.shape is {}, while '
+                         'ndims is {}'.format(x.shape, ndims))
 
-    x_rank = len(x_shape)
-    if x_rank < ndims:
-        raise ValueError(f'rank(x) < ndims: x.shape is {x_shape}, while '
-                         f'ndims is {ndims}')
-    elif ndims == 1:
-        front_shape = x_shape
+    if ndims == 1:
+        front_shape = list(x.shape)
         return x.reshape((-1,)), front_shape
     else:
         offset = ndims - 1
-        front_shape, back_shape = x_shape[: -offset], x_shape[-offset:]
-        return x.reshape((-1,) + back_shape), front_shape
+        front_shape, back_shape = x.shape[: -offset], x.shape[-offset:]
+        return x.reshape([-1] + list(back_shape)), front_shape
+
+
+def flatten_to_ndims(x: TensorLike, ndims: int
+                     ) -> Tuple[Tensor, Optional[Shape]]:
+    x = as_tensor(x)
+    if len(x.shape) == ndims:
+        return x, None
+    else:
+        out, front_shape = _flatten_to_ndims(x, ndims)
+        return out, Shape(front_shape)
 
 
 def unflatten_from_ndims(x: TensorLike, front_shape: Optional[Shape]
@@ -542,8 +548,8 @@ def _reduce_sum_sub(x, keepdims):
 
 
 def reduce_sum(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
+               axis: Optional[AxisOrAxes] = None,
+               keepdims: bool = False) -> Tensor:
     x = as_tensor(x)
     if axis is None:
         return _reduce_sum_sub(x, keepdims=keepdims)
@@ -561,8 +567,8 @@ def _reduce_mean_sub(x, keepdims):
 
 
 def reduce_mean(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
+                axis: Optional[AxisOrAxes] = None,
+                keepdims: bool = False) -> Tensor:
     x = as_tensor(x)
     if axis is None:
         return _reduce_mean_sub(x, keepdims=keepdims)
@@ -593,10 +599,12 @@ def _reduce_max_2(x, axis, keepdims):
 
 
 def reduce_max(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
-    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+               axis: Optional[AxisOrAxes] = None,
+               keepdims: bool = False) -> Tensor:
+    if axis is not None:
+        axis = list(axis) if isinstance(axis, (tuple, list)) else [axis]
     x = as_tensor(x)
+
     if axis is None:
         return _reduce_max_1(x, keepdims)
     else:
@@ -626,10 +634,12 @@ def _reduce_min_2(x, axis, keepdims):
 
 
 def reduce_min(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
-    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+               axis: Optional[AxisOrAxes] = None,
+               keepdims: bool = False) -> Tensor:
+    if axis is not None:
+        axis = list(axis) if isinstance(axis, (tuple, list)) else [axis]
     x = as_tensor(x)
+
     if axis is None:
         return _reduce_min_1(x, keepdims)
     else:
@@ -641,7 +651,7 @@ def log_sum_exp(x: TensorLike,
                 keepdims: bool = False) -> Tensor:
     x = as_tensor(x)
     if axis is None:
-        axis = [1] * len(x.shape)
+        axis = list(range(len(x.shape)))
         if keepdims:
             return torch.logsumexp(x, dim=axis, keepdim=True)
         else:
@@ -653,7 +663,8 @@ def log_sum_exp(x: TensorLike,
 def log_mean_exp(x: TensorLike,
                  axis: Optional[AxisOrAxes] = None,
                  keepdims: bool = False) -> Tensor:
-    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+    if axis is not None:
+        axis = list(axis) if isinstance(axis, (tuple, list)) else [axis]
     x = as_tensor(x)
     x_max_keepdims = reduce_max(x, axis=axis, keepdims=True)
     if not keepdims:
