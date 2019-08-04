@@ -527,7 +527,7 @@ _f(backend.abs, expr='|x|')
 _f(backend.neg, expr='-x')
 _f(backend.exp)
 _f(backend.log)
-_f(backend.log1p, expr='\\\\log(1+x)')
+_f(backend.log1p, expr='\\log(1+x)')
 _f(backend.sin)
 _f(backend.cos)
 _f(backend.square, expr='x ^ 2')
@@ -555,7 +555,7 @@ _f(backend.sub, expr='x - y')
 _f(backend.mul, expr='x * y')
 _f(backend.mod, expr='x % y')
 _f(backend.pow, expr='x ^ y')
-_f(backend.floordiv, expr='\\\\lfloor x / y \\\\rfloor')
+_f(backend.floordiv, expr='\\rfloor x / y \\rfloor')
 
 backend.div.__doc__ = backend.truediv.__doc__ = """
     Compute the output of element-wise :math:`x / y`.
