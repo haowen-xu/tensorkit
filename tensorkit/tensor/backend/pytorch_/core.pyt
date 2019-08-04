@@ -58,7 +58,7 @@ __all__ = [
     'minimum', 'maximum', 'clip',
 
     # gradient utilities
-    'stop_gradient',
+    'requires_grad', 'clear_grad', 'back_prop', 'grad', 'detach',
 
     # tensor wrapper
     'TensorWrapper', 'register_tensor_wrapper_class',
@@ -653,8 +653,24 @@ def clip(x: TensorLike, x_min: float, x_max: float) -> Tensor:
 
 
 # ---- gradient utilities ----
-def stop_gradient(x: TensorLike) -> Tensor:
-    return as_tensor(x).detach()
+def requires_grad(x: Tensor):
+    x.requires_grad_(True)
+
+
+def clear_grad(x: Tensor) -> Tensor:
+    return x.grad.data.zero_()
+
+
+def back_prop(x: Tensor):
+    x.backward()
+
+
+def grad(x: Tensor) -> Optional[Tensor]:
+    return x.grad
+
+
+def detach(x: Tensor) -> Tensor:
+    return x.detach()
 
 
 # ---- TensorWrapper ----

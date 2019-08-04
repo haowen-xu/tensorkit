@@ -62,7 +62,7 @@ class BayesianNet(object):
                     is_reparameterized = ob_tensor.is_reparameterized
 
             if not is_reparameterized:
-                ob_tensor = T.stop_gradient(ob_tensor)
+                ob_tensor = T.detach(ob_tensor)
 
             t = StochasticTensor(
                 distribution=distribution,

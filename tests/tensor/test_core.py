@@ -693,3 +693,40 @@ class TensorCoreTestCase(unittest.TestCase):
             T.to_numpy(T.clip(t1, -0.5, 0.5)),
             np.clip(x, -0.5, 0.5)
         )
+
+    def test_gradient(self):
+        x = np.random.randn(2, 3, 4)
+        t = T.as_tensor(x)
+        T.requires_grad(t)
+        self.assertIsNone(T.grad(t))
+
+        # test back prop
+        T.back_prop(T.sin(T.reduce_sum(t * t)))
+        np.testing.assert_allclose(
+            T.to_numpy(t.grad),
+            np.cos(np.sum(x * x)) * 2 * x
+        )
+
+        # test grad accumulation
+        T.back_prop(T.reduce_sum(t * t))
+        np.testing.assert_allclose(
+            T.to_numpy(t.grad),
+            2 * x + np.cos(np.sum(x * x)) * 2 * x
+        )
+
+        # test grad no accumulation after clear_grad
+        T.clear_grad(t)
+        T.back_prop(T.reduce_sum(t * t))
+        np.testing.assert_allclose(
+            T.to_numpy(t.grad),
+            2 * x
+        )
+
+        # test detach
+        T.clear_grad(t)
+        t2 = T.detach(t)
+        T.back_prop(T.sin(T.reduce_sum(t * t2)))
+        np.testing.assert_allclose(
+            T.to_numpy(t.grad),
+            np.cos(np.sum(x * x)) * x
+        )

@@ -103,7 +103,7 @@ class Normal(Distribution):
                                  random_state=self.random_state)
         samples = samples * self.std + self.mean
         if not is_reparameterized:
-            samples = T.stop_gradient(samples)
+            samples = T.detach(samples)
 
         # compose the stochastic tensor object
         t = StochasticTensor(
