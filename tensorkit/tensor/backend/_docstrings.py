@@ -512,6 +512,14 @@ backend.to_numpy.__doc__ = """
         x: The tensor to be read.
 """
 
+backend.to_numpy_bool.__doc__ = """
+    Read the value of the given tensor from the device into a NumPy array.
+    The tensor is regarded as a boolean tensor.
+    
+    Args:
+        x: The tensor to be read.
+"""
+
 
 # univariate element-wise math operations
 def _f(method, name=None, expr=None):
@@ -703,4 +711,102 @@ _f(backend.logical_xor, 'xor', operator.xor)
 
 
 # comparison operations
+def _f(method, expr, op, out_processor='.astype(np.bool)'):
+    x = np.asarray([[0, 1, 2, 3], [3, 2, 1, 0]], dtype=np.int32)
+    y = np.asarray([0, 3, 1, 2], dtype=np.int32)
+    t = op(x, y)
+    t_repr = '\n    '.join(repr(t).split('\n'))
 
+    method.__doc__ = f"""
+    Compute element-wise `{expr}` of two given tensors.
+
+    >>> from tensorkit import tensor as T
+    >>> x = T.as_tensor([[0, 1, 2, 3], [3, 2, 1, 0]], dtype=T.int32)
+    >>> y = T.as_tensor([0, 3, 1, 2], dtype=T.int32)
+    >>> t = T.{method.__name__}(x, y)
+    >>> T.to_numpy(t){out_processor}
+    {t_repr}
+
+    Args:
+        x: The first input tensor.
+        y: The second input tensor.
+    """
+
+
+_f(backend.equal, 'x == y', operator.eq)
+_f(backend.not_equal, 'x != y', operator.ne)
+_f(backend.less, 'x < y', operator.lt)
+_f(backend.less_equal, 'x <= y', operator.le)
+_f(backend.greater, 'x > y', operator.gt)
+_f(backend.greater_equal, 'x >= y', operator.ge)
+_f(backend.minimum, 'min(x, y)', np.minimum, '')
+_f(backend.maximum, 'max(x, y)', np.maximum, '')
+
+backend.clip.__doc__ = """
+    Clip the values in the given tensor to a specified range.
+    
+    >>> from tensorkit import tensor as T
+    >>> x = T.as_tensor([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]])
+    >>> t = T.clip(x, 0.15, 0.7)
+    >>> T.to_numpy(t)
+    array([[0.15, 0.2 , 0.3 , 0.4 ],
+           [0.5 , 0.6 , 0.7 , 0.7 ]], dtype=float32)
+    
+    Args:
+        x: The input tensor.
+        x_min: The minimum value.
+        x_max: The maximum value.
+"""
+
+
+# gradient utilities
+backend.requires_grad.__doc__ = """
+    Set a given tensor to require gradient propagation.
+    
+    Args:
+        x: The tensor.
+        
+    Returns:
+        `x` itself.
+"""
+
+backend.clear_grad.__doc__ = """
+    Clear the accumulated gradients at a given tensor.
+    
+    Args:
+        x: The tensor.
+        
+    Returns:
+        `x` itself.
+"""
+
+backend.back_prop.__doc__ = """
+    Back-propagate gradients from a given tensor.
+    
+    Args:
+        x: The tensor.
+        
+    Returns:
+        `x` itself. 
+"""
+
+backend.grad.__doc__ = """
+    Get the propagated gradients at a given tensor.
+    
+    Args:
+        x: The tensor.
+        
+    Returns:
+        The gradients, or :obj:`None` if no gradient has been propagated.
+"""
+
+backend.detach.__doc__ = """
+    Detach a tensor from the auto-grad graph, such that no gradient
+    will be propagated along the returned tensor.
+    
+    Args:
+        x: The input tensor.
+        
+    Returns:
+        The output detached tensor, different from `x`.
+"""

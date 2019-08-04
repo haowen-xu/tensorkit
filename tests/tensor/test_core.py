@@ -469,6 +469,24 @@ class TensorCoreTestCase(unittest.TestCase):
         with pytest.raises(Exception, match='`axis` out of range'):
             _ = T.index_select(t, T.as_tensor(0), -4)
 
+    def test_read_assign(self):
+        # test to_numpy
+        x = np.random.randn(2, 3, 4)
+        self.assertIs(T.to_numpy(x), x)
+
+        t = T.as_tensor(x)
+        out = T.to_numpy(t)
+        self.assertIsInstance(out, np.ndarray)
+        np.testing.assert_equal(out, x)
+
+        # test to_numpy_bool
+        x = np.asarray([True, False])
+        t = T.to_boolean(x)
+        out = T.to_numpy_bool(t)
+        self.assertIsInstance(out, np.ndarray)
+        self.assertEqual(out.dtype, np.bool)
+        np.testing.assert_equal(out, x)
+
     def test_math_univariate_op(self):
         np.random.seed(1234)
 
@@ -697,35 +715,39 @@ class TensorCoreTestCase(unittest.TestCase):
     def test_gradient(self):
         x = np.random.randn(2, 3, 4)
         t = T.as_tensor(x)
-        T.requires_grad(t)
+        self.assertIs(T.requires_grad(t), t)
         self.assertIsNone(T.grad(t))
 
         # test back prop
-        T.back_prop(T.sin(T.reduce_sum(t * t)))
+        loss = T.sin(T.reduce_sum(t * t))
+        self.assertIs(T.back_prop(loss), loss)
         np.testing.assert_allclose(
             T.to_numpy(t.grad),
             np.cos(np.sum(x * x)) * 2 * x
         )
 
         # test grad accumulation
-        T.back_prop(T.reduce_sum(t * t))
+        loss = T.reduce_sum(t * t)
+        self.assertIs(T.back_prop(loss), loss)
         np.testing.assert_allclose(
             T.to_numpy(t.grad),
             2 * x + np.cos(np.sum(x * x)) * 2 * x
         )
 
         # test grad no accumulation after clear_grad
-        T.clear_grad(t)
-        T.back_prop(T.reduce_sum(t * t))
+        self.assertIs(T.clear_grad(t), t)
+        loss = T.reduce_sum(t * t)
+        self.assertIs(T.back_prop(loss), loss)
         np.testing.assert_allclose(
             T.to_numpy(t.grad),
             2 * x
         )
 
         # test detach
-        T.clear_grad(t)
+        self.assertIs(T.clear_grad(t), t)
         t2 = T.detach(t)
-        T.back_prop(T.sin(T.reduce_sum(t * t2)))
+        loss = T.sin(T.reduce_sum(t * t2))
+        self.assertIs(T.back_prop(loss), loss)
         np.testing.assert_allclose(
             T.to_numpy(t.grad),
             np.cos(np.sum(x * x)) * x

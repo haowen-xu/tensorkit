@@ -30,7 +30,7 @@ __all__ = [
     'unflatten_from_ndims', 'index_select',
 
     # read / assign
-    'to_numpy',
+    'to_numpy', 'to_numpy_bool',
 
     # math operators
     'div', 'truediv', 'floordiv', 'mod', 'square',
@@ -419,8 +419,14 @@ def index_select(x: TensorLike, indices: TensorLike, axis: int = 0) -> Tensor:
 
 # ---- read / assign ----
 def to_numpy(x: TensorLike) -> np.ndarray:
+    if isinstance(x, np.ndarray):
+        return x
     x = as_tensor(x)
     return x.data.numpy()
+
+
+def to_numpy_bool(x: TensorLike) -> np.ndarray:
+    return to_numpy(x).astype(np.bool)
 
 
 # ---- univariate element-wise math operations ----
@@ -763,16 +769,18 @@ def clip(x: TensorLike, x_min: float, x_max: float) -> Tensor:
 
 
 # ---- gradient utilities ----
-def requires_grad(x: Tensor):
-    x.requires_grad_(True)
+def requires_grad(x: Tensor) -> Tensor:
+    return x.requires_grad_(True)
 
 
 def clear_grad(x: Tensor) -> Tensor:
-    return x.grad.data.zero_()
+    x.grad.data.zero_()
+    return x
 
 
-def back_prop(x: Tensor):
+def back_prop(x: Tensor) -> Tensor:
     x.backward()
+    return x
 
 
 def grad(x: Tensor) -> Optional[Tensor]:
