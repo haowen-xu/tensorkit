@@ -12,6 +12,9 @@ assert_allclose = np.testing.assert_allclose
 
 class TensorCoreTestCase(unittest.TestCase):
 
+    def test_backend_info(self):
+        self.assertEqual(T.backend.name, settings.backend)
+
     def test_typing(self):
         t = T.as_tensor(np.random.randn(2, 3))
         self.assertIsInstance(t, T.Tensor)
@@ -164,13 +167,34 @@ class TensorCoreTestCase(unittest.TestCase):
         t = T.zeros([1, 2, 3], T.float16)
         self.assertIsInstance(t, T.Tensor)
         self.assertEqual(T.dtype(t), T.float16)
-        np.testing.assert_equal(t, np.zeros([1, 2, 3]))
+        np.testing.assert_equal(T.to_numpy(t), np.zeros([1, 2, 3]))
 
         # test ones
         t = T.ones([1, 2, 3], T.float16)
         self.assertIsInstance(t, T.Tensor)
         self.assertEqual(T.dtype(t), T.float16)
-        np.testing.assert_equal(t, np.ones([1, 2, 3]))
+        np.testing.assert_equal(T.to_numpy(t), np.ones([1, 2, 3]))
+
+        # test arange
+        t = T.arange(10)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.int32)
+        np.testing.assert_equal(T.to_numpy(t), np.arange(10))
+
+        t = T.arange(1, 10, dtype=T.float32)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float32)
+        np.testing.assert_equal(T.to_numpy(t), np.arange(1, 10))
+
+        t = T.arange(10, step=2, dtype=T.float32)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.float32)
+        np.testing.assert_equal(T.to_numpy(t), np.arange(10, step=2))
+
+        t = T.arange(-2, -15, -3)
+        self.assertIsInstance(t, T.Tensor)
+        self.assertEqual(T.dtype(t), T.int32)
+        np.testing.assert_equal(T.to_numpy(t), np.arange(-2, -15, -3))
 
     def test_shape_utils(self):
         # test shape
@@ -190,6 +214,35 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception):
             _ = T.reshape(t, [4, 8])
+
+        # test repeat
+        x = np.random.randn(2, 1, 3)
+        t = T.as_tensor(x)
+
+        t2 = T.repeat(t, [])
+        self.assertEqual(tuple(T.shape(t2)), (2, 1, 3))
+        np.testing.assert_equal(T.to_numpy(t2), x)
+
+        t2 = T.repeat(t, [2])
+        self.assertEqual(tuple(T.shape(t2)), (2, 1, 6))
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [1, 1, 2]))
+
+        t2 = T.repeat(t, [4, 3, 2])
+        self.assertEqual(tuple(T.shape(t2)), (8, 3, 6))
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 3, 2]))
+
+        t2 = T.repeat(t, [4, 1, 3, 1])
+        self.assertEqual(tuple(T.shape(t2)), (4, 2, 3, 3))
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 1, 3, 1]))
+
+        t2 = T.repeat(t, [5, 4, 3, 2])
+        self.assertEqual(tuple(T.shape(t2)), (5, 8, 3, 6))
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [5, 4, 3, 2]))
+
+        # test expand
+        t2 = T.expand(t, [4, -1, 5, -1])
+        self.assertEqual(tuple(T.shape(t2)), (4, 2, 5, 3))
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 1, 5, 1]))
 
         # test squeeze
         x = np.random.randn(1, 2, 1, 3, 1, 4, 1)
@@ -212,6 +265,208 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception, match='Axis .* cannot be squeezed'):
             _ = T.squeeze(t, [-1, -2])
+
+        # test expand dim
+        x = np.random.randn(2, 3)
+        t = T.as_tensor(x)
+
+        t2 = T.expand_dim(t, -1)
+        s2 = (2, 3, 1)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        t2 = T.expand_dim(t, -2)
+        s2 = (2, 1, 3)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        t2 = T.expand_dim(t, 0)
+        s2 = (1, 2, 3)
+        self.assertEqual(tuple(T.shape(t2)), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
+
+        # test broadcast_shape
+        self.assertEqual(
+            tuple(T.broadcast_shape([3, 4, 2, 1], [4, 1, 5])),
+            (3, 4, 2, 5)
+        )
+        self.assertEqual(
+            tuple(T.broadcast_shape((4, 1, 5), (3, 4, 2, 1))),
+            (3, 4, 2, 5)
+        )
+
+        with pytest.raises(Exception, match='cannot broadcast'):
+            _ = T.broadcast_shape([2], [3])
+
+        # test broadcast_to
+        x = np.random.randn(1, 2, 1)
+        t = T.as_tensor(x)
+
+        t2 = T.broadcast_to(t, [4, 5, 2, 1])
+        self.assertEqual(tuple(T.shape(t2)), (4, 5, 2, 1))
+        np.testing.assert_equal(
+            T.to_numpy(t2),
+            np.tile(x.reshape([1, 1, 2, 1]), [4, 5, 1, 1])
+        )
+
+        with pytest.raises(Exception,
+                           match='`x` cannot be broadcast to `new_shape`'):
+            _ = T.broadcast_to(t, [2, 5])
+
+        with pytest.raises(Exception,
+                           match='`x` cannot be broadcast to `new_shape`'):
+            _ = T.broadcast_to(t, [1, 1, 1])
+
+        with pytest.raises(Exception,
+                           match='`x` cannot be broadcast to `new_shape`'):
+            _ = T.broadcast_to(t, [1, 5, 1])
+
+        # test explicit_broadcast
+        def explicit_broadcast(x, y):
+            x = x * np.ones_like(y, dtype=x.dtype)
+            y = y * np.ones_like(x, dtype=y.dtype)
+            return x, y
+
+        def check_explicit_broadcast(shape1, shape2):
+            x = np.asarray(np.random.randn(*shape1))
+            y = np.asarray(np.random.randn(*shape2))
+            out1, out2 = T.explicit_broadcast(T.as_tensor(x), T.as_tensor(y))
+            out1 = T.to_numpy(out1)
+            out2 = T.to_numpy(out2)
+            ans1, ans2 = explicit_broadcast(x, y)
+            np.testing.assert_equal(out1, ans1)
+            np.testing.assert_equal(out2, ans2)
+
+        check_explicit_broadcast([2, 3], [2, 3])
+        check_explicit_broadcast([1, 2], [5, 3, 1])
+        check_explicit_broadcast([5, 3, 1], [1, 2])
+        check_explicit_broadcast([], [1, 1, 1, 1])
+
+        # test flatten_to_ndims
+        def run_check(x, k):
+            t = T.as_tensor(x, dtype=T.int32)
+
+            if len(x.shape) == k:
+                tt, s1 = T.flatten_to_ndims(t, k)
+                self.assertIs(tt, t)
+                self.assertIsNone(s1)
+                self.assertIs(T.unflatten_from_ndims(tt, s1), t)
+            else:
+                if k == 1:
+                    front_shape = tuple(x.shape)
+                    xx = x.reshape([-1])
+                else:
+                    front_shape = tuple(x.shape)[: -(k - 1)]
+                    xx = x.reshape([-1] + list(x.shape)[-(k - 1):])
+
+                tt, s1 = T.flatten_to_ndims(t, k)
+                self.assertEqual(tuple(s1), front_shape)
+                np.testing.assert_equal(T.to_numpy(tt), xx)
+                np.testing.assert_equal(
+                    T.to_numpy(T.unflatten_from_ndims(tt, s1)),
+                    x
+                )
+
+        x = np.asarray(123)
+        run_check(x, 0)
+
+        x = np.arange(120)
+        run_check(x, 1)
+
+        x = np.arange(120).reshape([2, 3, 4, 5]).astype(np.int32)
+        run_check(x, 1)
+        run_check(x, 2)
+        run_check(x, 3)
+        run_check(x, 4)
+
+        with pytest.raises(Exception,
+                           match=r'`ndims >= 1` must hold when '
+                                 r'`rank\(x\) >= 1`'):
+            _ = T.flatten_to_ndims(T.as_tensor([0.]), 0)
+
+        with pytest.raises(Exception, match=r'rank\(x\) < ndims'):
+            _ = T.flatten_to_ndims(T.zeros([3, 4]), 3)
+
+        with pytest.raises(Exception, match=r'rank\(x\) < ndims'):
+            _ = T.flatten_to_ndims(T.zeros([3]), 2)
+
+        with pytest.raises(Exception,
+                           match=r'Invalid input: rank\(x\) < 1, but '
+                                 r'front_shape is not None'):
+            t = T.as_tensor(123)
+            _ = T.unflatten_from_ndims(t, T.Shape([2, 3]))
+
+    def test_split_etc(self):
+        # test index_select
+        x = np.random.randn(3, 4, 5)
+        t = T.as_tensor(x)
+
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(1), 0)),
+            x[1, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(3), 1)),
+            x[:, 3, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(2), -1)),
+            x[..., 2]
+        )
+
+        i = np.asarray([0, 2, 1, 1, 0, 2])
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
+            x[i, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+            x[:, i, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
+            x[..., i]
+        )
+
+        i = np.asarray([[0, 2, 1], [1, 0, 2]])
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
+            x[i, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+            x[:, i, ...]
+        )
+        np.testing.assert_equal(
+            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
+            x[..., i]
+        )
+
+        if T.backend.name != 'pytorch':
+            # TODO: pytorch currently does not support negative index in many
+            # of its functions.  enable these test when supported.
+            np.testing.assert_equal(
+                T.to_numpy(T.index_select(t, T.as_tensor(-1), 1)),
+                x[:, -1]
+            )
+
+            i = np.asarray([0, 1, -1, 2, -2, 0])
+            np.testing.assert_equal(
+                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+                x[:, i, ...]
+            )
+
+            i = np.asarray([[0, 1, -1], [2, -2, 0]])
+            np.testing.assert_equal(
+                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+                x[:, i, ...]
+            )
+
+        with pytest.raises(Exception, match='`axis` out of range'):
+            _ = T.index_select(t, T.as_tensor(0), 3)
+
+        with pytest.raises(Exception, match='`axis` out of range'):
+            _ = T.index_select(t, T.as_tensor(0), -4)
 
     def test_math_univariate_op(self):
         np.random.seed(1234)
@@ -284,3 +539,17 @@ class TensorCoreTestCase(unittest.TestCase):
         self.assertEqual(T.dtype(out), T.float64)
         assert_allclose(T.to_numpy(out),
                         x.astype(np.float64) / y.astype(np.float64))
+
+    def test_math_sequential_op(self):
+        # test add_n
+        x = np.random.randn(2, 3)
+        y = np.random.randn(3)
+        z = np.random.randn(2, 1)
+
+        np.testing.assert_allclose(
+            T.add_n(T.as_tensor(t) for t in (x, y, z)),
+            x + y + z
+        )
+
+        with pytest.raises(Exception, match='`tensors` must not be empty'):
+            _ = T.add_n([])

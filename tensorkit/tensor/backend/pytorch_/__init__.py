@@ -6,5 +6,5 @@ from .random_ import *
 
 name = 'pytorch'
 
-__all__ = core.__all__ + dtypes.__all__ + ['nn', 'random', 'typing']
+__all__ = ['name'] + core.__all__ + dtypes.__all__ + ['nn', 'random', 'typing']
 del core, dtypes

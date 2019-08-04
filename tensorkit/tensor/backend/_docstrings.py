@@ -199,6 +199,22 @@ backend.ones.__doc__ = """
         dtype: The dtype of the tensor.
 """
 
+backend.arange.__doc__ = """
+    Construct a integer sequence tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.arange(3)
+    >>> T.to_numpy(t)
+    array([0, 1, 2], dtype=int32)
+
+    Args:
+        start_or_end: The starting number of the sequence, or the ending number
+            if `end` is not specified.
+        end: The ending number of the sequence (excluded).
+        step: The step size of the sequence.
+        dtype: The dtype of the returned tensor.
+"""
+
 
 # shape utils
 backend.shape.__doc__ = """
@@ -240,6 +256,50 @@ backend.reshape.__doc__ = """
         shape: The new shape for the tensor.
 """
 
+backend.repeat.__doc__ = """
+    Repeat the given tensor along specified axes.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.reshape(T.arange(3), [1, 3])
+    >>> T.to_numpy(t)
+    array([[0, 1, 2]], dtype=int32)
+    >>> t2 = T.repeat(t, [1, 3, 2])
+    >>> tuple(T.shape(t2))
+    (1, 3, 6)
+    >>> T.to_numpy(t2)
+    array([[[0, 1, 2, 0, 1, 2],
+            [0, 1, 2, 0, 1, 2],
+            [0, 1, 2, 0, 1, 2]]], dtype=int32)
+
+    Args:
+        x: The tensor to be repeated.
+        repeats: The repeat number of each axis.
+"""
+
+backend.expand.__doc__ = """
+    Expand the given tensor along specified axes.
+    
+    Unlike `repeat`, only axis with size 1 can be expanded via this function.
+    Also, the specified argument should be desired shape, rather than the
+    repeat numbers.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.reshape(T.arange(3), [1, 3])
+    >>> T.to_numpy(t)
+    array([[0, 1, 2]], dtype=int32)
+    >>> t2 = T.expand(t, [1, 2, -1])
+    >>> tuple(T.shape(t2))
+    (1, 2, 3)
+    >>> T.to_numpy(t2)
+    array([[[0, 1, 2],
+            [0, 1, 2]]], dtype=int32)
+
+    Args:
+        x: The tensor to be expanded.
+        repeats: The desired shape of the expanded tensor.  `-1` indicates
+            not to change the original size of a certain axis.
+"""
+
 backend.squeeze.__doc__ = """
     Squeeze `1` s in the shape of a given tensor.
     
@@ -255,6 +315,197 @@ backend.squeeze.__doc__ = """
     Args:
         x: The tensor to be squeezed.
         axis: The axis(es) to be squeezed.  If not specified, squeeze all axes.
+"""
+
+backend.expand_dim.__doc__ = """
+    Insert one dimension into a given tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.reshape(T.arange(6), [2, 3])
+    >>> T.to_numpy(t)
+    array([[0, 1, 2],
+           [3, 4, 5]], dtype=int32)
+    >>> t2 = T.expand_dim(t, -2)
+    >>> tuple(T.shape(t2))
+    (2, 1, 3)
+    >>> T.to_numpy(t2)
+    array([[[0, 1, 2]],
+    <BLANKLINE>
+           [[3, 4, 5]]], dtype=int32)
+           
+    Args:
+        x: The tensor into which the dimension should be inserted.
+        axis: The index of dimension after insertion.
+"""
+
+backend.broadcast_shape.__doc__ = """
+    Get the broadcasted shape of two tensor shapes.
+    
+    >>> from tensorkit import tensor as T
+    >>> tuple(T.broadcast_shape([3, 4, 2, 1], [4, 1, 5]))
+    (3, 4, 2, 5)
+    
+    Args:
+        x: The first tensor shape.
+        y: The second tensor shape.
+"""
+
+backend.broadcast_to.__doc__ = """
+    Broadcast the shape of a given tensor to the specified shape.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.zeros([2, 1])
+    >>> t2 = T.broadcast_to(t, [4, 2, 5])
+    >>> tuple(T.shape(t2))
+    (4, 2, 5)
+    
+    Args:
+        x: The tensor to be broadcast.
+        new_shape: The broadcasted new shape.
+"""
+
+backend.explicit_broadcast.__doc__ = """
+    Broadcast two tensors into the same shape.
+    
+    >>> from tensorkit import tensor as T
+    >>> t1 = T.zeros([2, 1])
+    >>> t2 = T.zeros([3, 1, 5])
+    >>> t3, t4 = T.explicit_broadcast(t1, t2)
+    >>> tuple(T.shape(t3))
+    (3, 2, 5)
+    >>> tuple(T.shape(t4))
+    (3, 2, 5)
+    
+    Args:
+        x: The first tensor.
+        y: The second tensor.
+"""
+
+backend.flatten_to_ndims.__doc__ = """
+    Flatten multiple dimensions of `x` at the front into 1 dimension,
+    such that the resulting tensor will have exactly `ndims` dimensions.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.arange(24).reshape([2, 3, 4])
+    >>> tuple(T.shape(t))
+    (2, 3, 4)
+    >>> T.to_numpy(t)
+    array([[[ 0,  1,  2,  3],
+            [ 4,  5,  6,  7],
+            [ 8,  9, 10, 11]],
+    <BLANKLINE>
+           [[12, 13, 14, 15],
+            [16, 17, 18, 19],
+            [20, 21, 22, 23]]], dtype=int32)
+
+    >>> t2, s = T.flatten_to_ndims(t, 2)
+    >>> tuple(T.shape(t2))
+    (6, 4)
+    >>> tuple(s)
+    (2, 3)
+    >>> T.to_numpy(t2)
+    array([[ 0,  1,  2,  3],
+           [ 4,  5,  6,  7],
+           [ 8,  9, 10, 11],
+           [12, 13, 14, 15],
+           [16, 17, 18, 19],
+           [20, 21, 22, 23]], dtype=int32)
+
+    >>> t3 = t2[:, [0, 2]]
+    >>> tuple(T.shape(t3))
+    (6, 2)
+    >>> T.to_numpy(t3)
+    array([[ 0,  2],
+           [ 4,  6],
+           [ 8, 10],
+           [12, 14],
+           [16, 18],
+           [20, 22]], dtype=int32)
+
+    >>> t4 = T.unflatten_from_ndims(t3, s)
+    >>> tuple(T.shape(t4))
+    (2, 3, 2)
+    >>> T.to_numpy(t4)
+    array([[[ 0,  2],
+            [ 4,  6],
+            [ 8, 10]],
+    <BLANKLINE>
+           [[12, 14],
+            [16, 18],
+            [20, 22]]], dtype=int32)
+
+    Args:
+        x: The tensor to be flatten.
+        ndims: The number of dimensions of the resulting tensor.
+
+    Returns:
+        A tuple of ``(output_tensor, front_shape)``.  Passing this tuple to
+        :func:`unflatten_from_ndims` will reshape `output_tensor` back to
+        the input tensor `x`.  If `x` does not need to be flatten, then
+        `output_tensor` will just be `x` itself, while `front_shape` will
+        be :obj:`None`.
+"""
+
+backend.unflatten_from_ndims.__doc__ = """
+    The inverse transformation of :func:`flatten_to_ndims`.
+
+    If `front_shape` is :obj:`None`, `x` will be returned without any change.
+
+    Args:
+        x: The tensor to be unflatten.
+        front_shape: The original front shape.
+        
+    See Also:
+        :func:`flatten_to_ndims`
+"""
+
+
+# split / join / indexing / gathering
+backend.index_select.__doc__ = """
+    Select elements from `x` according to specified `indices`.
+    
+    The output tensor will have shape
+    ``x.shape[: axis] + indices.shape + x.shape[axis+1:]``.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.arange(12).reshape([3, 4])
+    >>> T.to_numpy(t)
+    array([[ 0,  1,  2,  3],
+           [ 4,  5,  6,  7],
+           [ 8,  9, 10, 11]], dtype=int32)
+    
+    >>> T.to_numpy(T.index_select(t, 1))
+    array([4, 5, 6, 7], dtype=int32)
+
+    >>> T.to_numpy(T.index_select(t, [0, 2, 1], axis=0))
+    array([[ 0,  1,  2,  3],
+           [ 8,  9, 10, 11],
+           [ 4,  5,  6,  7]], dtype=int32)
+
+    >>> T.to_numpy(T.index_select(t, [[0, 2, 1], [1, 2, 0]], axis=-1))
+    array([[[ 0,  2,  1],
+            [ 1,  2,  0]],
+    <BLANKLINE>
+           [[ 4,  6,  5],
+            [ 5,  6,  4]],
+    <BLANKLINE>
+           [[ 8, 10,  9],
+            [ 9, 10,  8]]], dtype=int32)
+    
+    Args:
+        x: The tensor, where to select elements.
+        indices: The element indices tensor.
+            Some backend may not support negative indices.
+        axis: Along which axis to select the elements.  Defaults to 0.
+"""
+
+
+# read / assign
+backend.to_numpy.__doc__ = """
+    Read the value of the given tensor from the device into a NumPy array.
+    
+    Args:
+        x: The tensor to be read.
 """
 
 
@@ -303,7 +554,6 @@ _f(backend.add, expr='x + y')
 _f(backend.sub, expr='x - y')
 _f(backend.mul, expr='x * y')
 _f(backend.mod, expr='x % y')
-_f(backend.fmod, expr='x % y')
 _f(backend.pow, expr='x ^ y')
 _f(backend.floordiv, expr='\\\\lfloor x / y \\\\rfloor')
 
@@ -324,3 +574,15 @@ backend.div.__doc__ = backend.truediv.__doc__ = """
     Raises:
         TypeError: If `x` and `y` have different `dtype`.
 """
+
+
+# sequential math element-wise operations
+backend.add_n.__doc__ = """
+    Add a sequence of tensors.
+    
+    Broadcast will be done automatically for adding these tensors.
+    
+    Args:
+        tensors: The sequence of tensors.
+"""
+

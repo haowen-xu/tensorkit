@@ -126,7 +126,7 @@ class random(object):
                 ret = squeeze(ret, -1)
 
             if front_shape is not None:
-                ret = undo_flatten_to_ndims(ret, front_shape)
+                ret = unflatten_from_ndims(ret, front_shape)
 
             if ret.dtype != dtype:
                 ret = cast(ret, dtype)

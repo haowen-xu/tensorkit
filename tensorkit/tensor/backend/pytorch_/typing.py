@@ -5,7 +5,8 @@ import torch
 
 __all__ = [
     'Tensor', 'Variable', 'DType', 'Shape',
-    'TensorLike', 'DTypeLike', 'ShapeLike', 'AxisOrAxes', 'AxisOrAxes'
+    'Number', 'TensorLike', 'DTypeLike', 'ShapeLike',
+    'AxisOrAxes', 'AxisOrAxes'
 ]
 
 # true types
@@ -16,7 +17,8 @@ Shape = torch.Size
 
 
 # type annotations
-TensorLike = Union[Tensor, Variable, 'TensorWrapper', np.ndarray]
+Number = Union[int, float]
+TensorLike = Union[Tensor, Variable, 'TensorWrapper', np.ndarray, Number]
 DTypeLike = Union[str, np.dtype, DType, Type[int], Type[float]]
 ShapeLike = Sequence[int]
 AxisOrAxes = Union[int, Tuple[int, ...], List[int]]

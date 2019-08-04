@@ -8,7 +8,7 @@ from torch.jit import script
 
 from ....settings_ import settings
 from ....utils import validate_int_tuple_arg
-from .dtypes import _DTYPES, _NUMPY_DTYPES
+from .dtypes import _DTYPES, _NUMPY_DTYPES, int32
 from .typing import *
 
 __all__ = [
@@ -22,12 +22,13 @@ __all__ = [
     'as_dtype', 'float_x', 'iinfo', 'finfo', 'is_floating_point',
 
     # tensor constructors
-    'as_tensor', 'register_as_tensor', 'zeros', 'ones', 'cast', 'dtype',
+    'as_tensor', 'register_as_tensor', 'zeros', 'ones', 'arange',
+    'cast', 'dtype',
 
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
     'broadcast_shape', 'broadcast_to', 'explicit_broadcast', 'flatten_to_ndims',
-    'undo_flatten_to_ndims', 'gather',
+    'unflatten_from_ndims', 'index_select',
 
     # read / assign
     'to_numpy',
@@ -144,6 +145,21 @@ def ones(shape: ShapeLike, dtype: DTypeLike = settings.float_x) -> Tensor:
     return torch.ones(as_shape(shape), dtype=dtype)
 
 
+def arange(start_or_end: Number,
+           end: Optional[Number] = None,
+           step: Optional[Number] = None,
+           *,
+           dtype: DTypeLike = int32) -> Tensor:
+    if end is None and step is None:
+        return torch.arange(start_or_end, dtype=dtype)
+    elif step is None:
+        return torch.arange(start_or_end, end, dtype=dtype)
+    elif end is None:
+        return torch.arange(0, start_or_end, step, dtype=dtype)
+    else:
+        return torch.arange(start_or_end, end, step, dtype=dtype)
+
+
 # ---- shape utils ----
 def shape(x: TensorLike) -> Shape:
     return as_tensor(x).shape
@@ -164,20 +180,21 @@ def _repeat(x, repeats):
     x_shape = x.shape
     x_rank = len(x_shape)
     repeats_len = len(repeats)
+    extra_len = repeats_len - x_rank
 
     # argument check
-    if repeats_len < x_rank:
+    if extra_len < 0:
         repeats = [1] * (len(x_shape) - len(repeats)) + repeats
-    elif repeats_len > x_rank:
-        raise ValueError('Length of `repeats` is larger than `rank(x)`: '
-                         'repeats {} vs rank(x) {}'.format(repeats, x_rank))
+        extra_len = 0
 
     # detect the repeat mode
     mode = 0  # 0 = return directly, 1 = expand, 2 = repeat
+    if extra_len > 0:
+        mode = 1
 
     for i in range(len(x_shape)):
         a = x_shape[i]
-        b = repeats[i]
+        b = repeats[i + extra_len]
         if b != 1:
             if a != 1:
                 mode = 2
@@ -188,7 +205,8 @@ def _repeat(x, repeats):
     if mode == 0:
         return x
     elif mode == 1:
-        expands = list([-1 if a == 1 else a for a in repeats])  # type: List[int]
+        expands = repeats[:extra_len] + \
+            list([-1 if a == 1 else a for a in repeats[extra_len:]])  # type: List[int]
         return x.expand(expands)
     else:
         return x.repeat(repeats)
@@ -238,55 +256,86 @@ def expand_dim(x: TensorLike, axis: int) -> Tensor:
     return as_tensor(x).unsqueeze(axis)
 
 
-def broadcast_shape(x: ShapeLike, y: ShapeLike) -> Shape:
-    x = tuple(x)
-    y = tuple(y)
+@jit
+def _broadcast_shape(x, y):
+    # type: (List[int], List[int]) -> List[int]
     common_len = min(len(x), len(y))
 
-    right = []
-    for a, b in zip(x[-common_len:], y[-common_len:]):
+    right = torch.jit.annotate(List[int], [])
+    for i in range(common_len):
+        # for a, b in zip(x[-common_len:], y[-common_len:]):
+        a = x[i - common_len]
+        b = y[i - common_len]
         if a == 1:
             right.append(b)
         elif b == 1:
             right.append(a)
         elif a != b:
-            raise ValueError(f'Shape x and y cannot broadcast against '
-                             f'each other: {x} vs {y}.')
+            raise ValueError('Shape x and y cannot broadcast against '
+                             'each other: {} vs {}.'.format(x, y))
         else:
             right.append(a)
 
-    left = x[:-common_len] or y[:-common_len]
-    return Shape(left + tuple(right))
+    if len(x) > common_len:
+        left = x[:-common_len]
+    else:
+        left = y[:-common_len]
+    return left + right
 
 
-def _broadcast_to_internal(t, t_shape, out_shape):
-    if len(t_shape) < len(out_shape):
-        t_shape = (1,) * (len(out_shape) - len(t_shape)) + t_shape
-        t = reshape(t, t_shape)
-    t_repeats = tuple(b if a == 1 else 1
-                      for a, b in zip(t_shape, out_shape))
-    if any(s != 1 for s in t_repeats):
-        t = repeat(t, t_repeats)
+def broadcast_shape(x: ShapeLike, y: ShapeLike) -> Shape:
+    return Shape(_broadcast_shape(list(x), list(y)))
+
+
+@jit
+def _broadcast_to_sub(t, t_shape, out_shape):
+    # type: (Tensor, List[int], List[int]) -> Tensor
+    t_rank = len(t_shape)
+    out_rank = len(out_shape)
+
+    if t_rank < out_rank:
+        t_shape = [1] * (out_rank - t_rank) + t_shape
+
+    t_repeats = torch.jit.annotate(List[int], [])
+    should_repeat = False
+    for i in range(out_rank):
+        a = t_shape[i]
+        b = out_shape[i]
+        if a == 1 and b != 1:
+            t_repeats.append(b)
+            should_repeat = True
+        else:
+            t_repeats.append(1)
+
+    if should_repeat:
+        t = t.repeat(t_repeats)
     return t
 
 
+@jit
+def _broadcast_to(x, new_shape):
+    # type: (Tensor, List[int]) -> Tensor
+    x_shape = list(x.shape)
+    x_rank = len(x_shape)
+    new_rank = len(new_shape)
+
+    if x_rank > new_rank:
+        raise ValueError('`x` cannot be broadcast to `new_shape`: shape(x) {} '
+                         'vs new_shape {}'.format(x_shape, new_shape))
+
+    for i in range(x_rank):
+        a = x_shape[-i - 1]
+        b = new_shape[-i - 1]
+        if a != 1 and a != b:
+            raise ValueError('`x` cannot be broadcast to `new_shape`: '
+                             'shape(x) {} vs new_shape {}'.
+                             format(x_shape, new_shape))
+
+    return _broadcast_to_sub(x, x_shape, new_shape)
+
+
 def broadcast_to(x: TensorLike, new_shape: ShapeLike) -> Tensor:
-    x = as_tensor(x)
-    x_shape = shape(x)
-    new_shape = tuple(new_shape)
-
-    # check whether or not x can broadcast to shape
-    can_broadcast = len(x_shape) <= len(new_shape)
-    if can_broadcast:
-        for a, b in zip(reversed(x_shape), new_shape):
-            if a != 1 and a != b:
-                can_broadcast = False
-                break
-    if not can_broadcast:
-        raise ValueError(f'`x` cannot be broadcast to `shape`: '
-                         f'shape(x) {x_shape} vs shape {shape}')
-
-    return _broadcast_to_internal(x, x_shape, new_shape)
+    return _broadcast_to(as_tensor(x), list(new_shape))
 
 
 def explicit_broadcast(x: TensorLike,
@@ -294,11 +343,11 @@ def explicit_broadcast(x: TensorLike,
                        ) -> Tuple[Tensor, Tensor]:
     x = as_tensor(x)
     y = as_tensor(y)
-    x_shape = shape(x)
-    y_shape = shape(y)
-    out_shape = broadcast_shape(x_shape, y_shape)
-    x = _broadcast_to_internal(x, x_shape, out_shape)
-    y = _broadcast_to_internal(y, y_shape, out_shape)
+    x_shape = list(x.shape)
+    y_shape = list(y.shape)
+    out_shape = _broadcast_shape(x_shape, y_shape)
+    x = _broadcast_to_sub(x, x_shape, out_shape)
+    y = _broadcast_to_sub(y, y_shape, out_shape)
     return x, y
 
 
@@ -316,12 +365,16 @@ def flatten_to_ndims(x: TensorLike, ndims: int
     if x_rank < ndims:
         raise ValueError(f'rank(x) < ndims: x.shape is {x_shape}, while '
                          f'ndims is {ndims}')
+    elif ndims == 1:
+        front_shape = x_shape
+        return x.reshape((-1,)), front_shape
     else:
-        front_shape, back_shape = x_shape[: -ndims], x_shape[-ndims:]
-        return reshape(x, (-1,) + back_shape), front_shape
+        offset = ndims - 1
+        front_shape, back_shape = x_shape[: -offset], x_shape[-offset:]
+        return x.reshape((-1,) + back_shape), front_shape
 
 
-def undo_flatten_to_ndims(x: TensorLike, front_shape: Optional[Shape]
+def unflatten_from_ndims(x: TensorLike, front_shape: Optional[Shape]
                           ) -> Tensor:
     x = as_tensor(x)
     x_shape = x.shape
@@ -333,33 +386,38 @@ def undo_flatten_to_ndims(x: TensorLike, front_shape: Optional[Shape]
         if x_rank < 1:
             raise ValueError('Invalid input: rank(x) < 1, but front_shape is '
                              'not None.')
-        return reshape(x, front_shape + x_shape[1:])
+        return x.reshape(front_shape + x_shape[1:])
 
 
-def gather(x: TensorLike, indices: TensorLike, axis: int = 0):
-    x = as_tensor(x)
-    indices = as_tensor(indices)
+# ---- split / join / indexing / gathering ----
+@jit
+def _index_select(x, indices, axis):
+    # type: (Tensor, Tensor, int) -> Tensor
     x_shape = x.shape
     i_shape = indices.shape
 
     if axis < 0:
         axis += len(x_shape)
     if axis < 0 or axis >= len(x_shape):
-        raise ValueError(f'Index out of range: '
-                         f'x.shape {x.shape} vs axis {axis}')
+        raise ValueError('`axis` out of range: x.shape {} vs axis {}'.
+                         format(x.shape, axis))
 
     if len(i_shape) == 0:
         y = torch.index_select(x, dim=axis, index=indices.reshape([1]))
-        y = y.reshape(x_shape[:axis] + x_shape[axis+1:])
+        y = y.reshape(x_shape[:axis] + x_shape[axis + 1:])
 
     elif len(i_shape) == 1:
         y = torch.index_select(x, dim=axis, index=indices)
 
     else:
         y = torch.index_select(x, dim=axis, index=indices.flatten())
-        y = y.reshape(x_shape[:axis] + i_shape + x_shape[axis+1:])
+        y = y.reshape(x_shape[:axis] + i_shape + x_shape[axis + 1:])
 
     return y
+
+
+def index_select(x: TensorLike, indices: TensorLike, axis: int = 0) -> Tensor:
+    return _index_select(as_tensor(x), as_tensor(indices), axis)
 
 
 # ---- read / assign ----
@@ -368,7 +426,7 @@ def to_numpy(x: TensorLike) -> np.ndarray:
     return x.data.numpy()
 
 
-# ---- math operators ----
+# ---- univariate element-wise math operations ----
 
 def abs(x: TensorLike) -> Tensor:
     return torch.abs(as_tensor(x))
@@ -397,6 +455,13 @@ def sin(x: TensorLike) -> Tensor:
 def cos(x: TensorLike) -> Tensor:
     return torch.cos(as_tensor(x))
 
+
+def square(x: TensorLike) -> Tensor:
+    x = as_tensor(x)
+    return x ** 2
+
+
+# ---- bivariate element-wise math operations ----
 
 def add(x: TensorLike, y: TensorLike) -> Tensor:
     return torch.add(as_tensor(x), as_tensor(y))
@@ -449,53 +514,140 @@ div = truediv
 mod = fmod
 
 
-def square(x: TensorLike) -> Tensor:
-    x = as_tensor(x)
-    return x ** 2
-
-
-def add_n(tensors: Iterable[TensorLike]) -> Tensor:
-    tensors = tuple(map(as_tensor, tensors))
-    if not tensors:
-        raise ValueError('`tensors` must not be emtpy.')
+# ---- sequential math element-wise operations ----
+@jit
+def _add_n(tensors):
+    # type: (List[Tensor]) -> Tensor
+    if len(tensors) == 0:
+        raise ValueError('`tensors` must not be empty.')
     ret = tensors[0]
-    for t in tensors[1:]:
-        ret += t
+    for i in range(len(tensors) - 1):
+        ret = ret + tensors[i + 1]
     return ret
 
 
-# ---- reduction operations ----
-def _reduce_sum_mean(op,
-                     x: TensorLike,
-                     axis: Optional[AxisOrAxes],
-                     keepdims: bool):
-    x = as_tensor(x)
+def add_n(tensors: Iterable[TensorLike]) -> Tensor:
+    return _add_n(list(map(as_tensor, tensors)))
 
-    if axis is None:
-        if keepdims:
-            return reshape(op(x), [1] * rank(x))
-        else:
-            return op(x)
+
+# ---- reduction operations ----
+
+@jit
+def _reduce_sum_sub(x, keepdims):
+    # type: (Tensor, bool) -> Tensor
+    if keepdims:
+        return torch.sum(x).reshape([1] * len(x.shape))
     else:
-        return op(x, dim=axis, keepdim=keepdims)
+        return torch.sum(x)
 
 
 def reduce_sum(x: TensorLike,
         axis: Optional[AxisOrAxes] = None,
         keepdims: bool = False) -> Tensor:
-    return _reduce_sum_mean(torch.sum, x, axis, keepdims)
+    x = as_tensor(x)
+    if axis is None:
+        return _reduce_sum_sub(x, keepdims=keepdims)
+    else:
+        return torch.sum(x, dim=axis, keepdim=keepdims)
+
+
+@jit
+def _reduce_mean_sub(x, keepdims):
+    # type: (Tensor, bool) -> Tensor
+    if keepdims:
+        return torch.mean(x).reshape([1] * len(x.shape))
+    else:
+        return torch.mean(x)
 
 
 def reduce_mean(x: TensorLike,
-         axis: Optional[AxisOrAxes] = None,
-         keepdims: bool = False) -> Tensor:
-    return _reduce_sum_mean(torch.mean, x, axis, keepdims)
+        axis: Optional[AxisOrAxes] = None,
+        keepdims: bool = False) -> Tensor:
+    x = as_tensor(x)
+    if axis is None:
+        return _reduce_mean_sub(x, keepdims=keepdims)
+    else:
+        return torch.mean(x, dim=axis, keepdim=keepdims)
+
+
+@jit
+def _reduce_max_1(x, keepdims):
+    # type: (Tensor, bool) -> Tensor
+    if keepdims:
+        return torch.max(x).reshape([1] * len(x.shape))
+    else:
+        return torch.max(x)
+
+
+@jit
+def _reduce_max_2(x, axis, keepdims):
+    # type: (Tensor, List[int], bool) -> Tensor
+    if len(axis) == 1:
+        return torch.max(x, dim=axis[0], keepdim=keepdims)[0]
+    else:
+        for a in axis:
+            x = torch.max(x, dim=a, keepdim=True)[0]
+        if not keepdims:
+            x = _squeeze_slow_branch(x, axis)
+        return x
+
+
+def reduce_max(x: TensorLike,
+        axis: Optional[AxisOrAxes] = None,
+        keepdims: bool = False) -> Tensor:
+    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+    x = as_tensor(x)
+    if axis is None:
+        return _reduce_max_1(x, keepdims)
+    else:
+        return _reduce_max_2(x, axis, keepdims)
+
+
+@jit
+def _reduce_min_1(x, keepdims):
+    # type: (Tensor, bool) -> Tensor
+    if keepdims:
+        return torch.min(x).reshape([1] * len(x.shape))
+    else:
+        return torch.min(x)
+
+
+@jit
+def _reduce_min_2(x, axis, keepdims):
+    # type: (Tensor, List[int], bool) -> Tensor
+    if len(axis) == 1:
+        return torch.min(x, dim=axis[0], keepdim=keepdims)[0]
+    else:
+        for a in axis:
+            x = torch.min(x, dim=a, keepdim=True)[0]
+        if not keepdims:
+            x = _squeeze_slow_branch(x, axis)
+        return x
+
+
+def reduce_min(x: TensorLike,
+        axis: Optional[AxisOrAxes] = None,
+        keepdims: bool = False) -> Tensor:
+    axis = validate_int_tuple_arg('axis', axis, nullable=True)
+    x = as_tensor(x)
+    if axis is None:
+        return _reduce_min_1(x, keepdims)
+    else:
+        return _reduce_min_2(x, axis, keepdims)
 
 
 def log_sum_exp(x: TensorLike,
                 axis: Optional[AxisOrAxes] = None,
                 keepdims: bool = False) -> Tensor:
-    return _reduce_sum_mean(torch.logsumexp, x, axis, keepdims)
+    x = as_tensor(x)
+    if axis is None:
+        axis = [1] * len(x.shape)
+        if keepdims:
+            return torch.logsumexp(x, dim=axis, keepdim=True)
+        else:
+            return torch.logsumexp(x, dim=axis, keepdim=False)
+    else:
+        return torch.logsumexp(x, dim=axis, keepdim=keepdims)
 
 
 def log_mean_exp(x: TensorLike,
@@ -509,44 +661,8 @@ def log_mean_exp(x: TensorLike,
     else:
         x_max = x_max_keepdims
     mean_exp = reduce_mean(
-        exp(x - x_max_keepdims), axis=axis, keepdims=keepdims)
-    return x_max + log(mean_exp)
-
-
-def _reduce_max_min(op,
-                    x: TensorLike,
-                    axis: Optional[AxisOrAxes],
-                    keepdims: bool):
-    axis = validate_int_tuple_arg('axis', axis, nullable=True)
-    x = as_tensor(x)
-
-    if axis is None:
-        if keepdims:
-            x = reshape(op(x), [1] * rank(x))
-        else:
-            x = op(x)
-    else:
-        if axis:
-            if len(axis) == 1:
-                x = op(x, dim=axis[0], keepdim=keepdims)[0]
-            else:
-                for a in axis:
-                    x = op(x, dim=a, keepdim=True)[0]
-                if not keepdims:
-                    x = squeeze(x, axis)
-    return x
-
-
-def reduce_max(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
-    return _reduce_max_min(torch.max, x, axis, keepdims)
-
-
-def reduce_min(x: TensorLike,
-        axis: Optional[AxisOrAxes] = None,
-        keepdims: bool = False) -> Tensor:
-    return _reduce_max_min(torch.min, x, axis, keepdims)
+        torch.exp(x - x_max_keepdims), axis=axis, keepdims=keepdims)
+    return x_max + torch.log(mean_exp)
 
 
 # ---- bits operators ----

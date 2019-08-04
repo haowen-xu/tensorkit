@@ -64,7 +64,7 @@ class nn(object):
         if negative:
             ret = -ret
 
-        ret = undo_flatten_to_ndims(ret, front_shape)
+        ret = unflatten_from_ndims(ret, front_shape)
         return ret
 
     @staticmethod
