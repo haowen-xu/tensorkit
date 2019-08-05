@@ -831,6 +831,9 @@ class TensorWrapper(object):
     def __iter__(self):
         return iter(self.tensor)
 
+    def __len__(self):
+        return len(self.tensor)
+
     def __bool__(self):
         return bool(self.tensor)
 
@@ -926,12 +929,17 @@ class TensorWrapper(object):
 
     # slicing and indexing
     def __getitem__(self, item):
-        return (as_tensor(self.tensor))[item]
+        if isinstance(item, TensorWrapper):
+            # special hack: otherwise pytorch will try to call
+            # `len(item)`.  And if item is a scalar index, it will fail.
+            item = item.tensor
+        return self.tensor[item]
 
 
 def register_tensor_wrapper_class(cls: Type[TensorWrapper]):
-    # nothing should be done, all is okay
-    pass
+    if not isinstance(cls, type) or not issubclass(cls, TensorWrapper):
+        raise TypeError(f'`{cls}` is not a class, or not a subclass of '
+                        f'`TensorWrapper`')
 
 
 register_as_tensor(

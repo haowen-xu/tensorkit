@@ -752,3 +752,404 @@ class TensorCoreTestCase(unittest.TestCase):
             T.to_numpy(t.grad),
             np.cos(np.sum(x * x)) * x
         )
+
+
+class _SimpleTensor(T.TensorWrapper):
+
+    _flag_ = None
+
+    def __init__(self, wrapped, flag=None):
+        self._flag_ = flag
+        self._self_tensor_ = wrapped
+        super(_SimpleTensor, self).__init__()
+
+    @property
+    def tensor(self):
+        return self._self_tensor_
+
+    @property
+    def flag(self):
+        return self._flag_
+
+    def get_flag(self):
+        return self._flag_
+
+
+T.register_tensor_wrapper_class(_SimpleTensor)
+
+
+class TensorWrapperTestCase(unittest.TestCase):
+
+    def test_unary_op(self):
+        def check_op(name, func, x):
+            if x.dtype == np.bool:
+                as_tensor = T.to_boolean
+            else:
+                as_tensor = T.as_tensor
+
+            x_tensor = as_tensor(x)
+            ans = func(x_tensor)
+            res = T.as_tensor(func(_SimpleTensor(x_tensor)))
+            self.assertEqual(
+                res.dtype, ans.dtype,
+                msg=f'Result dtype does not match answer after unary operator '
+                    f'{name} is applied: {res.dtype!r} vs {ans.dtype!r} '
+                    f'(x is {x!r})'
+            )
+            res_val = T.to_numpy(res)
+            ans_val = T.to_numpy(ans)
+            np.testing.assert_equal(
+                res_val, ans_val,
+                err_msg=f'Result value does not match answer after unary '
+                        f'operator {name} is applied: {res_val!r} vs '
+                        f'{ans_val!r} (x is {x!r})'
+            )
+
+        int_data = np.asarray([1, -2, 3], dtype=np.int32)
+        float_data = np.asarray([1.1, -2.2, 3.3], dtype=np.float32)
+        bool_data = np.asarray([True, False, True], dtype=np.bool)
+
+        check_op('abs', abs, int_data)
+        check_op('abs', abs, float_data)
+        check_op('neg', (lambda v: -v), int_data)
+        check_op('neg', (lambda v: -v), float_data)
+        check_op('invert', (lambda v: ~v), bool_data)
+
+    def test_binary_op(self):
+        def check_op(name, func, x, y):
+            if x.dtype == np.bool:
+                as_tensor = T.to_boolean
+            else:
+                as_tensor = T.as_tensor
+
+            x_tensor = as_tensor(x)
+            y_tensor = as_tensor(y)
+            ans = func(x_tensor, y_tensor)
+            res_1 = T.as_tensor(
+                func(
+                    _SimpleTensor(x_tensor),
+                    # y -> Tensor -> np.ndarray, in case T.boolean != np.bool
+                    T.to_numpy(as_tensor(y))
+                )
+            )
+            res_2 = T.as_tensor(
+                func(T.to_numpy(as_tensor(x)), _SimpleTensor(y_tensor)))
+            res_3 = T.as_tensor(
+                func(_SimpleTensor(x_tensor), y_tensor))
+            res_4 = T.as_tensor(
+                func(_SimpleTensor(x_tensor), _SimpleTensor(y_tensor)))
+
+            outputs = [('TensorWrapper + np.ndarray', res_1),
+                       ('np.ndarray + TensorWrapper', res_2),
+                       ('TensorWrapper + Tensor', res_3),
+                       ('TensorWrapper + TensorWrapper', res_4)]
+
+            # not all backends support Tensor + TensorWrapper
+            if T.backend.name != 'pytorch':
+                res_5 = T.as_tensor(
+                    func(x_tensor, _SimpleTensor(y_tensor)))
+                outputs.extend([
+                    ('Tensor + TensorWrapper', res_5),
+                ])
+
+            for tag, res in outputs:
+                self.assertEqual(
+                    res.dtype, ans.dtype,
+                    msg=f'Result dtype does not match answer after {tag} '
+                        f'binary operator {name} is applied: {res.dtype!r} vs '
+                        f'{ans.dtype!r} (x is {x!r}, y is {y!r})'
+                )
+                res_val = T.to_numpy(res)
+                ans_val = T.to_numpy(ans)
+                np.testing.assert_equal(
+                    res_val, ans_val,
+                    err_msg=f'Result value does not match answer after {tag} '
+                            f'binary operator {name} is applied: {res_val!r} '
+                            f'vs {ans_val!r} (x is {x!r}, y is {y!r}).'
+                )
+
+        def run_ops(x, y, ops):
+            for name, func in ops.items():
+                check_op(name, func, x, y)
+
+        arith_ops = {
+            'add': lambda x, y: x + y,
+            'sub': lambda x, y: x - y,
+            'mul': lambda x, y: x * y,
+        }
+        arith_ops2 = {
+            'floordiv': lambda x, y: x // y,
+            'mod': lambda x, y: x % y,
+        }
+        arith_ops3 = {
+            'div': lambda x, y: x / y,
+        }
+
+        logical_ops = {
+            'and': lambda x, y: x & y,
+            'or': lambda x, y: x | y,
+            'xor': lambda x, y: x ^ y,
+        }
+
+        relation_ops = {
+            'lt': lambda x, y: x < y,
+            'le': lambda x, y: x <= y,
+            'gt': lambda x, y: x > y,
+            'ge': lambda x, y: x >= y,
+        }
+
+        # arithmetic operators
+        run_ops(np.asarray([-4, 5, 6], dtype=np.int32),
+                np.asarray([1, -2, 3], dtype=np.int32),
+                arith_ops)
+        run_ops(np.asarray([-4.4, 5.5, 6.6], dtype=np.float32),
+                np.asarray([1.1, -2.2, 3.4], dtype=np.float32),
+                arith_ops)
+        run_ops(np.asarray([4, 5, 6], dtype=np.int32),
+                np.asarray([1, 2, 3], dtype=np.int32),
+                arith_ops2)
+        run_ops(np.asarray([4.4, 5.5, 6.6], dtype=np.float32),
+                np.asarray([1.1, 2.2, 3.4], dtype=np.float32),
+                arith_ops2)
+        run_ops(np.asarray([4.4, 5.5, 6.6], dtype=np.float32),
+                np.asarray([1.1, 2.2, 3.4], dtype=np.float32),
+                arith_ops3)
+
+        check_op('pow',
+                 (lambda x, y: x ** y),
+                 np.asarray([-4, 5, 6], dtype=np.int32),
+                 np.asarray([1, 2, 3], dtype=np.int32))
+        check_op('pow',
+                 (lambda x, y: x ** y),
+                 np.asarray([-4.4, 5.5, 6.6], dtype=np.float32),
+                 np.asarray([1.1, -2.2, 3.3], dtype=np.float32))
+
+        # logical operators
+        run_ops(np.asarray([True, False, True, False], dtype=np.bool),
+                np.asarray([True, True, False, False], dtype=np.bool),
+                logical_ops)
+
+        # relation operators
+        run_ops(np.asarray([1, -2, 3, -4, 5, 6, -4, 5, 6], dtype=np.int32),
+                np.asarray([1, -2, 3, 1, -2, 3, -4, 5, 6], dtype=np.int32),
+                relation_ops)
+        run_ops(
+            np.asarray([1.1, -2.2, 3.3, -4.4, 5.5, 6.6, -4.4, 5.5, 6.6],
+                       dtype=np.float32),
+            np.asarray([1.1, -2.2, 3.3, 1.1, -2.2, 3.3, -4.4, 5.5, 6.6],
+                       dtype=np.float32),
+            relation_ops
+        )
+
+    def test_getitem(self):
+        def check_getitem(x, y, xx, yy):
+            ans = T.as_tensor(x[y])
+            print(xx, yy)
+            res = xx[yy]
+
+            self.assertEqual(
+                res.dtype, ans.dtype,
+                msg=f'Result dtype does not match answer after getitem '
+                    f'is applied: {res.dtype!r} vs {ans.dtype!r} (x is {x!r}, '
+                    f'y is {y!r}, xx is {xx!r}, yy is {yy!r}).'
+            )
+            res_val = T.to_numpy(res)
+            ans_val = T.to_numpy(ans)
+            np.testing.assert_equal(
+                res_val, ans_val,
+                err_msg=f'Result value does not match answer after '
+                        f'getitem is applied: {res_val!r} vs {ans_val!r} '
+                        f'(x is {x!r}, y is {y!r}, xx is {xx!r}, yy is {yy!r}).'
+            )
+
+        class _SliceGenerator(object):
+            def __getitem__(self, item):
+                return item
+        sg = _SliceGenerator()
+
+        data = np.asarray([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+        indices_or_slices = [
+            0,
+            -1,
+            np.asarray([0, 3, 2, 6], dtype=int),
+            np.asarray([-1, -2, -3], dtype=int),
+            sg[0:],
+            sg[:1],
+            sg[:: 2],
+        ]
+
+        # pytorch currently does not support negative strides
+        if T.backend.name != 'pytorch':
+            indices_or_slices.extend([
+                sg[-1:],
+                sg[: -1],
+                sg[:: -1],
+            ])
+
+        for s in indices_or_slices:
+            x_tensor = T.as_tensor(data)
+            x_simple_tensor = _SimpleTensor(x_tensor)
+            check_getitem(data, s, x_simple_tensor, s)
+
+            if not isinstance(s, slice):
+                y_tensor = T.as_tensor(s)
+                y_simple_tensor = _SimpleTensor(y_tensor)
+                check_getitem(data, s, x_simple_tensor, y_tensor)
+                check_getitem(data, s, x_simple_tensor, y_simple_tensor)
+
+                # not all backends support inverse indexing
+                if T.backend.name != 'pytorch':
+                    check_getitem(data, s, x_tensor, y_simple_tensor)
+
+    def test_bool(self):
+        self.assertTrue(bool(_SimpleTensor(T.as_tensor(True))))
+        self.assertFalse(not _SimpleTensor(T.as_tensor(True)))
+        self.assertFalse(bool(_SimpleTensor(T.as_tensor(False))))
+        self.assertTrue(not _SimpleTensor(T.as_tensor(False)))
+
+        flag = []
+        if _SimpleTensor(T.as_tensor(True)):
+            flag.append(1)
+        if _SimpleTensor(T.as_tensor(False)):
+            flag.append(2)
+        self.assertListEqual(flag, [1])
+
+    def test_iter(self):
+        t = _SimpleTensor(T.arange(10))
+        self.assertEqual(len(t), 10)
+
+        arr = list(a for a in t)
+        for i, a in enumerate(t):
+            self.assertIsInstance(a, T.Tensor)
+            self.assertEqual(T.to_numpy(a), i)
+
+    def test_as_tensor(self):
+        t = _SimpleTensor(T.as_tensor(123., dtype=T.float32))
+
+        t2 = T.as_tensor(t)
+        self.assertIsInstance(t2, T.Tensor)
+        self.assertEqual(t2.dtype, T.float32)
+        self.assertNotIsInstance(t2, _SimpleTensor)
+        self.assertEqual(T.to_numpy(t2), 123)
+
+        t2 = T.as_tensor(t, dtype=T.int32)
+        self.assertEqual(t2.dtype, T.int32)
+        self.assertEqual(T.to_numpy(t2), 123)
+
+    def test_get_attributes(self):
+        t = _SimpleTensor(T.as_tensor([1., 2., 3.]), flag=123)
+        self.assertEqual(t.flag, 123)
+        self.assertEqual(t._flag_, 123)
+        self.assertEqual(t.get_flag(), 123)
+        members = dir(t)
+        for member in ['flag', '_flag_', 'get_flag',
+                       '_self_tensor_', 'tensor']:
+            self.assertIn(
+                member, members,
+                msg=f'{members!r} should in dir(t), but not'
+            )
+            self.assertTrue(
+                hasattr(t, member),
+                msg=f'_SimpleTensor should has member {member!r}, but not.'
+            )
+            self.assertFalse(
+                hasattr(t.tensor, member),
+                msg=f'The wrapped tensor should not have member {member!r}, '
+                    f'but it does.'
+            )
+        for member in dir(t.tensor):
+            if not member.startswith('_'):
+                self.assertIn(
+                    member, members,
+                    msg=f'{members!r} should in dir(t), but not'
+                )
+                self.assertTrue(
+                    hasattr(t, member),
+                    msg=f'_SimpleTensor should has member {member!r}, but not.'
+                )
+                try:
+                    self.assertEqual(getattr(t, member),
+                                     getattr(t.tensor, member))
+                except Exception:
+                    pass  # some object may not be comparable
+
+    def test_set_attributes(self):
+        t = _SimpleTensor(T.as_tensor([1., 2., 3.]))
+
+        self.assertTrue(hasattr(t, '_flag_'))
+        self.assertFalse(hasattr(t.tensor, '_flag_'))
+        t._flag_ = 123
+        self.assertEqual(t._flag_, 123)
+        self.assertFalse(hasattr(t.tensor, '_flag_'))
+
+        self.assertTrue(hasattr(t, 'get_flag'))
+        self.assertFalse(hasattr(t.tensor, 'get_flag'))
+        t.get_flag = 456
+        self.assertEqual(t.get_flag, 456)
+        self.assertTrue(hasattr(t, 'get_flag'))
+        self.assertFalse(hasattr(t.tensor, 'get_flag'))
+
+        wrapped_attr = [k for k in dir(t.tensor)
+                        if not k.startswith('_')][0]
+        self.assertTrue(hasattr(t, wrapped_attr))
+        self.assertTrue(hasattr(t.tensor, wrapped_attr))
+        setattr(t, wrapped_attr, 789)
+        self.assertEqual(getattr(t, wrapped_attr), 789)
+        self.assertEqual(getattr(t.tensor, wrapped_attr), 789)
+        self.assertTrue(hasattr(t, wrapped_attr))
+        self.assertTrue(hasattr(t.tensor, wrapped_attr))
+
+        t.abc = 1001
+        self.assertEqual(t.abc, 1001)
+        self.assertEqual(t.tensor.abc, 1001)
+        self.assertTrue(hasattr(t, 'abc'))
+        self.assertTrue(hasattr(t.tensor, 'abc'))
+
+        t.tensor.xyz = 2002
+        self.assertEqual(t.xyz, 2002)
+        self.assertEqual(t.tensor.xyz, 2002)
+        self.assertTrue(hasattr(t, 'xyz'))
+        self.assertTrue(hasattr(t.tensor, 'xyz'))
+
+    def test_del_attributes(self):
+        t = _SimpleTensor(T.as_tensor([1., 2., 3.]), flag=123)
+        t._self_abc_ = 456
+
+        del t._flag_
+        self.assertTrue(hasattr(t, '_flag_'))
+        # since it is defined as a class attribute
+        self.assertFalse(hasattr(t.tensor, '_flag_'))
+
+        self.assertEqual(t._self_abc_, 456)
+        del t._self_abc_
+        self.assertFalse(hasattr(t, '_self_abc_'))
+        self.assertFalse(hasattr(t.tensor, '_self_abc_'))
+
+        t.abc = 1001
+        del t.abc
+        self.assertFalse(hasattr(t, 'abc'))
+        self.assertFalse(hasattr(t.tensor, 'abc'))
+
+        t.tensor.xyz = 2002
+        del t.xyz
+        self.assertFalse(hasattr(t, 'xyz'))
+        self.assertFalse(hasattr(t.tensor, 'xyz'))
+
+        t.get_flag = 123
+        del t.get_flag
+        self.assertFalse(hasattr(t.tensor, 'get_flag'))
+        self.assertNotEqual(t.get_flag, 123)
+
+    def test_register_non_tensor_wrapper_class(self):
+        class _NonTensorWrapperClass(object):
+            pass
+
+        with pytest.raises(
+                TypeError, match='`.*_NonTensorWrapperClass.*` is not a class, '
+                                 'or not a subclass of `TensorWrapper`'):
+            T.register_tensor_wrapper_class(_NonTensorWrapperClass)
+
+        with pytest.raises(
+                TypeError, match='`123` is not a class, or not a subclass of '
+                                 '`TensorWrapper`'):
+            T.register_tensor_wrapper_class(123)

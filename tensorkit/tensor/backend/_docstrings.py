@@ -810,3 +810,85 @@ backend.detach.__doc__ = """
     Returns:
         The output detached tensor, different from `x`.
 """
+
+
+# TensorWrapper
+backend.TensorWrapper.__doc__ = """
+    Tensor-like object that wraps a `Tensor` instance.
+
+    This class is typically used to implement `super-tensor` classes,
+    adding auxiliary methods to a :class:`Tensor`.
+    `register_tensor_wrapper_class` should be called to register
+    derived classes into TensorKit type system.
+
+    Access to any attributes, properties and methods that does not belong 
+    to the wrapper class itself will be transparently proxied to the wrapped
+    tensor.
+    Also, :class:`TensorWrapper` can be directly used in mathematical
+    expressions and TensorKit arithmetic functions.
+    For example, ``TensorWrapper(...) + T.exp(TensorWrapper(...))``.
+
+    However, some backend may not support to do math operations with `Tensor`
+    object as left-hand operand, and an arbitrary type as right-hand operand.
+    For example, ``T.exp(TensorWrapper(...)) + TensorWrapper(...)`` may fail.
+    A safe way to do this is to use TensorKit arithmetic functions instead,
+    for example, ``T.add(T.exp(TensorWrapper(...)), TensorWrapper(...)``. 
+
+    One thing to notice is that, :class:`TensorWrapper` are usually neither 
+    :class:`Tensor` nor sub-classes of :class:`tf.Tensor`, i.e.,
+    ``isinstance(TensorWrapper(...), tf.Tensor) == False``.
+
+    All the attributes defined in sub-classes of :class:`TensorWrapper`
+    must have names starting with ``_self_``, or defined as class attributes.
+    The properties and methods are not restricted by this rule.
+
+    An example of inheriting :class:`TensorWrapper` is shown as follows:
+
+    .. code-block:: python
+    
+        from tensorkit import tensor as T
+
+
+        class MyTensorWrapper(T.TensorWrapper):
+        
+            _flag = None
+
+            def __init__(self, wrapped, flag):
+                super(MyTensorWrapper, self).__init__()
+                self._self_wrapped = wrapped
+                self._flag = flag
+
+            @property
+            def tensor(self):
+                return self._self_wrapped
+
+            @property
+            def flag(self):
+                return self._flag
+
+        T.register_tensor_wrapper_class(MyTensorWrapper)
+
+        # tests
+        t = MyTensorWrapper(T.as_tensor(0., dtype=T.float32), flag=123)
+        assert(T.dtype(t) == T.float32)
+        assert(t.flag == 123)
+    """
+
+backend.TensorWrapper.tensor.__doc__ = """
+    Get the wrapped :class:`Tensor`.
+    Derived classes must override this to return the actual wrapped tensor.
+    """
+
+backend.TensorWrapper.as_tensor.__doc__ = """
+    Convert the :class:`TensorWrapper` object to a :class:`Tensor`.
+
+    Args:
+        dtype: The desired dtype of the target tensor.
+    """
+
+backend.register_tensor_wrapper_class.__doc__ = """
+    Register a sub-class of :class:`TensorWrapper` into TensorKit type system.
+
+    Args:
+        cls: The subclass of :class:`TensorWrapper` to be registered.
+    """
