@@ -7,6 +7,10 @@ from . import backend
 __all__ = []
 
 
+################
+# core package #
+################
+
 # jit
 backend.jit.__doc__ = """
     Compile the decorated function if the backend provides JIT engine, 
@@ -892,3 +896,81 @@ backend.register_tensor_wrapper_class.__doc__ = """
     Args:
         cls: The subclass of :class:`TensorWrapper` to be registered.
     """
+
+
+##############
+# nn package #
+##############
+
+# activation functions
+backend.nn.relu.__doc__ = r"""
+    Compute element-wise :math:`\mathrm{ReLU}(x)`.
+
+    .. math::
+
+        \mathrm{ReLU}(x) = \begin{cases}
+          x & (x \geq 0) \\
+          0 & (x < 0)
+        \end{cases}
+
+    Args:
+        x: The input tensor.
+"""
+
+backend.nn.leaky_relu.__doc__ = r"""
+    Compute element-wise :math:`\mathrm{LeakyReLU}(x)`.
+
+    .. math::
+
+        \mathrm{LeakyReLU}(x) = \begin{cases}
+          x & (x \geq 0) \\
+          ax & (x < 0)
+        \end{cases}
+
+    Args:
+        x: The input tensor.
+        a: The negative slope.  Defaults to 0.01
+"""
+
+backend.nn.sigmoid.__doc__ = r"""
+    Compute element-wise :math:`\mathrm{sigmoid}(x)`.
+
+    .. math::
+
+        \mathrm{sigmoid}(x) = \frac{\exp(x)}{1 + \exp(x)}
+
+    Args:
+        x: The input tensor.
+"""
+
+backend.nn.softmax.__doc__ = r"""
+    Compute :math:`\mathrm{softmax}(x)` along the specified dimension.
+
+    .. math::
+
+        \mathrm{softmax}(\mathbf{x}) = \frac{\exp(\mathbf{x})}{\sum_i \exp(x_i)}
+
+    Args:
+        x: The input tensor.
+        axis: Along which dimension to compute softmax.
+"""
+
+backend.nn.log_softmax.__doc__ = r"""
+    Compute :math:`\log\mathrm{softmax}(x)` along the specified dimension.
+
+    .. math::
+
+        \log\mathrm{softmax}(\mathbf{x}) = 
+            \log\frac{\exp(\mathbf{x})}{\sum_i \exp(x_i)}
+
+    Args:
+        x: The input tensor.
+        axis: Along which dimension to compute softmax.
+"""
+
+
+# objective functions
+
+
+# tensor objectives
+

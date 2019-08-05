@@ -525,7 +525,7 @@ class TensorCoreTestCase(unittest.TestCase):
         assert_allclose(T.to_numpy(T.fmod(x, y)), x % y)
 
         # truediv should raise error for dtype mismatch
-        with pytest.raises(TypeError, match='x and y must have the same dtype'):
+        with pytest.raises(Exception, match='x and y must have the same dtype'):
             _ = T.truediv(T.cast(x, dtype=T.float64),
                           T.cast(x, dtype=T.float32))
 

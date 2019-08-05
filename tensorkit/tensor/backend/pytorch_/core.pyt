@@ -339,17 +339,20 @@ def broadcast_to(x: TensorLike, new_shape: ShapeLike) -> Tensor:
     return _broadcast_to(as_tensor(x), list(new_shape))
 
 
-def explicit_broadcast(x: TensorLike,
-                       y: TensorLike
-                       ) -> Tuple[Tensor, Tensor]:
-    x = as_tensor(x)
-    y = as_tensor(y)
+@jit
+def _explicit_broadcast(x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
     x_shape = list(x.shape)
     y_shape = list(y.shape)
     out_shape = _broadcast_shape(x_shape, y_shape)
     x = _broadcast_to_sub(x, x_shape, out_shape)
     y = _broadcast_to_sub(y, y_shape, out_shape)
     return x, y
+
+
+def explicit_broadcast(x: TensorLike,
+                       y: TensorLike
+                       ) -> Tuple[Tensor, Tensor]:
+    return _explicit_broadcast(as_tensor(x), as_tensor(y))
 
 
 @jit
@@ -456,24 +459,28 @@ def {{ name }}(x: TensorLike, y: TensorLike) -> Tensor:
     return torch.{{ name }}(as_tensor(x), as_tensor(y))
 {% endfor %}
 
-def floordiv(x: TensorLike, y: TensorLike) -> Tensor:
-    ret = torch.div(as_tensor(x), as_tensor(y))
+
+@jit
+def _floordiv(x: Tensor, y: Tensor) -> Tensor:
+    ret = torch.div(x, y)
     if ret.is_floating_point():
         ret = ret.floor()
     return ret
 
 
-def truediv(x: TensorLike, y: TensorLike) -> Tensor:
-    x = as_tensor(x)
-    y = as_tensor(y)
+def floordiv(x: TensorLike, y: TensorLike) -> Tensor:
+    return _floordiv(as_tensor(x), as_tensor(y))
 
+
+@jit
+def _truediv(x: Tensor, y: Tensor) -> Tensor:
     if x.dtype != y.dtype:
-        raise TypeError(f'x and y must have the same dtype, got '
-                        f'{x.dtype} != {y.dtype}')
+        raise TypeError('x and y must have the same dtype, got '
+                        '{} != {}'.format(x.dtype, y.dtype))
 
     dtype = x.dtype
-    if not is_floating_point(dtype):
-        if dtype in (torch.uint8, torch.int16):
+    if not x.is_floating_point():
+        if dtype == torch.uint8 or dtype == torch.int16:
             x = x.to(torch.float32)
             y = y.to(torch.float32)
         else:
@@ -481,6 +488,10 @@ def truediv(x: TensorLike, y: TensorLike) -> Tensor:
             y = y.to(torch.float64)
 
     return x / y
+
+
+def truediv(x: TensorLike, y: TensorLike) -> Tensor:
+    return _truediv(as_tensor(x), as_tensor(y))
 
 
 div = truediv
