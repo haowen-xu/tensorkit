@@ -114,18 +114,19 @@ _as_tensor_convertors: InheritanceDict[AsTensorFunc] = InheritanceDict()
 
 
 def as_tensor(data, dtype: Optional[DTypeLike] = None):
-    if isinstance(data, Tensor) and dtype is None:
+    if isinstance(data, Tensor):
+        if dtype is not None:
+            data = torch.as_tensor(data, dtype=as_dtype(dtype))
         return data
+    else:
+        try:
+            convertor = _as_tensor_convertors[type(data)]
+        except KeyError:
+            convertor = lambda t, dtype: torch.as_tensor(t, dtype=dtype)
 
-    if dtype is not None:
-        dtype = as_dtype(dtype)
-
-    try:
-        convertor = _as_tensor_convertors[type(data)]
-    except KeyError:
-        convertor = lambda t, dtype: torch.as_tensor(t, dtype=dtype)
-
-    return convertor(data, dtype)
+        if dtype is not None:
+            dtype = as_dtype(dtype)
+        return convertor(data, dtype)
 
 
 def register_as_tensor(type_: type, convertor: AsTensorFunc):

@@ -137,6 +137,10 @@ class TensorCoreTestCase(unittest.TestCase):
         t = T.as_tensor(x)
         self.assertIs(t, x)
 
+        t = T.as_tensor(x, dtype=np.int64)
+        self.assertIsNot(t, x)
+        self.assertEqual(T.dtype(t), T.int64)
+
         with pytest.raises(Exception):
             _ = T.as_tensor(object())  # not a tensor, should raise error
 
