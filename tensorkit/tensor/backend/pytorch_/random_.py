@@ -74,8 +74,8 @@ class random(object):
             # do sample
             sample_shape = probs.shape
             if n_samples is not None:
-                sample_shape = sample_shape + (n_samples,)
-                probs = probs.unsqueeze(dim=-1).expand(sample_shape)
+                sample_shape = (n_samples,) + sample_shape
+                probs = probs.unsqueeze(dim=0).expand(sample_shape)
 
             out = torch.zeros(sample_shape, dtype=dtype)
             return torch.bernoulli(probs, out=out, generator=random_state)
@@ -126,8 +126,13 @@ class random(object):
                                     generator=random_state)
             if n_samples is None:
                 ret = torch.squeeze(ret, -1)
-            if front_shape is not None:
-                ret = unflatten_from_ndims(ret, front_shape)
+                if front_shape is not None:
+                    ret = unflatten_from_ndims(ret, front_shape)
+            else:
+                if front_shape is not None:
+                    ret = unflatten_from_ndims(ret, front_shape)
+                ret = ret.permute((-1,) + tuple(range(len(ret.shape) - 1)))
+
             if ret.dtype != dtype:
                 ret = ret.to(dtype)
             return ret

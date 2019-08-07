@@ -1038,3 +1038,124 @@ backend.nn.one_hot.__doc__ = """
         dtype: The dtype of the returned tensor.
 """
 
+
+##################
+# random package #
+##################
+backend.random.seed.__doc__ = """
+    Set the global random seed for the backend.
+    
+    The user may still need to set the seed for Python system libraries and
+    other third-party libraries, for example:
+    
+    >>> import random
+    >>> import numpy as np
+    >>> from tensorkit import tensor as T
+
+    >>> random.seed(1234)
+    >>> np.random.seed(1234)
+    >>> T.random.seed(1234)
+    
+    Args:
+        seed: The random seed.
+"""
+
+backend.random.new_state.__doc__ = """
+    Create a new `RandomState` object.
+    
+    Random states with the same initial seed is guaranteed to deduce same
+    random outputs.  For example::
+    
+        from tensorkit import tensor as T
+
+        rs1 = T.random.new_state(1234)
+        output1 = T.random.randn([2, 3, 4], random_state=rs1)
+
+        rs2 = T.random.new_state(1234)
+        output2 = T.random.randn([2, 3, 4], random_state=rs2)
+        
+        # output1 and output2 are guaranteed to be identical
+    
+    However, it is not guaranteed to have same outputs with the global seed.
+    For example::
+    
+        from tensorkit import tensor as T
+
+        T.random.seed(1234)
+        output1 = T.random.randn([2, 3, 4])
+
+        rs = T.random.new_state(1234)
+        output2 = T.random.randn([2, 3, 4], random_state=rs)
+        
+        # output1 and output2 are not guaranteed to be the same
+    
+    
+    Args:
+        seed: The initial seed for the random state.
+"""
+
+backend.random.normal.__doc__ = r"""
+    Generate :math:`\mathcal{N}(\mu,\sigma^2)` distributed random numbers.
+    
+    .. math::
+    
+        p(x) = \frac{1}{\sqrt{2 \pi \sigma^2}} \exp\left(
+                -\frac{(x-\mu)^2}{2 \sigma^2}
+            \right)
+            
+    Args:
+        mean: The mean (:math:`\mu`) of normal distribution.
+        std: The standard deviation (:math:`\sigma`) of normal distribution.
+        random_state: The optional random state object. 
+"""
+
+backend.random.randn.__doc__ = r"""
+    Generate :math:`\mathcal{N}(0,1)` distributed random numbers.
+    
+    .. math::
+    
+        p(x) = \frac{1}{\sqrt{2 \pi}} \exp\left(-\frac{x^2}{2}\right)
+
+    Args:
+        shape: The shape of the returned tensor.
+        dtype: The dtype of the returned tensor.
+        random_state: The optional random state object. 
+"""
+
+backend.random.bernoulli.__doc__ = r"""
+    Generate bernoulli random numbers.
+    
+    .. math::
+    
+        p(x) = p^{I(x=1)} (1-p)^{I(x = 0)}
+        
+    Args:
+        logits: The logits of `p`.
+            :math:`p = \frac{\exp(logits)}{1 + \exp(logits)}`.
+            Either `logits` or `probs` must be specified, but not both.
+        probs: The `p`.
+        n_samples: The number of samples to take for each `logits` or `probs`.
+            If specified, the returned tensor will have shape
+            ``(n_samples,) + (logits or probs).shape``.
+        dtype: The dtype of the returned tensor.
+        random_state: The optional random state object.
+"""
+
+backend.random.categorical.__doc__ = r"""
+    Generate categorical random numbers.
+    
+    .. math::
+    
+        p(x) = \prod_{i=1}^k p_i^{I(x=i)}
+        
+    Args:
+        logits: The logits of `p_i`.
+            :math:`p_i = \frac{\exp(logits_i)}{\sum_j^k \exp(logits_j)}`.
+            Either `logits` or `probs` must be specified, but not both.
+        probs: The `p_i`.
+        n_samples: The number of samples to take for each `logits` or `probs`.
+            If specified, the returned tensor will have shape
+            ``(n_samples,) + (logits or probs).shape[:-1]``.
+        dtype: The dtype of the returned tensor.
+        random_state: The optional random state object.
+"""

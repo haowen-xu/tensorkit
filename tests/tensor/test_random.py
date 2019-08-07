@@ -44,13 +44,13 @@ class TensorRandomTestCase(unittest.TestCase):
 
         samples = []
         for rs in [None, T.random.new_state(1234), T.random.new_state(1234)]:
-            x = T.to_numpy(
-                T.random.normal(
-                    T.expand(mean, [n_samples, 2, 3, 4]),
-                    T.expand(std, [n_samples, 1, 3, 4]),
-                    random_state=rs
-                )
+            t = T.random.normal(
+                T.cast(T.expand(mean, [n_samples, 2, 3, 4]), T.float64),
+                T.cast(T.expand(std, [n_samples, 1, 3, 4]), T.float64),
+                random_state=rs
             )
+            x = T.to_numpy(t)
+            self.assertEqual(T.dtype(t), T.float64)
             self.assertEqual(x.shape, (n_samples, 2, 3, 4))
             samples.append(x)
             x_mean = np.mean(x, axis=0)
@@ -59,6 +59,13 @@ class TensorRandomTestCase(unittest.TestCase):
                 np.tile(np.expand_dims(3 * std / np.sqrt(n_samples), axis=0),
                         [2, 1, 1])
             )
+
+            t = T.random.normal(
+                T.cast(mean, T.float32),
+                T.cast(std, T.float32),
+                random_state=rs
+            )
+            self.assertEqual(T.dtype(t), T.float32)
 
         # validate whether or not random state takes effect.
         # do not validate the first sample; not all backend ensure to output
@@ -99,16 +106,8 @@ class TensorRandomTestCase(unittest.TestCase):
         np.random.seed(1234)
         T.random.seed(1234)
 
-        logits = np.clip(np.random.randn(2, 3, 4) / 10., a_min=-0.3, a_max=0.3)
+        logits = np.random.randn(2, 3, 4)
         probs = sigmoid(logits)
-
-        std = np.exp(
-            np.where(
-                logits >= 0,
-                -logits - 2 * np.log1p(np.exp(-logits)),
-                logits - 2 * np.log1p(np.exp(logits)),
-            )
-        )
 
         samples_logits = []
         samples_probs = []
@@ -122,12 +121,8 @@ class TensorRandomTestCase(unittest.TestCase):
             self.assertEqual(T.dtype(t), T.int32)
             self.assertEqual(tuple(T.shape(t)), (n_samples, 2, 3, 4))
             x = T.to_numpy(t)
+            self.assertEqual(set(x.flatten().tolist()), {0, 1})
             samples_logits.append(x)
-            x_mean = np.mean(x, axis=0)
-            np.testing.assert_array_less(
-                np.abs(x_mean - probs),
-                4 * std / np.sqrt(n_samples)
-            )
 
             # test sample with probs
             t = T.random.bernoulli(
@@ -137,14 +132,10 @@ class TensorRandomTestCase(unittest.TestCase):
                 random_state=rs
             )
             self.assertEqual(T.dtype(t), T.int64)
-            self.assertEqual(tuple(T.shape(t)), (2, 3, 4, n_samples))
+            self.assertEqual(tuple(T.shape(t)), (n_samples, 2, 3, 4))
             x = T.to_numpy(t)
+            self.assertEqual(set(x.flatten().tolist()), {0, 1})
             samples_probs.append(x)
-            x_mean = np.mean(x, axis=-1)
-            np.testing.assert_array_less(
-                np.abs(x_mean - probs),
-                4 * std / np.sqrt(n_samples)
-            )
 
         np.testing.assert_allclose(*samples_logits[-2:])
         np.testing.assert_allclose(*samples_probs[-2:])
@@ -189,6 +180,7 @@ class TensorRandomTestCase(unittest.TestCase):
             self.assertEqual(T.dtype(t), T.random.CATEGORICAL_DTYPE)
             self.assertEqual(tuple(T.shape(t)), (n_samples, 2, 3, 4))
             x = T.to_numpy(t)
+            self.assertEqual(set(x.flatten().tolist()), set(range(5)))
             samples_logits.append(x)
 
             # test sample with 2d logits
@@ -209,18 +201,20 @@ class TensorRandomTestCase(unittest.TestCase):
                 random_state=rs
             )
             self.assertEqual(T.dtype(t), T.random.CATEGORICAL_DTYPE)
-            self.assertEqual(tuple(T.shape(t)), (2, 3, 4, n_samples))
+            self.assertEqual(tuple(T.shape(t)), (n_samples, 2, 3, 4))
             x = T.to_numpy(t)
+            self.assertEqual(set(x.flatten().tolist()), set(range(5)))
             samples_probs.append(x)
 
             # test sample with 2d probs
             t = T.random.categorical(
                 probs=probs[0, 0],
                 dtype=T.int16,
+                n_samples=n_samples,
                 random_state=rs
             )
             self.assertEqual(T.dtype(t), T.int16)
-            self.assertEqual(tuple(T.shape(t)), (4,))
+            self.assertEqual(tuple(T.shape(t)), (n_samples, 4))
             x = T.to_numpy(t)
             samples_probs_2d.append(x)
 
