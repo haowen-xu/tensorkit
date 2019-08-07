@@ -662,7 +662,7 @@ backend.to_boolean.__doc__ = """
     Convert a tensor into boolean tensor.
     
     The output tensor will have `T.boolean` dtype.  Some backend may not
-    have a dedicated boolean dtype, and it may be an alias of another integral
+    have a dedicated boolean dtype, and it may be an alias of another integer
     type, e.g., it might be `T.uint8`.
 
     >>> from tensorkit import tensor as T
@@ -970,7 +970,71 @@ backend.nn.log_softmax.__doc__ = r"""
 
 
 # objective functions
+backend.nn.binary_cross_entropy_with_logits.__doc__ = r"""
+    Compute the binary cross entropy :math:`-(x \log p + (1-x) \log (1-p))`.
+    
+    Args:
+        logits: The logits of `p`.
+            :math:`p = \frac{\exp(logits)}{1 + \exp(logits)}`.
+        labels: The integer or floating point label `x`, whose values should
+            be within range `[0, 1]`.
+        reduction: One of `{'none', 'sum', 'mean'}`.  If 'sum', the output
+            will be summed to a scalar.  If 'mean', the output will be averaged.
+        negative: Whether or not to take negative on the output?
+            If :obj:`True`, will compute :math:`x \log p + (1-x) \log (1-p)`.
+"""
+
+backend.nn.cross_entropy_with_logits.__doc__ = r"""
+    Compute the categorical cross entropy :math:`-\sum_{i=1}^k I(x=i) \log p_i`.
+
+    Args:
+        logits: The logits of `p_i`.
+            :math:`p_i = \frac{\exp(logits_i)}{\sum_j^k \exp(logits_j)}`.
+        labels: The integer label `x`, whose values should be integers
+            from the set `{0, 1, ..., k-1}`.  `labels.shape` must be
+            broadcastable against `logits.shape[:-1]`.
+        reduction: One of `{'none', 'sum', 'mean'}`.  If 'sum', the output
+            will be summed to a scalar.  If 'mean', the output will be averaged.
+        negative: Whether or not to take negative on the output?
+            If :obj:`True`, will compute :math:`\sum_{i=1}^k I(x=i) \log p_i`.
+"""
+
+backend.nn.sparse_cross_entropy_with_logits.__doc__ = r"""
+    Compute the categorical cross entropy :math:`-\sum_{i=1}^k x_i \log p_i`.
+
+    Args:
+        logits: The logits of `p_i`.
+            :math:`p_i = \frac{\exp(logits_i)}{\sum_j^k \exp(logits_j)}`.
+        labels: The integer or floating-point label `x`.
+            `labels.shape` must be broadcastable against `logits.shape`.
+            If it is an integer tensor, its values must be one-hot encoded
+            vectors.  If it is a floating-point tensor, its values must be
+            non-negative vectors summed up to 1.
+        reduction: One of `{'none', 'sum', 'mean'}`.  If 'sum', the output
+            will be summed to a scalar.  If 'mean', the output will be averaged.
+        negative: Whether or not to take negative on the output?
+            If :obj:`True`, will compute :math:`\sum_{i=1}^k x_i \log p_i`.
+"""
 
 
-# tensor objectives
+# tensor transformations
+backend.nn.one_hot.__doc__ = """
+    Construct a one-hot encoded tensor from the given indexing tensor.
+    
+    >>> from tensorkit import tensor as T
+    >>> t = T.as_tensor([[3, 1], [0, 2]])
+    >>> t2 = T.nn.one_hot(t, 4)
+    >>> T.to_numpy(t2)
+    array([[[0, 0, 0, 1],
+            [0, 1, 0, 0]],
+    <BLANKLINE>
+           [[1, 0, 0, 0],
+            [0, 0, 1, 0]]])
+    
+    Args:
+        x: The indexing tensor, whose values should be integers from the set
+            `{0, 1, ..., n_classes-1}`.
+        n_classes: The number of components of the one-hot vectors.
+        dtype: The dtype of the returned tensor.
+"""
 

@@ -14,7 +14,6 @@ __all__ = ['random']
 class random(object):
 
     CATEGORICAL_DTYPE = torch.LongTensor.dtype
-
     RandomState = torch.Generator
 
     @staticmethod
@@ -22,12 +21,18 @@ class random(object):
         torch.manual_seed(seed)
 
     @staticmethod
+    def new_state(seed: Optional[int] = None):
+        g = torch.Generator()
+        if seed is not None:
+            g.manual_seed(seed)
+        return g
+
+    @staticmethod
     def normal(mean: TensorLike,
                std: TensorLike,
                *,
                random_state: Optional[RandomState] = None) -> Tensor:
-        mean = as_tensor(mean)
-        std = as_tensor(std)
+        mean, std = explicit_broadcast(mean, std)
         return torch.normal(mean=mean, std=std, generator=random_state)
 
     @staticmethod
@@ -35,8 +40,12 @@ class random(object):
               dtype: DTypeLike = settings.float_x,
               *,
               random_state: Optional[RandomState] = None) -> Tensor:
-        kwargs = {'generator': random_state} if random_state is not None else {}
-        return torch.randn(as_shape(shape), dtype=as_dtype(dtype), **kwargs)
+        shape = as_shape(shape)
+        dtype = as_dtype(dtype)
+        if random_state is not None:
+            return torch.randn(shape, dtype=dtype, generator=random_state)
+        else:
+            return torch.randn(shape, dtype=dtype)
 
     @staticmethod
     def bernoulli(*,
@@ -55,24 +64,21 @@ class random(object):
 
         dtype = as_dtype(dtype)
 
-        if logits is not None:
-            logits = as_tensor(logits)
-            probs = nn.sigmoid(logits)
-        else:
-            probs = as_tensor(probs)
-
-        # do sample
-        sample_shape = shape(probs)
-        if n_samples is not None:
-            sample_shape = sample_shape + (n_samples,)
-            probs = expand(expand_dim(probs, -1), sample_shape)
-
         with torch.no_grad():
+            if logits is not None:
+                logits = as_tensor(logits)
+                probs = torch.sigmoid(logits)
+            else:
+                probs = as_tensor(probs)
+
+            # do sample
+            sample_shape = probs.shape
+            if n_samples is not None:
+                sample_shape = sample_shape + (n_samples,)
+                probs = probs.unsqueeze(dim=-1).expand(sample_shape)
+
             out = torch.zeros(sample_shape, dtype=dtype)
-            kwargs = {'generator': random_state} \
-                if random_state is not None else {}
-            ret = torch.bernoulli(probs, out=out, **kwargs)
-            return ret
+            return torch.bernoulli(probs, out=out, generator=random_state)
 
     @staticmethod
     def categorical(*,
@@ -91,44 +97,37 @@ class random(object):
 
         dtype = as_dtype(dtype)
 
-        if logits is not None:
-            logits = as_tensor(logits)
-            probs = nn.softmax(logits)
-        else:
-            probs = as_tensor(probs)
-
-        probs_rank = rank(probs)
-        if probs_rank < 1:
-            raise ValueError(f'The rank of `logits` or `probs` must be at '
-                             f'least 1: got {probs_rank}')
-
-        # do sample
-        if probs_rank > 2:
-            probs, front_shape = flatten_to_ndims(probs, 2)
-        else:
-            probs, front_shape = probs, None
-
-        probs_shape = shape(probs)
-        out_shape = probs_shape[:-1]
-        if n_samples is None:
-            out_shape += (1,)
-        else:
-            out_shape += (n_samples,)
-
         with torch.no_grad():
-            kwargs = {'generator': random_state} \
-                if random_state is not None else {}
+            if logits is not None:
+                logits = as_tensor(logits)
+                probs = torch.softmax(logits, dim=-1)
+            else:
+                probs = as_tensor(probs)
+
+            probs_rank = len(probs.shape)
+            if probs_rank < 1:
+                raise ValueError(f'The rank of `logits` or `probs` must be at '
+                                 f'least 1: got {probs_rank}')
+
+            # do sample
+            if probs_rank > 2:
+                probs, front_shape = flatten_to_ndims(probs, 2)
+            else:
+                probs, front_shape = probs, None
+
+            probs_shape = probs.shape
+            out_shape = probs_shape[:-1]
+            if n_samples is None:
+                out_shape += (1,)
+            else:
+                out_shape += (n_samples,)
 
             ret = torch.multinomial(probs, n_samples or 1, replacement=True,
-                                    **kwargs)
-
+                                    generator=random_state)
             if n_samples is None:
-                ret = squeeze(ret, -1)
-
+                ret = torch.squeeze(ret, -1)
             if front_shape is not None:
                 ret = unflatten_from_ndims(ret, front_shape)
-
             if ret.dtype != dtype:
-                ret = cast(ret, dtype)
-
+                ret = ret.to(dtype)
             return ret

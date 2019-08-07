@@ -117,7 +117,7 @@ class TensorNNTestCase(unittest.TestCase):
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
-                # test integral labels
+                # test integer labels
                 ans = binary_cross_entropy(logits, labels, reduction, negative)
                 out = T.nn.binary_cross_entropy_with_logits(
                     logits, labels, reduction, negative)

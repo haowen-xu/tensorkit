@@ -3,7 +3,7 @@ from typing import *
 
 import numpy as np
 import torch
-from mltk.utils import InheritanceDict
+from mltk.utils import CachedInheritanceDict as InheritanceDict
 from torch.jit import script
 
 from ....settings_ import settings
