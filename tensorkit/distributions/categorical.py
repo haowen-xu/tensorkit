@@ -1,8 +1,7 @@
 from typing import *
 
-from .. import tensor as T
-from ..tensor import typing as Z
 from ..stochastic import StochasticTensor
+from ..tensor import *
 from .base import Distribution
 
 __all__ = [
@@ -14,13 +13,12 @@ class BaseCategorical(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.TensorLike],
-                 probs: Optional[Z.TensorLike],
-                 dtype: Z.DTypeLike,
+                 logits: Optional[Tensor],
+                 probs: Optional[Tensor],
+                 dtype: str,
                  event_ndims: int,
                  min_event_ndims: int,
                  check_numerics: Optional[bool],
-                 random_state: Optional[T.random.RandomState],
                  epsilon: float = 1e-7):
         if (logits is None) == (probs is None):
             raise ValueError('Either `logits` or `probs` must be specified, '
@@ -29,13 +27,11 @@ class BaseCategorical(Distribution):
         epsilon = float(epsilon)
 
         if logits is not None:
-            logits = T.as_tensor(logits)
-            param_shape = T.shape(logits)
+            param_shape = shape(logits)
             probs = None
             original_arg = 'logits'
         else:
-            probs = T.as_tensor(probs)
-            param_shape = T.shape(probs)
+            param_shape = shape(probs)
             logits = None
             original_arg = 'probs'
 
@@ -53,7 +49,6 @@ class BaseCategorical(Distribution):
             event_ndims=event_ndims,
             min_event_ndims=min_event_ndims,
             check_numerics=check_numerics,
-            random_state=random_state,
         )
         self._epsilon = epsilon
         self._logits = logits
@@ -94,16 +89,16 @@ class BaseCategorical(Distribution):
         return self._original_arg
 
     @property
-    def logits(self) -> T.Tensor:
+    def logits(self) -> Tensor:
         if self._logits is None:
-            self._logits = T.log(
-                T.clip(self._probs, self._epsilon, 1 - self._epsilon))
+            self._logits = log(
+                clip(self._probs, self._epsilon, 1 - self._epsilon))
         return self._logits
 
     @property
-    def probs(self) -> T.Tensor:
+    def probs(self) -> Tensor:
         if self._probs is None:
-            self._probs = T.nn.softmax(self._logits)
+            self._probs = softmax(self._logits)
         return self._probs
 
     @property
@@ -119,7 +114,6 @@ class BaseCategorical(Distribution):
             dtype=self.dtype,
             event_ndims=event_ndims,
             check_numerics=self._check_numerics,
-            random_state=self.random_state,
             epsilon=self._epsilon,
             **kwargs,
         )
@@ -133,7 +127,6 @@ class BaseCategorical(Distribution):
             dtype=self.dtype,
             event_ndims=event_ndims,
             check_numerics=self._check_numerics,
-            random_state=self.random_state,
             epsilon=self._epsilon,
             **kwargs,
         )
@@ -143,12 +136,11 @@ class Categorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.TensorLike] = None,
-                 probs: Optional[Z.TensorLike] = None,
-                 dtype: Z.DTypeLike = T.random.CATEGORICAL_DTYPE,
+                 logits: Optional[Tensor] = None,
+                 probs: Optional[Tensor] = None,
+                 dtype: str = index_dtype,
                  event_ndims: int = 0,
                  check_numerics: Optional[bool] = None,
-                 random_state: Optional[T.random.RandomState] = None,
                  epsilon: float = 1e-7):
         super().__init__(
             logits=logits,
@@ -157,7 +149,6 @@ class Categorical(BaseCategorical):
             event_ndims=event_ndims,
             min_event_ndims=0,
             check_numerics=check_numerics,
-            random_state=random_state,
             epsilon=epsilon,
         )
 
@@ -166,14 +157,11 @@ class Categorical(BaseCategorical):
         arg = getattr(self, self.original_arg)
         if n_samples is not None:
             param_shape = (n_samples,) + param_shape
-            arg = T.expand(arg, param_shape)
-        return T.random.categorical(
-            dtype=self.dtype, random_state=self.random_state,
-            **{self.original_arg: arg}
-        )
+            arg = expand(arg, param_shape)
+        return random.categorical(dtype=self.dtype, **{self.original_arg: arg})
 
-    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
-        log_p = T.nn.cross_entropy_with_logits(
+    def log_prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
+        log_p = cross_entropy_with_logits(
             logits=self.logits, labels=given, negative=True)
         return log_p
 
@@ -192,12 +180,11 @@ class OnehotCategorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.TensorLike] = None,
-                 probs: Optional[Z.TensorLike] = None,
-                 dtype: Z.DTypeLike = T.random.CATEGORICAL_DTYPE,
+                 logits: Optional[Tensor] = None,
+                 probs: Optional[Tensor] = None,
+                 dtype: str = index_dtype,
                  event_ndims: int = 1,
                  check_numerics: Optional[bool] = None,
-                 random_state: Optional[T.random.RandomState] = None,
                  epsilon: float = 1e-7):
         super().__init__(
             logits=logits,
@@ -206,7 +193,6 @@ class OnehotCategorical(BaseCategorical):
             event_ndims=event_ndims,
             min_event_ndims=1,
             check_numerics=check_numerics,
-            random_state=random_state,
             epsilon=epsilon,
         )
 
@@ -215,16 +201,15 @@ class OnehotCategorical(BaseCategorical):
         arg = getattr(self, self.original_arg)
         if n_samples is not None:
             param_shape = (n_samples,) + param_shape
-            arg = T.expand(arg, param_shape)
-        samples = T.random.categorical(
-            random_state=self.random_state, **{self.original_arg: arg})
-        samples = T.nn.one_hot(samples, self.n_classes)
+            arg = expand(arg, param_shape)
+        samples = random.categorical(**{self.original_arg: arg})
+        samples = one_hot(samples, self.n_classes)
         if samples.dtype != self.dtype:
-            samples = T.cast(samples, self.dtype)
+            samples = cast(samples, self.dtype)
         return samples
 
-    def log_prob(self, given: T.Tensor, group_ndims: int = 0) -> T.Tensor:
-        return T.nn.sparse_cross_entropy_with_logits(
+    def log_prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
+        return sparse_cross_entropy_with_logits(
             logits=self.logits, labels=given, negative=True)
 
     def to_one_hot(self) -> 'OnehotCategorical':

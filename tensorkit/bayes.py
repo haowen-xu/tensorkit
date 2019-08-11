@@ -3,10 +3,9 @@ from typing import *
 
 from frozendict import frozendict
 
-from . import tensor as T
-from .tensor import typing as Z
 from .distributions import Distribution
 from .stochastic import StochasticTensor
+from .tensor import *
 
 __all__ = ['BayesianNet']
 
@@ -15,7 +14,7 @@ ModelBuilderFunctionType = Callable[..., 'BayesianNet']
 
 class BayesianNet(object):
 
-    def __init__(self, observed: Mapping[str, Z.TensorLike] = None):
+    def __init__(self, observed: Mapping[str, Tensor] = None):
         def check_name(s):
             if not isinstance(s, str):
                 raise TypeError(f'name must be a str: got {s!r}')
@@ -23,13 +22,13 @@ class BayesianNet(object):
 
         super(BayesianNet, self).__init__()
         self._observed = frozendict([
-            (check_name(name), T.as_tensor(tensor))
+            (check_name(name), tensor)
             for name, tensor in (observed.items() if observed else ())
         ])
         self._stochastic_tensors = {}
 
     @property
-    def observed(self) -> Mapping[str, Z.TensorLike]:
+    def observed(self) -> Mapping[str, Tensor]:
         return self._observed
 
     def add(self,
@@ -62,7 +61,7 @@ class BayesianNet(object):
                     is_reparameterized = ob_tensor.is_reparameterized
 
             if not is_reparameterized:
-                ob_tensor = T.detach(ob_tensor)
+                ob_tensor = detach(ob_tensor)
 
             t = StochasticTensor(
                 distribution=distribution,
@@ -94,13 +93,13 @@ class BayesianNet(object):
     def __iter__(self) -> Iterator[str]:
         return iter(self._stochastic_tensors)
 
-    def outputs(self, names: Iterable[str]) -> List[T.Tensor]:
+    def outputs(self, names: Iterable[str]) -> List[Tensor]:
         return [self._stochastic_tensors[n].tensor for n in names]
 
-    def output(self, name: str) -> T.Tensor:
+    def output(self, name: str) -> Tensor:
         return self.outputs((name,))[0]
 
-    def local_log_probs(self, names: Iterable[str]) -> List[T.Tensor]:
+    def local_log_probs(self, names: Iterable[str]) -> List[Tensor]:
         ret = []
         for name in names:
             ret.append(self._stochastic_tensors[name].log_prob())
@@ -109,15 +108,15 @@ class BayesianNet(object):
     def local_log_prob(self, name: str):
         return self.local_log_probs((name,))[0]
 
-    def query(self, names: Iterable[str]) -> List[Tuple[T.Tensor, T.Tensor]]:
+    def query(self, names: Iterable[str]) -> List[Tuple[Tensor, Tensor]]:
         names = tuple(names)
         return list(zip(self.outputs(names), self.local_log_probs(names)))
 
     def chain(self,
               model_builder: ModelBuilderFunctionType,
               latent_names: Optional[Iterable[str]] = None,
-              latent_axis: Optional[Z.AxisOrAxes] = None,
-              observed: Mapping[str, Z.TensorLike] = None,
+              latent_axes: Optional[List[int]] = None,
+              observed: Mapping[str, Tensor] = None,
               **kwargs):
         from .variational.chain import VariationalChain
 
@@ -153,5 +152,5 @@ class BayesianNet(object):
             p=model,
             log_joint=log_joint,
             latent_names=latent_names,
-            latent_axis=latent_axis,
+            latent_axes=latent_axes,
         )

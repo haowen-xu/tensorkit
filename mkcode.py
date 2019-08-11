@@ -2,7 +2,7 @@ import codecs
 import os
 from glob import glob
 
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader
 
 
 def format_all_list(val):
@@ -22,9 +22,15 @@ def format_all_list(val):
 
 for src in glob('**/*.pyt', recursive=True):
     dst = os.path.splitext(src)[0] + '.py'
-    with codecs.open(src, 'rb', 'utf-8') as f:
-        template = f.read()
-    t = Template(template)
+    env = Environment(
+        loader=FileSystemLoader(
+            searchpath=[
+                os.path.split(os.path.abspath(src))[0],
+                '.'
+            ]
+        )
+    )
+    t = env.get_template(src)
     rendered = t.render(format_all_list=format_all_list)
     rendered = rendered.rstrip() + '\n'
     old = None

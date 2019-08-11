@@ -1,8 +1,7 @@
 from typing import *
 
-from .. import tensor as T
-from ..tensor import typing as Z
 from ..stochastic import StochasticTensor
+from ..tensor import *
 from .base import Distribution
 
 __all__ = ['Bernoulli']
@@ -12,12 +11,11 @@ class Bernoulli(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.TensorLike] = None,
-                 probs: Optional[Z.TensorLike] = None,
-                 dtype: Z.DTypeLike = T.int32,
+                 logits: Optional[Tensor] = None,
+                 probs: Optional[Tensor] = None,
+                 dtype: str = int32,
                  event_ndims: int = 0,
                  check_numerics: Optional[bool] = None,
-                 random_state: Optional[T.random.RandomState] = None,
                  epsilon: float = 1e-7):
         # validate the arguments
         if (logits is None) == (probs is None):
@@ -27,13 +25,11 @@ class Bernoulli(Distribution):
         epsilon = float(epsilon)
 
         if logits is not None:
-            logits = T.as_tensor(logits)
-            param_shape = T.shape(logits)
+            param_shape = shape(logits)
             probs = None
             original_arg = 'logits'
         else:
-            probs = T.as_tensor(probs)
-            param_shape = T.shape(probs)
+            param_shape = shape(probs)
             logits = None
             original_arg = 'probs'
 
@@ -41,7 +37,7 @@ class Bernoulli(Distribution):
         super().__init__(
             dtype=dtype, is_continuous=False, is_reparameterized=False,
             value_shape=param_shape, event_ndims=event_ndims, min_event_ndims=0,
-            check_numerics=check_numerics, random_state=random_state,
+            check_numerics=check_numerics,
         )
 
         self._param_shape = param_shape
@@ -55,17 +51,17 @@ class Bernoulli(Distribution):
         return self._original_arg
 
     @property
-    def logits(self) -> T.Tensor:
+    def logits(self) -> Tensor:
         if self._logits is None:
-            probs_clipped = T.clip(
+            probs_clipped = clip(
                 self._probs, self._epsilon, 1 - self._epsilon)
-            self._logits = T.log(probs_clipped) - T.log1p(-probs_clipped)
+            self._logits = log(probs_clipped) - log1p(-probs_clipped)
         return self._logits
 
     @property
-    def probs(self) -> T.Tensor:
+    def probs(self) -> Tensor:
         if self._probs is None:
-            self._probs = T.nn.sigmoid(self._logits)
+            self._probs = sigmoid(self._logits)
         return self._probs
 
     def sample(self, n_samples: Optional[int] = None,
@@ -80,11 +76,9 @@ class Bernoulli(Distribution):
         param_shape = self._param_shape
         if n_samples is not None:
             param_shape = (n_samples,) + param_shape
-            arg = T.expand(arg, param_shape)
-        samples = T.random.bernoulli(
-            dtype=self.dtype, random_state=self.random_state,
-            **{self.original_arg: arg}
-        )
+            arg = expand(arg, param_shape)
+        samples = random.bernoulli(
+            dtype=self.dtype, **{self.original_arg: arg})
 
         # compose the stochastic tensor
         t = StochasticTensor(
@@ -99,8 +93,8 @@ class Bernoulli(Distribution):
 
         return t
 
-    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
-        return T.nn.binary_cross_entropy_with_logits(
+    def log_prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
+        return binary_cross_entropy_with_logits(
             logits=self.logits, labels=given, negative=True)
 
     def copy(self, **kwargs):

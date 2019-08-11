@@ -1,31 +1,32 @@
 from typing import *
 
-from .. import tensor as T
-from ..tensor import typing as Z
-from .utils import _require_multi_samples
+from ..tensor import *
 
 __all__ = ['elbo_objective', 'monte_carlo_objective']
 
 
-def elbo_objective(log_joint: Z.TensorLike,
-                   latent_log_prob: Z.TensorLike,
-                   axis: Optional[Z.AxisOrAxes] = None,
-                   keepdims: bool = False) -> T.Tensor:
-    log_joint = T.as_tensor(log_joint)
-    latent_log_prob = T.as_tensor(latent_log_prob)
+@jit
+def elbo_objective(log_joint: Tensor,
+                   latent_log_prob: Tensor,
+                   axes: Optional[List[int]] = None,
+                   keepdims: bool = False) -> Tensor:
     objective = log_joint - latent_log_prob
-    if axis is not None:
-        objective = T.reduce_mean(objective, axis=axis, keepdims=keepdims)
+    if axes is not None:
+        objective = reduce_mean(objective, axes=axes, keepdims=keepdims)
     return objective
 
 
-def monte_carlo_objective(log_joint: Z.TensorLike,
-                          latent_log_prob: Z.TensorLike,
-                          axis: Optional[Z.AxisOrAxes] = None,
-                          keepdims: bool = False) -> T.Tensor:
-    _require_multi_samples(axis, 'monte carlo objective')
-    log_joint = T.as_tensor(log_joint)
-    latent_log_prob = T.as_tensor(latent_log_prob)
+@jit
+def monte_carlo_objective(log_joint: Tensor,
+                          latent_log_prob: Tensor,
+                          axes: Optional[List[int]] = None,
+                          keepdims: bool = False) -> Tensor:
+    if axes is None or len(axes) == 0:
+        raise ValueError(
+            '`monte_carlo_objective` requires to take multiple samples of the '
+            'latent variables, thus the `axes` argument must be specified'
+        )
+
     likelihood = log_joint - latent_log_prob
-    objective = T.log_mean_exp(likelihood, axis=axis, keepdims=keepdims)
+    objective = log_mean_exp(likelihood, axes=axes, keepdims=keepdims)
     return objective

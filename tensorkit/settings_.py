@@ -42,28 +42,44 @@ class Settings(Config):
         str,
         default=auto_choose_backend() or 'pytorch',
         choices=KNOWN_BACKENDS,
-        envvar='TENSORKIT_BACKEND'
+        envvar='TENSORKIT_BACKEND',
+        description='The backend to use.'
+                    'Changing the value of this configuration at runtime '
+                    'will not take effect.'
     )
     float_x: str = ConfigField(
         str,
         default='float32',
         choices=['float32', 'float64'],
-        envvar='TENSORKIT_FLOATX'
+        envvar='TENSORKIT_FLOATX',
+        description='The default dtype for floating-point numbers. '
+                    'Changing the value of this configuration at runtime may '
+                    'not take effect.'
     )
     check_numerics: bool = ConfigField(
         bool,
         default=False,
-        envvar='TENSORKIT_CHECK_NUMERICS'
+        envvar='TENSORKIT_CHECK_NUMERICS',
+        description='Whether or not to check the numerical issues of '
+                    'computational outputs?  Changing the value of this '
+                    'configuration at runtime may not take effect.'
     )
     prefer_backend_impl: bool = ConfigField(
         bool,
         default=True,
-        envvar='TENSORKIT_PREFER_BACKEND_IMPL'
+        envvar='TENSORKIT_PREFER_BACKEND_IMPL',
+        description='Whether or not to prefer using backend implementation '
+                    'rather than tensorkit implementation?'
+                    'Changing the value of this configuration at runtime '
+                    'will not take effect.'
     )
     disable_jit: bool = ConfigField(
         bool,
         default=False,
-        envvar='TENSORKIT_DISABLE_JIT'
+        envvar='TENSORKIT_DISABLE_JIT',
+        description='Whether or not to disable the JIT engine of backend?'
+                    'Changing the value of this configuration at runtime '
+                    'will not take effect.'
     )
 
 

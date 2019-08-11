@@ -1,10 +1,8 @@
-from . import core, dtypes, typing
+from . import core, extended_tensor
 from .core import *
-from .dtypes import *
-from .nn_ import *
-from .random_ import *
+from .extended_tensor import *
 
 name = 'pytorch'
 
-__all__ = ['name'] + core.__all__ + dtypes.__all__ + ['nn', 'random', 'typing']
-del core, dtypes
+__all__ = ['name'] + core.__all__ + extended_tensor.__all__
+del core, extended_tensor

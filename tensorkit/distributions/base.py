@@ -1,7 +1,6 @@
 from typing import *
 
-from .. import tensor as T
-from ..tensor import typing as Z
+from ..tensor import *
 from ..settings_ import settings
 
 __all__ = ['Distribution']
@@ -10,16 +9,14 @@ __all__ = ['Distribution']
 class Distribution(object):
 
     def __init__(self,
-                 dtype: Z.DTypeLike,
+                 dtype: str,
                  is_continuous: bool,
                  is_reparameterized: bool,
-                 value_shape: Z.ShapeLike,
+                 value_shape: List[int],
                  event_ndims: int,
                  min_event_ndims: int,
-                 check_numerics: Optional[bool],
-                 random_state: Optional[T.random.RandomState]):
+                 check_numerics: Optional[bool]):
         # validate the arguments
-        value_shape = T.as_shape(value_shape)
         event_ndims = int(event_ndims)
         min_event_ndims = int(min_event_ndims)
 
@@ -43,17 +40,16 @@ class Distribution(object):
             check_numerics = settings.check_numerics
 
         # construct the object
-        self._dtype = T.as_dtype(dtype)
+        self._dtype = dtype
         self._is_continuous = bool(is_continuous)
         self._is_reparamaterized = bool(is_reparameterized)
         self._batch_shape = batch_shape
         self._event_shape = event_shape
         self._min_event_ndims = min_event_ndims
         self._check_numerics = check_numerics
-        self._random_state = random_state
 
     @property
-    def dtype(self) -> T.DType:
+    def dtype(self) -> str:
         return self._dtype
 
     @property
@@ -65,11 +61,11 @@ class Distribution(object):
         return self._is_reparamaterized
 
     @property
-    def batch_shape(self) -> T.Shape:
+    def batch_shape(self) -> List[int]:
         return self._batch_shape
 
     @property
-    def event_shape(self) -> T.Shape:
+    def event_shape(self) -> List[int]:
         return self._event_shape
 
     @property
@@ -80,10 +76,6 @@ class Distribution(object):
     def min_event_ndims(self) -> int:
         return self._min_event_ndims
 
-    @property
-    def random_state(self) -> Optional[T.random.RandomState]:
-        return self._random_state
-
     def sample(self,
                n_samples: Optional[int] = None,
                group_ndims: int = 0,
@@ -92,13 +84,13 @@ class Distribution(object):
                ) -> 'StochasticTensor':
         raise NotImplementedError()
 
-    def log_prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
+    def log_prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
         raise NotImplementedError()
 
-    def prob(self, given: Z.TensorLike, group_ndims: int = 0) -> T.Tensor:
-        return T.exp(self.log_prob(given=given, group_ndims=group_ndims))
+    def prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
+        return exp(self.log_prob(given=given, group_ndims=group_ndims))
 
-    def _maybe_check_numerics(self, name: str, tensor: T.Tensor) -> T.Tensor:
+    def _maybe_check_numerics(self, name: str, tensor: Tensor) -> Tensor:
         if self._check_numerics:
             pass  # TODO: check numerics
         return tensor
