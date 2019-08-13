@@ -918,12 +918,12 @@ def log_mean_exp(x: Tensor,
 
 
 # ---- logical operations ----
-@jit_ignore
+@jit
 def logical_not(x: Tensor) -> Tensor:
     if x.dtype != torch.bool:
         raise TypeError('Expected x to be {}, got {} of type '
                         '{} instead.'.format(torch.bool, x, x.dtype))
-    return ~x
+    return x == torch.tensor(False, dtype=torch.bool)
 
 
 @jit
