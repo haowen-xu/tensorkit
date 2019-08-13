@@ -392,10 +392,10 @@ class TensorCoreTestCase(unittest.TestCase):
         with pytest.raises(TypeError, match='`x` is not a Tensor'):
             _ = T.to_numpy(object())
 
-        # test to_numpy_bool
+        # test to_numpy with bool
         x = np.asarray([True, False])
-        t = T.as_boolean(x)
-        out = T.to_numpy_bool(t)
+        t = T.as_tensor(x)
+        out = T.to_numpy(t)
         self.assertIsInstance(out, np.ndarray)
         self.assertEqual(out.dtype, np.bool)
         np.testing.assert_equal(out, x)
@@ -492,7 +492,7 @@ class TensorCoreTestCase(unittest.TestCase):
         z = np.random.randn(2, 1)
 
         np.testing.assert_allclose(
-            T.add_n([T.as_tensor(t) for t in (x, y, z)]),
+            T.to_numpy(T.add_n([T.as_tensor(t) for t in (x, y, z)])),
             x + y + z
         )
 
@@ -554,7 +554,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
     def test_logical_op(self):
         def read_bool(t):
-            return T.to_numpy(t).astype(np.bool)
+            return T.to_numpy(t)
 
         def with_raise(name, fn):
             with pytest.raises(Exception, match=f'Expected {name} to be .*, '
@@ -564,8 +564,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.asarray([[True, True, False, False],
                         [False, False, True, True]])
         y = np.asarray([True, False, False, True])
-        t1 = T.as_boolean(x)
-        t2 = T.as_boolean(y)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
 
         # test as_boolean
         self.assertEqual(T.dtype(t1), T.boolean)
@@ -597,7 +597,7 @@ class TensorCoreTestCase(unittest.TestCase):
     def test_comparison_op(self):
         def read_bool(t):
             self.assertEqual(T.dtype(t), T.boolean)
-            return T.to_numpy(t).astype(np.bool)
+            return T.to_numpy(t)
 
         np.random.seed(1234)
         x = np.random.randn(2, 3, 4)

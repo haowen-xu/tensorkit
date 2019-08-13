@@ -6,4 +6,4 @@ pytest >= 3.0
 pytest-doctest-import >= 0.1.1
 
 # dependencies for backends
-torch >= 1.1.0
+torch >= 1.2.0

@@ -1,55 +1,37 @@
+import builtins
+from distutils.version import LooseVersion
 from typing import *
 
 import numpy as np
 import torch
+import torch.jit
 import torch.nn.functional
-from torch.jit import script
 
-from ....settings_ import settings
+if LooseVersion(torch.__version__) < LooseVersion('1.2.0'):
+    raise RuntimeError('PyTorch >= 1.2.0 is required')  # pragma: no cover
 
-{%- set DTYPES = [
-    'int8', 'uint8', 'int16', 'int32', 'int64',
-    'float16', 'float32', 'float64',
-]%}
-{%- set UNIVARIATE_OPS = [
-    'abs', 'neg',
-    'exp', 'log', 'log1p',
-    'sin', 'cos',
-] %}
-{%- set BIVARIATE_OPS = [
-    'add', 'sub', 'mul', 'div', 'fmod', 'pow',
-] %}
-{%- set FROM_CONSTRUCTOR_MAX_NDIMS = 4 %}
-{%- macro str_to_dtype_dict(indent=4) -%}
-{
-{%- for name in DTYPES %}
-    {{' ' * indent}}'{{ name }}': torch.{{ name }},
-{%- endfor %}
-{{' ' * indent}}}
-{%- endmacro %}
-{%- macro dtype_to_str_dict(indent=4) -%}
-{
-{%- for name in DTYPES %}
-    {{ ' ' * indent }}torch.{{ name }}: '{{ name }}',
-{%- endfor %}
-{{' ' * indent}}}
-{%- endmacro %}
+from ...settings_ import settings
+from ...utils import extend_object, is_extended_by
 
 __all__ = [
+    # backend info
+    'name',
+
     # typing
     'Tensor', 'Variable',
 
     # jit
-    'jit',
+    'jit', 'jit_method', 'jit_class', 'jit_ignore',
 
     # dtypes
     'float_x', 'boolean', 'index_dtype', 'dtype', 'is_floating_point',
 
     # tensor constructors
-    'as_tensor', 'as_boolean', 'from_int', 'from_float',
-    {% for i in range(1, FROM_CONSTRUCTOR_MAX_NDIMS + 1) -%}
-    'from_ints_{{ i }}d', 'from_floats_{{ i }}d',
-    {% endfor -%}
+    'as_tensor', 'from_int', 'from_float',
+    'from_ints_1d', 'from_floats_1d',
+    'from_ints_2d', 'from_floats_2d',
+    'from_ints_3d', 'from_floats_3d',
+    'from_ints_4d', 'from_floats_4d',
     'zeros', 'ones', 'arange', 'cast',
 
     # shape utils
@@ -58,7 +40,7 @@ __all__ = [
     'unflatten_from_ndims', 'index_select',
 
     # read / assign
-    'to_numpy', 'to_numpy_bool',
+    'to_numpy',
 
     # math operators
     'truediv', 'floordiv', 'mod', 'square', 'add_n',
@@ -91,10 +73,20 @@ __all__ = [
     'random_seed', 'random_normal', 'randn',
     'bernoulli', 'categorical',
 
+    # extended tensor
+    'ExtendedTensor', 'extend_tensor',
+    'is_extended_tensor', 'register_extended_tensor_class',
+
     # template exported
-    {{format_all_list(DTYPES)}},
-    {{format_all_list(UNIVARIATE_OPS + BIVARIATE_OPS)}},
+    'int8', 'uint8', 'int16', 'int32', 'int64', 'float16', 'float32',
+    'float64', 'bool',
+    'abs', 'neg', 'exp', 'log', 'log1p', 'sin', 'cos', 'add', 'sub', 'mul',
+    'div', 'fmod', 'pow',
 ]
+
+
+# ---- backend info ----
+name = 'pytorch'
 
 
 # ---- typing ----
@@ -106,8 +98,26 @@ Variable = torch.Tensor
 # ---- jit ----
 def jit(fn):
     if not settings.disable_jit:
-        fn = script(fn)
+        fn = torch.jit.script(fn)
     return fn
+
+
+def jit_method(method):
+    if not settings.disable_jit:
+        method = torch.jit.script_method(method)
+    return method
+
+
+def jit_class(cls_):
+    if not settings.disable_jit:
+        cls_ = torch.jit.script(cls_)
+    return cls_
+
+
+def jit_ignore(obj):
+    if not settings.disable_jit:
+        obj = torch.jit.ignore(obj)
+    return obj
 
 
 # ---- jit specified utilities ----
@@ -124,10 +134,16 @@ else:
 
 
 # ---- dtypes ----
-{% for name in DTYPES -%}
-{{ name }} = '{{ name }}'
-{% endfor -%}
-boolean = 'uint8'
+int8 = 'int8'
+uint8 = 'uint8'
+int16 = 'int16'
+int32 = 'int32'
+int64 = 'int64'
+float16 = 'float16'
+float32 = 'float32'
+float64 = 'float64'
+bool = 'bool'
+boolean = 'bool'
 index_dtype = 'int64'
 
 
@@ -137,7 +153,17 @@ def float_x() -> str:
 
 @jit
 def cast(x: Tensor, dtype: str) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     dtype = _mapper[dtype]
     if dtype != x.dtype:
         x = x.to(dtype=dtype)
@@ -146,7 +172,17 @@ def cast(x: Tensor, dtype: str) -> Tensor:
 
 @jit
 def dtype(x: Tensor) -> str:
-    _mapper = {{ dtype_to_str_dict() }}
+    _mapper = {
+        torch.int8: 'int8',
+        torch.uint8: 'uint8',
+        torch.int16: 'int16',
+        torch.int32: 'int32',
+        torch.int64: 'int64',
+        torch.float16: 'float16',
+        torch.float32: 'float32',
+        torch.float64: 'float64',
+        torch.bool: 'bool',
+    }
     return _mapper[x.dtype]
 
 
@@ -156,9 +192,20 @@ def is_floating_point(x: Tensor) -> bool:
 
 
 # ---- tensor constructors ----
+@jit_ignore
 def as_tensor(data, dtype: Optional[str] = None) -> Tensor:
     if dtype is not None:
-        _mapper = {{ str_to_dtype_dict(8) }}
+        _mapper = {
+            'int8': torch.int8,
+            'uint8': torch.uint8,
+            'int16': torch.int16,
+            'int32': torch.int32,
+            'int64': torch.int64,
+            'float16': torch.float16,
+            'float32': torch.float32,
+            'float64': torch.float64,
+            'bool': torch.bool,
+        }
         dtype = _mapper[dtype]
     if isinstance(data, Tensor):
         if dtype is not None:
@@ -168,27 +215,207 @@ def as_tensor(data, dtype: Optional[str] = None) -> Tensor:
         return torch.as_tensor(data, dtype=dtype)
 
 
-def as_boolean(data) -> Tensor:
-    return as_tensor(data).to(torch.bool).to(torch.uint8)
-{% for dtype in ['int', 'float'] -%}
-{%- for ndims in range(FROM_CONSTRUCTOR_MAX_NDIMS + 1) %}
 
 @jit
-def from_{{ dtype }}{% if ndims > 0 %}s_{{ ndims }}d{% endif %}(data: {% for i in range(ndims) %}List[{% endfor %}{{ dtype }}{% for i in range(ndims) %}]{% endfor %},
-        {% if ndims > 0 %}{{ ' ' * ((dtype | length) + 6) }}{% else %}{{ ' ' * ((dtype | length) + 2) }}{% endif %}dtype: str = '{{ dtype }}32') -> Tensor:
-    _mapper = {{str_to_dtype_dict()}}
+def from_int(data: int,
+             dtype: str = 'int32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     return torch.tensor(data, dtype=_mapper[dtype])
-{% endfor %}
-{% endfor %}
+
+
+@jit
+def from_ints_1d(data: List[int],
+                 dtype: str = 'int32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_ints_2d(data: List[List[int]],
+                 dtype: str = 'int32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_ints_3d(data: List[List[List[int]]],
+                 dtype: str = 'int32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_ints_4d(data: List[List[List[List[int]]]],
+                 dtype: str = 'int32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+
+@jit
+def from_float(data: float,
+               dtype: str = 'float32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_floats_1d(data: List[float],
+                   dtype: str = 'float32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_floats_2d(data: List[List[float]],
+                   dtype: str = 'float32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_floats_3d(data: List[List[List[float]]],
+                   dtype: str = 'float32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
+@jit
+def from_floats_4d(data: List[List[List[List[float]]]],
+                   dtype: str = 'float32') -> Tensor:
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
+    return torch.tensor(data, dtype=_mapper[dtype])
+
+
 @jit
 def zeros(shape: List[int], dtype: str = settings.float_x) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     return torch.zeros(shape, dtype=_mapper[dtype])
 
 
 @jit
 def ones(shape: List[int], dtype: str = settings.float_x) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     return torch.ones(shape, dtype=_mapper[dtype])
 
 
@@ -196,7 +423,17 @@ def ones(shape: List[int], dtype: str = settings.float_x) -> Tensor:
 def _arange_1(n: int,
               step: int = 1,
               dtype: str = int32) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     dtype = _mapper[dtype]
     return torch.arange(0, n, step, dtype=dtype)
 
@@ -206,7 +443,17 @@ def _arange_2(start: int,
               end: int,
               step: int = 1,
               dtype: str = int32) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     dtype = _mapper[dtype]
     return torch.arange(start, end, step, dtype=dtype)
 
@@ -459,17 +706,42 @@ def to_numpy(x: Tensor) -> np.ndarray:
     return x.data.numpy()
 
 
-def to_numpy_bool(x: Tensor) -> np.ndarray:
-    return to_numpy(x).astype(np.bool)
-
-
 # ---- univariate element-wise math operations ----
-{%- for name in UNIVARIATE_OPS %}
 
 @jit
-def {{ name }}(x: Tensor) -> Tensor:
-    return torch.{{ name }}(x)
-{% endfor %}
+def abs(x: Tensor) -> Tensor:
+    return torch.abs(x)
+
+
+@jit
+def neg(x: Tensor) -> Tensor:
+    return torch.neg(x)
+
+
+@jit
+def exp(x: Tensor) -> Tensor:
+    return torch.exp(x)
+
+
+@jit
+def log(x: Tensor) -> Tensor:
+    return torch.log(x)
+
+
+@jit
+def log1p(x: Tensor) -> Tensor:
+    return torch.log1p(x)
+
+
+@jit
+def sin(x: Tensor) -> Tensor:
+    return torch.sin(x)
+
+
+@jit
+def cos(x: Tensor) -> Tensor:
+    return torch.cos(x)
+
 
 @jit
 def square(x: Tensor) -> Tensor:
@@ -477,12 +749,36 @@ def square(x: Tensor) -> Tensor:
 
 
 # ---- bivariate element-wise math operations ----
-{%- for name in BIVARIATE_OPS %}
 
 @jit
-def {{ name }}(x: Tensor, y: Tensor) -> Tensor:
-    return torch.{{ name }}(x, y)
-{% endfor %}
+def add(x: Tensor, y: Tensor) -> Tensor:
+    return torch.add(x, y)
+
+
+@jit
+def sub(x: Tensor, y: Tensor) -> Tensor:
+    return torch.sub(x, y)
+
+
+@jit
+def mul(x: Tensor, y: Tensor) -> Tensor:
+    return torch.mul(x, y)
+
+
+@jit
+def div(x: Tensor, y: Tensor) -> Tensor:
+    return torch.div(x, y)
+
+
+@jit
+def fmod(x: Tensor, y: Tensor) -> Tensor:
+    return torch.fmod(x, y)
+
+
+@jit
+def pow(x: Tensor, y: Tensor) -> Tensor:
+    return torch.pow(x, y)
+
 
 
 @jit
@@ -501,7 +797,7 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
 
     dtype = x.dtype
     if not x.is_floating_point():
-        if dtype == torch.uint8 or dtype == torch.int16:
+        if dtype == torch.int8 or dtype == torch.uint8 or dtype == torch.int16:
             x = x.to(torch.float32)
             y = y.to(torch.float32)
         else:
@@ -526,41 +822,72 @@ def add_n(tensors: List[Tensor]) -> Tensor:
 
 
 # ---- reduction operations ----
-{%- for op_name in ['sum', 'mean'] %}
 
 @jit
-def reduce_{{ op_name }}(x: Tensor,
-            {{ ' ' * (op_name | length) }}axes: Optional[List[int]] = None,
-            {{ ' ' * (op_name | length) }}keepdims: bool = False) -> Tensor:
+def reduce_sum(x: Tensor,
+               axes: Optional[List[int]] = None,
+               keepdims: bool = False) -> Tensor:
     if axes is None:
         if keepdims:
-            return torch.{{op_name}}(x).reshape([1] * len(x.shape))
+            return torch.sum(x).reshape([1] * len(x.shape))
         else:
-            return torch.{{op_name}}(x)
+            return torch.sum(x)
     else:
-        return torch.{{ op_name }}(x, dim=axes, keepdim=keepdims)
-{% endfor %}
-{%- for op_name in ['max', 'min'] %}
+        return torch.sum(x, dim=axes, keepdim=keepdims)
+
 
 @jit
-def reduce_{{ op_name }}(x: Tensor,
-            {{ ' ' * (op_name | length) }}axes: Optional[List[int]] = None,
-            {{ ' ' * (op_name | length) }}keepdims: bool = False) -> Tensor:
+def reduce_mean(x: Tensor,
+                axes: Optional[List[int]] = None,
+                keepdims: bool = False) -> Tensor:
     if axes is None:
         if keepdims:
-            return torch.{{op_name}}(x).reshape([1] * len(x.shape))
+            return torch.mean(x).reshape([1] * len(x.shape))
         else:
-            return torch.{{op_name}}(x)
+            return torch.mean(x)
+    else:
+        return torch.mean(x, dim=axes, keepdim=keepdims)
+
+
+@jit
+def reduce_max(x: Tensor,
+               axes: Optional[List[int]] = None,
+               keepdims: bool = False) -> Tensor:
+    if axes is None:
+        if keepdims:
+            return torch.max(x).reshape([1] * len(x.shape))
+        else:
+            return torch.max(x)
     else:
         if len(axes) == 1:
-            return torch.{{op_name}}(x, dim=axes[0], keepdim=keepdims)[0]
+            return torch.max(x, dim=axes[0], keepdim=keepdims)[0]
         else:
             for a in axes:
-                x = torch.{{op_name}}(x, dim=a, keepdim=True)[0]
+                x = torch.max(x, dim=a, keepdim=True)[0]
             if not keepdims:
                 x = squeeze(x, axes)
             return x
-{% endfor %}
+
+
+@jit
+def reduce_min(x: Tensor,
+               axes: Optional[List[int]] = None,
+               keepdims: bool = False) -> Tensor:
+    if axes is None:
+        if keepdims:
+            return torch.min(x).reshape([1] * len(x.shape))
+        else:
+            return torch.min(x)
+    else:
+        if len(axes) == 1:
+            return torch.min(x, dim=axes[0], keepdim=keepdims)[0]
+        else:
+            for a in axes:
+                x = torch.min(x, dim=a, keepdim=True)[0]
+            if not keepdims:
+                x = squeeze(x, axes)
+            return x
+
 
 @jit
 def log_sum_exp(x: Tensor,
@@ -591,28 +918,49 @@ def log_mean_exp(x: Tensor,
 
 
 # ---- logical operations ----
-def NOT_A_FUNCTION():
-    pass
-
-
+@jit_ignore
 def logical_not(x: Tensor) -> Tensor:
-    if x.dtype != torch.uint8:
+    if x.dtype != torch.bool:
         raise TypeError('Expected x to be {}, got {} of type '
-                        '{} instead.'.format(torch.uint8, x, x.dtype))
+                        '{} instead.'.format(torch.bool, x, x.dtype))
     return ~x
-{% for op_name in ['and', 'or', 'xor'] %}
+
 
 @jit
-def logical_{{ op_name }}(x: Tensor, y: Tensor) -> Tensor:
-    if x.dtype != torch.uint8:
+def logical_and(x: Tensor, y: Tensor) -> Tensor:
+    if x.dtype != torch.bool:
         raise TypeError('Expected x to be {}, got {} of type '
-                        '{} instead.'.format(torch.uint8, x, x.dtype))
-    if y.dtype != torch.uint8:
+                        '{} instead.'.format(torch.bool, x, x.dtype))
+    if y.dtype != torch.bool:
         raise TypeError('Expected y to be {}, got {} of type '
-                        '{} instead.'.format(torch.uint8, y, y.dtype))
+                        '{} instead.'.format(torch.bool, y, y.dtype))
 
-    return x {{ {'and': '&', 'or': '|', 'xor': '^'}[op_name] }} y
-{% endfor %}
+    return x & y
+
+
+@jit
+def logical_or(x: Tensor, y: Tensor) -> Tensor:
+    if x.dtype != torch.bool:
+        raise TypeError('Expected x to be {}, got {} of type '
+                        '{} instead.'.format(torch.bool, x, x.dtype))
+    if y.dtype != torch.bool:
+        raise TypeError('Expected y to be {}, got {} of type '
+                        '{} instead.'.format(torch.bool, y, y.dtype))
+
+    return x | y
+
+
+@jit
+def logical_xor(x: Tensor, y: Tensor) -> Tensor:
+    if x.dtype != torch.bool:
+        raise TypeError('Expected x to be {}, got {} of type '
+                        '{} instead.'.format(torch.bool, x, x.dtype))
+    if y.dtype != torch.bool:
+        raise TypeError('Expected y to be {}, got {} of type '
+                        '{} instead.'.format(torch.bool, y, y.dtype))
+
+    return x ^ y
+
 
 # ---- comparison operators ----
 @jit
@@ -815,7 +1163,17 @@ def random_normal(mean: Tensor, std: Tensor) -> Tensor:
 
 @jit
 def randn(shape: List[int], dtype: str = settings.float_x) -> Tensor:
-    _mapper = {{ str_to_dtype_dict() }}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     return torch.randn(shape, dtype=_mapper[dtype])
 
 
@@ -828,7 +1186,17 @@ def _bernoulli_sub(probs: Tensor,
         raise ValueError('`n_samples` must be at least 1: got {}'.
                          format(n_samples))
 
-    _mapper = {{str_to_dtype_dict()}}
+    _mapper = {
+        'int8': torch.int8,
+        'uint8': torch.uint8,
+        'int16': torch.int16,
+        'int32': torch.int32,
+        'int64': torch.int64,
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bool': torch.bool,
+    }
     dtype = _mapper[dtype]
 
     # do sample
@@ -919,3 +1287,41 @@ def categorical(probs: Optional[Tensor] = None,
         # This branch should never touch, but PyTorch JIT engine cannot
         # recognize this.  So we add this branch.
         return torch.tensor(0)  # pragma: no cover
+
+
+# ---- ExtendedTensor ----
+class ExtendedTensor(Tensor):
+
+    def as_tensor(self, dtype: Optional[str] = None) -> Tensor:
+        t = self
+        if dtype is not None:
+            t = cast(t, dtype)
+        return t
+
+
+TExtendedTensor = TypeVar('TExtendedTensor')
+
+
+def extend_tensor(tensor_: Tensor,
+                  cls_: Type[TExtendedTensor],
+                  **kwargs) -> TExtendedTensor:
+    if not isinstance(cls_, type) or not issubclass(cls_, ExtendedTensor):
+        raise TypeError(f'`cls_` is not a class, or not a subclass of '
+                        f'`ExtendedTensor`: got {cls_!r}')
+    return extend_object(
+        obj_=tensor_,
+        cls_=cls_,
+        trivial_parents_=(Tensor,),
+        **kwargs
+    )
+
+
+def is_extended_tensor(tensor_: Tensor,
+                       cls_: Type[ExtendedTensor] = ExtendedTensor) -> bool:
+    return is_extended_by(tensor_, cls_)
+
+
+def register_extended_tensor_class(cls: Type[ExtendedTensor]):
+    if not isinstance(cls, type) or not issubclass(cls, ExtendedTensor):
+        raise TypeError(f'`cls` is not a class, or not a subclass of '
+                        f'`ExtendedTensor`: got {cls!r}')

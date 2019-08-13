@@ -27,7 +27,7 @@ class TensorWrapperTestCase(unittest.TestCase):
     def test_unary_op(self):
         def check_op(name, func, x):
             if x.dtype == np.bool:
-                as_tensor = T.as_boolean
+                as_tensor = T.as_tensor
             else:
                 as_tensor = T.as_tensor
 
@@ -62,7 +62,7 @@ class TensorWrapperTestCase(unittest.TestCase):
     def test_binary_op(self):
         def check_op(name, func, x, y):
             if x.dtype == np.bool:
-                as_tensor = T.as_boolean
+                as_tensor = T.as_tensor
             else:
                 as_tensor = T.as_tensor
 

@@ -442,14 +442,6 @@ _s(backend.to_numpy, """
         x: The tensor to be read.
 """)
 
-_s(backend.to_numpy_bool, """
-    Read the value of the given tensor from the device into a NumPy array.
-    The tensor is regarded as a boolean tensor.
-    
-    Args:
-        x: The tensor to be read.
-""")
-
 
 # univariate element-wise math operations
 def _f(method, expr):
@@ -572,27 +564,11 @@ _f(backend.log_mean_exp, '\\log \\frac{1}{K} \\sum_{k=1}^K \\exp(x_k)',
 
 
 # logical operations
-_s(backend.as_boolean, """
-    Convert a tensor into boolean tensor.
-    
-    The output tensor will have `T.boolean` dtype.  Some backend may not
-    have a dedicated boolean dtype, and it may be an alias of another integer
-    type, e.g., it might be `T.uint8`.
-
-    >>> from tensorkit import tensor as T
-    >>> t = T.as_boolean([True, False])
-    >>> t.dtype == T.boolean
-    True
-
-    Args:
-        x: The input tensor. 
-""")
-
 _s(backend.logical_not, """
     Compute the element-wise logical not of a given tensor.
     
     >>> from tensorkit import tensor as T
-    >>> t = T.as_boolean([True, False])
+    >>> t = T.as_tensor([True, False])
     >>> t2 = T.logical_not(t)
     >>> T.to_numpy(t2).astype(np.bool)
     array([False,  True])
@@ -611,8 +587,8 @@ def _f(method, name, op):
     Compute element-wise logical {name} of two given tensors.
     
     >>> from tensorkit import tensor as T
-    >>> x = T.as_boolean([True, True, False, False])
-    >>> y = T.as_boolean([True, False, False, True])
+    >>> x = T.as_tensor([True, True, False, False])
+    >>> y = T.as_tensor([True, False, False, True])
     >>> t = T.logical_{name}(x, y)
     >>> T.to_numpy(t).astype(np.bool)
     {repr(t)}
