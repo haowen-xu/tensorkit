@@ -1,7 +1,7 @@
 # setup the backend
 from tensorkit.settings_ import settings
 
-if settings.backend == 'pytorch':
+if settings.backend == 'PyTorch':
     from . import pytorch_ as backend
     from .pytorch_ import *
 else:
@@ -10,10 +10,5 @@ else:
 del settings
 
 
-# inject docstrings
-from . import _docstrings
-del _docstrings
-
-
-# export symbols
-__all__ = backend.__all__
+# import common utilities
+from .common import *

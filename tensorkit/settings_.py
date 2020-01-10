@@ -5,7 +5,7 @@ from mltk import Config, ConfigField
 __all__ = ['Settings', 'settings']
 
 
-KNOWN_BACKENDS = ('pytorch', 'tensorflow')
+KNOWN_BACKENDS = ('PyTorch', 'TensorFlow')
 
 
 def auto_choose_backend() -> Optional[str]:
@@ -28,7 +28,7 @@ def auto_choose_backend() -> Optional[str]:
 
     for name, module in sys.modules.items():
         for backend in KNOWN_BACKENDS:
-            if backend in name and backend not in activated_backends:
+            if backend.lower() in name.lower() and backend not in activated_backends:
                 activated_backends.append(backend)
 
     for backend in KNOWN_BACKENDS:
@@ -40,7 +40,7 @@ class Settings(Config):
 
     backend: str = ConfigField(
         str,
-        default=auto_choose_backend() or 'pytorch',
+        default=auto_choose_backend() or KNOWN_BACKENDS[0],
         choices=KNOWN_BACKENDS,
         envvar='TENSORKIT_BACKEND',
         description='The backend to use.'
@@ -56,22 +56,15 @@ class Settings(Config):
                     'Changing the value of this configuration at runtime may '
                     'not take effect.'
     )
-    check_numerics: bool = ConfigField(
+    validate_tensors: bool = ConfigField(
         bool,
         default=False,
-        envvar='TENSORKIT_CHECK_NUMERICS',
-        description='Whether or not to check the numerical issues of '
-                    'computational outputs?  Changing the value of this '
-                    'configuration at runtime may not take effect.'
-    )
-    prefer_backend_impl: bool = ConfigField(
-        bool,
-        default=True,
-        envvar='TENSORKIT_PREFER_BACKEND_IMPL',
-        description='Whether or not to prefer using backend implementation '
-                    'rather than tensorkit implementation?'
-                    'Changing the value of this configuration at runtime '
-                    'will not take effect.'
+        envvar='TENSORKIT_VALIDATE_TENSORS',
+        description='Whether or not to perform time-consuming validation on '
+                    'tensors for input arguments of functions or classes, '
+                    'and on intermediate computation results, to ensure there '
+                    'are no numerical issues (i.e., no NaN or Infinity values), '
+                    'and no semantic or logical errors (e.g., `low` > `high`)?'
     )
     disable_jit: bool = ConfigField(
         bool,

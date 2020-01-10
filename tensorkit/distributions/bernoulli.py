@@ -1,22 +1,60 @@
 from typing import *
 
+from .. import backend as Z
 from ..stochastic import StochasticTensor
-from ..tensor import *
 from .base import Distribution
+from .utils import copy_distribution
 
 __all__ = ['Bernoulli']
 
 
 class Bernoulli(Distribution):
+    """
+    Bernoulli distribution.
+
+    A bernoulli random variable is a discrete random variable, with probability
+    `p` of being 1, and probability `1 - p` of being 0.
+    """
+
+    continuous = False
+    reparameterized = False
+    min_event_ndims = 0
+
+    _logits: Optional[Z.Tensor]
+    """Logits of the probability of being 1."""
+
+    _probs: Optional[Z.Tensor]
+    """The probability of being 1."""
+
+    epsilon: float
+    """The infinitesimal constant, used for computing `logits`."""
+
+    _mutual_params: Dict[str, Any]
+    """Dict that stores the original `logits` or `probs` constructor argument."""
 
     def __init__(self,
                  *,
-                 logits: Optional[Tensor] = None,
-                 probs: Optional[Tensor] = None,
-                 dtype: str = int32,
+                 logits: Optional[Z.Tensor] = None,
+                 probs: Optional[Z.Tensor] = None,
+                 dtype: str = Z.int32,
                  event_ndims: int = 0,
-                 check_numerics: Optional[bool] = None,
-                 epsilon: float = 1e-7):
+                 epsilon: float = 1e-7,
+                 validate_tensors: Optional[bool] = None):
+        """
+        Construct a new :class:`Bernoulli` distribution object.
+
+        Args:
+            logits: The logits of the probability of being 1.
+                ``logits = log(p) - log(1-p)``.
+                Either `logits` or `probs` must be specified, but not both.
+            probs: The probability `p` of being 1.  ``p = sigmoid(logits)``.
+            dtype: The dtype of the samples.
+            event_ndims: The number of dimensions in the samples to be
+                considered as an event.
+            epsilon: The infinitesimal constant, used for computing `logits`.
+            validate_tensors: Whether or not to check the numerical issues?
+                Defaults to ``settings.validate_tensors``.
+        """
         # validate the arguments
         if (logits is None) == (probs is None):
             raise ValueError('Either `logits` or `probs` must be specified, '
@@ -25,81 +63,80 @@ class Bernoulli(Distribution):
         epsilon = float(epsilon)
 
         if logits is not None:
-            param_shape = shape(logits)
+            value_shape = Z.shape(logits)
             probs = None
-            original_arg = 'logits'
+            mutual_params = {'logits': logits}
         else:
-            param_shape = shape(probs)
+            value_shape = Z.shape(probs)
             logits = None
-            original_arg = 'probs'
+            mutual_params = {'probs': probs}
 
-        # construct the instance
+        # construct the object
         super().__init__(
-            dtype=dtype, is_continuous=False, is_reparameterized=False,
-            value_shape=param_shape, event_ndims=event_ndims, min_event_ndims=0,
-            check_numerics=check_numerics,
+            dtype=dtype,
+            value_shape=value_shape,
+            event_ndims=event_ndims,
+            validate_tensors=validate_tensors,
         )
+        for k, v in mutual_params.items():
+            mutual_params[k] = self._assert_finite(v, k)
 
-        self._param_shape = param_shape
         self._logits = logits
         self._probs = probs
-        self._epsilon = epsilon
-        self._original_arg = original_arg
+        self.epsilon = epsilon
+        self._mutual_params = mutual_params
 
     @property
-    def original_arg(self) -> str:
-        return self._original_arg
-
-    @property
-    def logits(self) -> Tensor:
+    def logits(self) -> Z.Tensor:
+        """Get the logits of the probability of being 1."""
         if self._logits is None:
-            probs_clipped = clip(
-                self._probs, self._epsilon, 1 - self._epsilon)
-            self._logits = log(probs_clipped) - log1p(-probs_clipped)
+            self._logits = Z.random.bernoulli_probs_to_logits(self._probs,
+                                                              self.epsilon)
         return self._logits
 
     @property
-    def probs(self) -> Tensor:
+    def probs(self) -> Z.Tensor:
+        """Get the probability of being 1."""
         if self._probs is None:
-            self._probs = sigmoid(self._logits)
+            self._probs = Z.random.bernoulli_logits_to_probs(self._logits)
         return self._probs
 
-    def sample(self, n_samples: Optional[int] = None,
-               group_ndims: int = 0,
-               is_reparameterized: Optional[bool] = None,
-               compute_prob: Optional[bool] = None) -> 'StochasticTensor':
-        # validate arguments
-        is_reparameterized = self._check_reparameterized(is_reparameterized)
-
+    def _sample(self,
+                n_samples: Optional[int],
+                group_ndims: int,
+                reduce_ndims: int,
+                reparameterized: bool) -> StochasticTensor:
         # generate samples
-        arg = getattr(self, self.original_arg)
-        param_shape = self._param_shape
-        if n_samples is not None:
-            param_shape = (n_samples,) + param_shape
-            arg = expand(arg, param_shape)
-        samples = random.bernoulli(
-            dtype=self.dtype, **{self.original_arg: arg})
+        samples = Z.random.bernoulli(probs=self.probs,
+                                     n_samples=n_samples,
+                                     dtype=self.dtype)
 
         # compose the stochastic tensor
-        t = StochasticTensor(
+        return StochasticTensor(
             distribution=self,
             tensor=samples,
             n_samples=n_samples,
             group_ndims=group_ndims,
-            is_reparameterized=is_reparameterized,
+            reparameterized=reparameterized,
         )
-        if compute_prob is True:
-            _ = t.log_prob()
 
-        return t
+    def _log_prob(self,
+                  given: Z.Tensor,
+                  group_ndims: int,
+                  reduce_ndims: int) -> Z.Tensor:
+        return Z.random.bernoulli_log_prob(
+            given=given,
+            logits=self.logits,
+            group_ndims=reduce_ndims,
+        )
 
-    def log_prob(self, given: Tensor, group_ndims: int = 0) -> Tensor:
-        return binary_cross_entropy_with_logits(
-            logits=self.logits, labels=given, negative=True)
-
-    def copy(self, **kwargs):
-        return self._copy_helper(
-            (self.original_arg, 'dtype', 'event_ndims', 'check_numerics',
-             'random_state', 'epsilon'),
-            **kwargs
+    def copy(self, **overrided_params):
+        return copy_distribution(
+            cls=Bernoulli,
+            base=self,
+            attrs=('dtype', 'event_ndims', 'validate_tensors', 'epsilon'),
+            mutual_attrs=(('logits', 'probs'),),
+            compute_deps={'logits': ('epsilon',)},
+            original_mutual_params=self._mutual_params,
+            overrided_params=overrided_params,
         )

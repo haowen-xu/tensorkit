@@ -1,0 +1,174 @@
+import math
+from typing import *
+
+from .. import backend as Z
+from ..stochastic import StochasticTensor
+from .base import Distribution
+from .utils import log_pdf_mask, copy_distribution
+
+__all__ = ['Uniform']
+
+
+class Uniform(Distribution):
+    """Uniform distribution ``U[low, high)``."""
+
+    continuous = True
+    reparameterized = True
+    min_event_ndims = 0
+
+    _shape: Optional[List[int]]
+    """The original `shape` argument for constructor."""
+
+    low: Union[float, Z.Tensor]
+    """The lower-bound of the uniform distribution."""
+
+    high: Union[float, Z.Tensor]
+    """The upper-bound of the uniform distribution (exclusive)."""
+
+    log_zero: float
+
+    _neg_log_high_minus_low: Optional[Z.Tensor] = None
+    """The cached computation result of log(high - low)."""
+
+    def __init__(self,
+                 shape: Optional[List[int]] = None,
+                 low: Optional[Union[float, Z.Tensor]] = None,
+                 high: Optional[Union[float, Z.Tensor]] = None,
+                 dtype: str = Z.float_x(),
+                 reparameterized: bool = True,
+                 event_ndims: int = 0,
+                 log_zero: float = Z.random.LOG_ZERO_VALUE,
+                 validate_tensors: Optional[bool] = None):
+        """
+        Construct a new :class:`Uniform` distribution.
+
+        Args:
+            shape: Shape of the unit normal distribution, prepended to
+                the front of ``broadcast_shape(low, high)``.  Defaults to `[]`.
+            low: The lower-bound of the uniform distribution.
+                If both `low` and `high` are not specified, the uniform
+                distribution will be ``[0, 1)``.  Specifying only one of
+                `low` or `high` is not allowed.
+            high: The upper-bound of the uniform distribution (exclusive).
+            dtype: Dtype of the samples.
+                Ignored if `low` and `high` are specified.
+            reparameterized: Whether the distribution should be reparameterized?
+            event_ndims: The number of dimensions in the samples to be
+                considered as an event.
+            log_zero: The value to represent ``log(0)`` in the result of
+                :meth:`log_prob()`, instead of using ``-math.inf``, to avoid
+                potential numerical issues.
+            validate_tensors: Whether or not to check the numerical issues?
+                Defaults to ``settings.validate_tensors``.
+        """
+        if shape is not None:
+            value_shape = shape = list(shape)
+        else:
+            value_shape = []
+
+        if (low is None) != (high is None):
+            raise ValueError('`low` and `high` must be both specified, or '
+                             'neither specified.')
+
+        if low is not None and high is not None:
+            if isinstance(low, Z.Tensor) or isinstance(high, Z.Tensor):
+                if not isinstance(low, Z.Tensor):
+                    low = Z.as_tensor(low, dtype=high.dtype)
+                if not isinstance(high, Z.Tensor):
+                    high = Z.as_tensor(high, dtype=low.dtype)
+
+                low_dtype = Z.get_dtype(low)
+                high_dtype = Z.get_dtype(high)
+                if low_dtype != high_dtype:
+                    raise ValueError(f'`low.dtype` != `high.dtype`: '
+                                     f'`low.dtype` == {low_dtype}, while '
+                                     f'`high.dtype` == {high_dtype}')
+
+                dtype = low_dtype
+                value_shape = value_shape + \
+                    Z.broadcast_shape(Z.shape(low), Z.shape(high))
+            else:
+                low = float(low)
+                high = float(high)
+                if low >= high:
+                    raise ValueError(f'`low` < `high` does not hold: '
+                                     f'`low` == {low}, `high` == {high}')
+
+        super().__init__(
+            dtype=dtype,
+            value_shape=value_shape,
+            reparameterized=reparameterized,
+            event_ndims=event_ndims,
+            validate_tensors=validate_tensors,
+        )
+
+        if self.validate_tensors and isinstance(low, Z.Tensor) and \
+                isinstance(high, Z.Tensor):
+            if not Z.is_all(Z.less(low, high)):
+                raise ValueError('`low` < `high` does not hold.')
+
+        self._shape = shape
+        self.low = low
+        self.high = high
+        self.log_zero = log_zero
+
+    def _get_neg_log_high_minus_low(self) -> Z.Tensor:
+        if self._neg_log_high_minus_low is None:
+            if self.low is None or self.high is None:
+                self._neg_log_high_minus_low = Z.zeros([], dtype=self.dtype)
+            elif isinstance(self.low, float) and isinstance(self.high, float):
+                self._neg_log_high_minus_low = Z.float_scalar(
+                    -math.log(self.high - self.low), dtype=self.dtype)
+            else:
+                self._neg_log_high_minus_low = -Z.log(self.high - self.low)
+        return self._neg_log_high_minus_low
+
+    def _sample(self,
+                n_samples: Optional[int],
+                group_ndims: int,
+                reduce_ndims: int,
+                reparameterized: bool) -> StochasticTensor:
+        sample_shape = ([n_samples] + self.value_shape if n_samples is not None
+                        else self.value_shape)
+        samples = Z.random.rand(sample_shape, dtype=self.dtype)
+        if self.low is not None and self.high is not None:
+            scale = self.high - self.low
+            samples = samples * scale + self.low
+        if not reparameterized:
+            samples = Z.stop_grad(samples)
+
+        return StochasticTensor(
+            tensor=samples,
+            distribution=self,
+            n_samples=n_samples,
+            group_ndims=group_ndims,
+            reparameterized=reparameterized,
+        )
+
+    def _log_prob(self,
+                  given: Z.Tensor,
+                  group_ndims: int,
+                  reduce_ndims: int) -> Z.Tensor:
+        low = self.low if self.low is not None else 0.
+        high = self.high if self.high is not None else 1.
+        b_shape = Z.broadcast_shape(Z.shape(given), self.value_shape)
+        log_pdf = self._get_neg_log_high_minus_low()
+        log_pdf = log_pdf_mask(
+            Z.logical_and(low <= given, given <= high),
+            log_pdf,
+            self.log_zero,
+        )
+        log_pdf = Z.broadcast_to(log_pdf, b_shape)
+        if reduce_ndims > 0:
+            log_pdf = Z.reduce_sum(log_pdf, axes=list(range(-reduce_ndims, 0)))
+        return log_pdf
+
+    def copy(self, **overrided_params):
+        return copy_distribution(
+            cls=Uniform,
+            base=self,
+            attrs=(('shape', '_shape'), 'low', 'high', 'dtype',
+                   'reparameterized', 'event_ndims', 'log_zero',
+                   'validate_tensors'),
+            overrided_params=overrided_params,
+        )
