@@ -7,7 +7,6 @@ import torch.jit
 import torch.nn.functional
 
 from ...settings_ import settings
-from ._utils import int_range
 
 __all__ = [
     # typing
@@ -15,6 +14,9 @@ __all__ = [
 
     # jit
     'jit', 'jit_ignore',
+
+    # utilities
+    'int_range',
 
     # dtypes
     'cast', 'cast_like', 'get_dtype', 'is_floating_point',
@@ -78,6 +80,19 @@ def jit_ignore(obj):
     if not settings.disable_jit:
         obj = torch.jit.ignore(obj)
     return obj
+
+
+# ---- utilities ----
+if settings.disable_jit:
+    def int_range(start: int, end: int, step: int = 1) -> List[int]:
+        return list(range(start, end, step))
+else:
+    @jit
+    def int_range(start: int, end: int, step: int = 1) -> List[int]:
+        ret: List[int] = []
+        for i in range(start, end, step):
+            ret.append(i)
+        return ret
 
 
 # ---- dtypes ----
