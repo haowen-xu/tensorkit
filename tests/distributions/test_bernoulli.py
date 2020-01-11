@@ -5,7 +5,8 @@ import mock
 import numpy as np
 import pytest
 
-from tensorkit import Bernoulli, backend as Z, StochasticTensor
+from tensorkit import tensor as T
+from tensorkit import *
 from tensorkit.distributions.utils import copy_distribution
 from tests.helper import float_dtypes, int_dtypes
 
@@ -23,8 +24,8 @@ class BernoulliTestCase(unittest.TestCase):
         probs = sigmoid(logits)
 
         for int_dtype, float_dtype in product(int_dtypes, float_dtypes):
-            logits_t = Z.from_numpy(logits, dtype=float_dtype)
-            probs_t = Z.from_numpy(probs, dtype=float_dtype)
+            logits_t = T.from_numpy(logits, dtype=float_dtype)
+            probs_t = T.from_numpy(probs, dtype=float_dtype)
             mutual_params = {'logits': logits_t, 'probs': probs_t}
 
             # construct from logits or probs
@@ -40,8 +41,8 @@ class BernoulliTestCase(unittest.TestCase):
                 self.assertEqual(bernoulli.epsilon, 1e-6)
                 self.assertIs(getattr(bernoulli, key), val)
                 np.testing.assert_allclose(
-                    Z.to_numpy(getattr(bernoulli, other_key)),
-                    Z.to_numpy(mutual_params[other_key]),
+                    T.to_numpy(getattr(bernoulli, other_key)),
+                    T.to_numpy(mutual_params[other_key]),
                     rtol=1e-4
                 )
                 self.assertEqual(bernoulli._mutual_params, {key: val})
@@ -63,12 +64,12 @@ class BernoulliTestCase(unittest.TestCase):
                                    match='Infinity or NaN value encountered'):
                     _ = Bernoulli(
                         validate_tensors=True, dtype=int_dtype,
-                        **{key: Z.from_numpy(np.nan, dtype=float_dtype)})
+                        **{key: T.from_numpy(np.nan, dtype=float_dtype)})
 
     def test_copy(self):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
-        logits_t = Z.from_numpy(logits)
+        logits_t = T.from_numpy(logits)
         bernoulli = Bernoulli(logits=logits_t, event_ndims=1)
 
         with mock.patch('tensorkit.distributions.bernoulli.copy_distribution',
@@ -90,7 +91,7 @@ class BernoulliTestCase(unittest.TestCase):
     def test_sample_and_log_prob(self):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
-        logits_t = Z.from_numpy(logits)
+        logits_t = T.from_numpy(logits)
 
         for int_dtype in int_dtypes:
             bernoulli = Bernoulli(logits=logits_t, event_ndims=1,
@@ -100,18 +101,18 @@ class BernoulliTestCase(unittest.TestCase):
             t = bernoulli.sample()
             self.assertIsInstance(t, StochasticTensor)
             self.assertIs(t.distribution, bernoulli)
-            self.assertEqual(Z.get_dtype(t.tensor), int_dtype)
+            self.assertEqual(T.get_dtype(t.tensor), int_dtype)
             self.assertEqual(t.n_samples, None)
             self.assertEqual(t.group_ndims, 0)
             self.assertEqual(t.reparameterized, False)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.shape(t.tensor), [2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), bernoulli.log_prob(t)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.bernoulli_log_prob(
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.bernoulli_log_prob(
                             given=t.tensor, logits=logits_t, group_ndims=1)
                     )
                 )
@@ -120,18 +121,18 @@ class BernoulliTestCase(unittest.TestCase):
             t = bernoulli.sample(n_samples=5, group_ndims=-1)
             self.assertIsInstance(t, StochasticTensor)
             self.assertIs(t.distribution, bernoulli)
-            self.assertEqual(Z.get_dtype(t.tensor), int_dtype)
+            self.assertEqual(T.get_dtype(t.tensor), int_dtype)
             self.assertEqual(t.n_samples, 5)
             self.assertEqual(t.group_ndims, -1)
             self.assertEqual(t.reparameterized, False)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.shape(t.tensor), [5, 2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), bernoulli.log_prob(t, -1)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.bernoulli_log_prob(
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.bernoulli_log_prob(
                             given=t.tensor, logits=logits_t, group_ndims=0)
                     )
                 )

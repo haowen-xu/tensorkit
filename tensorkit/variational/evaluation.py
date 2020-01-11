@@ -1,6 +1,6 @@
 from typing import *
 
-from ..backend import jit, Tensor, log_mean_exp
+from ..tensor import jit, Tensor, log_mean_exp
 
 __all__ = ['importance_sampling_log_likelihood']
 

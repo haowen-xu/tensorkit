@@ -6,8 +6,8 @@ import mock
 import numpy as np
 import pytest
 
-from tensorkit import (UnitNormal, Normal, TruncatedNormal,
-                       backend as Z, StochasticTensor)
+from tensorkit import tensor as T
+from tensorkit import *
 from tensorkit.distributions.normal import BaseNormal
 from tensorkit.distributions.utils import copy_distribution
 from tests.helper import float_dtypes
@@ -28,24 +28,24 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(normal.dtype, dtype)
             self.assertEqual(normal.event_ndims, event_ndims)
 
-            np.testing.assert_equal(Z.to_numpy(normal.mean), np.zeros(shape))
-            np.testing.assert_equal(Z.to_numpy(normal.std), np.ones(shape))
-            np.testing.assert_equal(Z.to_numpy(normal.logstd), np.zeros(shape))
+            np.testing.assert_equal(T.to_numpy(normal.mean), np.zeros(shape))
+            np.testing.assert_equal(T.to_numpy(normal.std), np.ones(shape))
+            np.testing.assert_equal(T.to_numpy(normal.logstd), np.zeros(shape))
 
     def test_copy(self):
         np.random.seed(1234)
         shape = [2, 3]
-        normal = UnitNormal(shape=[2, 3], event_ndims=1, dtype=Z.float32)
+        normal = UnitNormal(shape=[2, 3], event_ndims=1, dtype=T.float32)
 
         # read out mean, std and logstd, to ensure these cached attrs are generated
-        np.testing.assert_equal(Z.to_numpy(normal.mean), np.zeros(shape))
-        np.testing.assert_equal(Z.to_numpy(normal.std), np.ones(shape))
-        np.testing.assert_equal(Z.to_numpy(normal.logstd), np.zeros(shape))
+        np.testing.assert_equal(T.to_numpy(normal.mean), np.zeros(shape))
+        np.testing.assert_equal(T.to_numpy(normal.std), np.ones(shape))
+        np.testing.assert_equal(T.to_numpy(normal.logstd), np.zeros(shape))
 
         # same dtype and shape, the cached attrs are copied
         normal2 = normal.copy(event_ndims=2)
         self.assertIsInstance(normal2, UnitNormal)
-        self.assertEqual(normal2.dtype, Z.float32)
+        self.assertEqual(normal2.dtype, T.float32)
         self.assertEqual(normal2.value_shape, [2, 3])
         self.assertEqual(normal2.event_ndims, 2)
         for key in ('mean', 'std', 'logstd'):
@@ -54,16 +54,16 @@ class UnitNormalTestCase(unittest.TestCase):
         # shape mismatch, no copy cached attrs
         normal2 = normal.copy(shape=[3])
         self.assertIsInstance(normal2, UnitNormal)
-        self.assertEqual(normal2.dtype, Z.float32)
+        self.assertEqual(normal2.dtype, T.float32)
         self.assertEqual(normal2.value_shape, [3])
         self.assertEqual(normal2.event_ndims, 1)
         for key in ('mean', 'std', 'logstd'):
             self.assertIsNot(getattr(normal2, key), getattr(normal, key))
 
         # dtype mismatch, no copy cached attrs
-        normal2 = normal.copy(dtype=Z.float64)
+        normal2 = normal.copy(dtype=T.float64)
         self.assertIsInstance(normal2, UnitNormal)
-        self.assertEqual(normal2.dtype, Z.float64)
+        self.assertEqual(normal2.dtype, T.float64)
         self.assertEqual(normal2.value_shape, [2, 3])
         self.assertEqual(normal2.event_ndims, 1)
         for key in ('mean', 'std', 'logstd'):
@@ -82,15 +82,15 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(t.n_samples, None)
             self.assertEqual(t.group_ndims, 0)
             self.assertEqual(t.reparameterized, True)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t.tensor), dtype)
-            self.assertEqual(Z.shape(t.tensor), [2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.get_dtype(t.tensor), dtype)
+            self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), normal.log_prob(t)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.randn_log_pdf(given=t.tensor, group_ndims=1)
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.randn_log_pdf(given=t.tensor, group_ndims=1)
                     )
                 )
 
@@ -101,15 +101,15 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(t.n_samples, 5)
             self.assertEqual(t.group_ndims, -1)
             self.assertEqual(t.reparameterized, False)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t.tensor), dtype)
-            self.assertEqual(Z.shape(t.tensor), [5, 2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.get_dtype(t.tensor), dtype)
+            self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.randn_log_pdf(given=t.tensor, group_ndims=0)
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.randn_log_pdf(given=t.tensor, group_ndims=0)
                     )
                 )
 
@@ -119,10 +119,10 @@ class _MyBaseNormal(BaseNormal):
     _extra_args = ('xyz',)
 
     def __init__(self,
-                 mean: Z.Tensor,
-                 std: Optional[Z.Tensor] = None,
+                 mean: T.Tensor,
+                 std: Optional[T.Tensor] = None,
                  *,
-                 logstd: Optional[Z.Tensor] = None,
+                 logstd: Optional[T.Tensor] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None,
@@ -143,9 +143,9 @@ class NormalTestCase(unittest.TestCase):
         std = np.exp(logstd)
 
         for dtype in float_dtypes:
-            mean_t = Z.from_numpy(mean, dtype=dtype)
-            std_t = Z.from_numpy(std, dtype=dtype)
-            logstd_t = Z.from_numpy(logstd, dtype=dtype)
+            mean_t = T.from_numpy(mean, dtype=dtype)
+            std_t = T.from_numpy(std, dtype=dtype)
+            logstd_t = T.from_numpy(logstd, dtype=dtype)
             mutual_params = {'std': std_t, 'logstd': logstd_t}
 
             # construct from mean & std/logstd
@@ -159,8 +159,8 @@ class NormalTestCase(unittest.TestCase):
                 self.assertIs(normal.mean, mean_t)
                 self.assertIs(getattr(normal, key), val)
                 np.testing.assert_allclose(
-                    Z.to_numpy(getattr(normal, other_key)),
-                    Z.to_numpy(mutual_params[other_key]),
+                    T.to_numpy(getattr(normal, other_key)),
+                    T.to_numpy(mutual_params[other_key]),
                     rtol=1e-4
                 )
                 self.assertEqual(normal._mutual_params, {key: val})
@@ -168,7 +168,7 @@ class NormalTestCase(unittest.TestCase):
                 # mean and std/logstd must have the same dtype
                 for other_dtype in float_dtypes:
                     if other_dtype != dtype:
-                        other_val = Z.cast(val, other_dtype)
+                        other_val = T.cast(val, other_dtype)
                         with pytest.raises(ValueError,
                                            match=f'The dtype of `mean` does '
                                                  f'not equal the dtype of '
@@ -190,16 +190,16 @@ class NormalTestCase(unittest.TestCase):
             # nan test
             with pytest.raises(Exception,
                                match='Infinity or NaN value encountered'):
-                _ = _MyBaseNormal(mean=Z.from_numpy(np.nan, dtype=dtype),
+                _ = _MyBaseNormal(mean=T.from_numpy(np.nan, dtype=dtype),
                                   logstd=logstd_t, validate_tensors=True)
 
             for key, val in mutual_params.items():
                 with pytest.raises(Exception,
                                    match='Infinity or NaN value encountered'):
                     _ = _MyBaseNormal(mean=mean_t, validate_tensors=True,
-                                      **{key: Z.from_numpy(np.nan, dtype=dtype)})
+                                      **{key: T.from_numpy(np.nan, dtype=dtype)})
 
-            normal = _MyBaseNormal(mean=mean_t, std=Z.zeros_like(std_t),
+            normal = _MyBaseNormal(mean=mean_t, std=T.zeros_like(std_t),
                                    validate_tensors=True)
             with pytest.raises(Exception,
                                match='Infinity or NaN value encountered'):
@@ -209,8 +209,8 @@ class NormalTestCase(unittest.TestCase):
         np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
-        mean_t = Z.from_numpy(mean)
-        logstd_t = Z.from_numpy(logstd)
+        mean_t = T.from_numpy(mean)
+        logstd_t = T.from_numpy(logstd)
         normal = _MyBaseNormal(mean=mean_t, logstd=logstd_t, event_ndims=1,
                                xyz=123, reparameterized=False)
         self.assertEqual(normal.xyz, 123)
@@ -238,8 +238,8 @@ class NormalTestCase(unittest.TestCase):
         np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
-        mean_t = Z.from_numpy(mean)
-        logstd_t = Z.from_numpy(logstd)
+        mean_t = T.from_numpy(mean)
+        logstd_t = T.from_numpy(logstd)
 
         normal = Normal(mean=mean_t, logstd=logstd_t, event_ndims=1)
 
@@ -256,14 +256,14 @@ class NormalTestCase(unittest.TestCase):
         self.assertEqual(t.n_samples, None)
         self.assertEqual(t.group_ndims, 0)
         self.assertEqual(t.reparameterized, True)
-        self.assertIsInstance(t.tensor, Z.Tensor)
-        self.assertEqual(Z.shape(t.tensor), [2, 3, 4])
+        self.assertIsInstance(t.tensor, T.Tensor)
+        self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
         for log_pdf in [t.log_prob(), normal.log_prob(t)]:
             np.testing.assert_allclose(
-                Z.to_numpy(log_pdf),
-                Z.to_numpy(
-                    Z.random.normal_log_pdf(given=t.tensor, mean=mean_t,
+                T.to_numpy(log_pdf),
+                T.to_numpy(
+                    T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
                                             logstd=logstd_t, group_ndims=1)
                 )
             )
@@ -275,14 +275,14 @@ class NormalTestCase(unittest.TestCase):
         self.assertEqual(t.n_samples, 5)
         self.assertEqual(t.group_ndims, -1)
         self.assertEqual(t.reparameterized, False)
-        self.assertIsInstance(t.tensor, Z.Tensor)
-        self.assertEqual(Z.shape(t.tensor), [5, 2, 3, 4])
+        self.assertIsInstance(t.tensor, T.Tensor)
+        self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
         for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
             np.testing.assert_allclose(
-                Z.to_numpy(log_pdf),
-                Z.to_numpy(
-                    Z.random.normal_log_pdf(given=t.tensor, mean=mean_t,
+                T.to_numpy(log_pdf),
+                T.to_numpy(
+                    T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
                                             logstd=logstd_t, group_ndims=0)
                 )
             )
@@ -293,9 +293,9 @@ class NormalTestCase(unittest.TestCase):
         logstd = np.random.randn(2, 3, 4)
         std = np.exp(logstd)
 
-        mean_t = Z.from_numpy(mean)
-        logstd_t = Z.from_numpy(logstd)
-        std_t = Z.from_numpy(std)
+        mean_t = T.from_numpy(mean)
+        logstd_t = T.from_numpy(logstd)
+        std_t = T.from_numpy(std)
 
         with pytest.raises(ValueError, match='`low` < `high` does not hold'):
             _ = TruncatedNormal(mean=mean_t, logstd=logstd_t, low=2., high=1.)
@@ -326,14 +326,14 @@ class NormalTestCase(unittest.TestCase):
             self.assertEqual(t.n_samples, None)
             self.assertEqual(t.group_ndims, 0)
             self.assertEqual(t.reparameterized, True)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.shape(t.tensor), [2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), normal.log_prob(t)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.truncated_normal_log_pdf(
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.truncated_normal_log_pdf(
                             given=t.tensor, mean=mean_t, std=std_t,
                             logstd=logstd_t, group_ndims=1, low=low, high=high,
                         )
@@ -347,14 +347,14 @@ class NormalTestCase(unittest.TestCase):
             self.assertEqual(t.n_samples, 5)
             self.assertEqual(t.group_ndims, -1)
             self.assertEqual(t.reparameterized, False)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.shape(t.tensor), [5, 2, 3, 4])
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf),
-                    Z.to_numpy(
-                        Z.random.truncated_normal_log_pdf(
+                    T.to_numpy(log_pdf),
+                    T.to_numpy(
+                        T.random.truncated_normal_log_pdf(
                             given=t.tensor, mean=mean_t, std=std_t,
                             logstd=logstd_t, group_ndims=0, low=low, high=high,
                         )

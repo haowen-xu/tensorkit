@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import pytest
 
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 
 assert_allclose = np.testing.assert_allclose
 
@@ -20,23 +20,23 @@ class TensorNNTestCase(unittest.TestCase):
 
         # test relu
         np.testing.assert_allclose(
-            Z.to_numpy(Z.nn.relu(Z.as_tensor(x))),
+            T.to_numpy(T.nn.relu(T.as_tensor(x))),
             x * (x >= 0)
         )
 
         # test leaky_relu
         np.testing.assert_allclose(
-            Z.to_numpy(Z.nn.leaky_relu(Z.as_tensor(x))),
+            T.to_numpy(T.nn.leaky_relu(T.as_tensor(x))),
             x * (x >= 0) + (0.01 * x * (x < 0))
         )
         np.testing.assert_allclose(
-            Z.to_numpy(Z.nn.leaky_relu(Z.as_tensor(x), a=0.02)),
+            T.to_numpy(T.nn.leaky_relu(T.as_tensor(x), a=0.02)),
             x * (x >= 0) + (0.02 * x * (x < 0))
         )
 
         # test sigmoid
         np.testing.assert_allclose(
-            Z.to_numpy(Z.nn.sigmoid(Z.as_tensor(x))),
+            T.to_numpy(T.nn.sigmoid(T.as_tensor(x))),
             np.where(x >= 0, 1. / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
         )
 
@@ -48,7 +48,7 @@ class TensorNNTestCase(unittest.TestCase):
 
         for axis in [-3, -2, -1, 0, 1, 2]:
             np.testing.assert_allclose(
-                Z.to_numpy(Z.nn.softmax(Z.as_tensor(x), axis=axis)),
+                T.to_numpy(T.nn.softmax(T.as_tensor(x), axis=axis)),
                 softmax(x, axis=axis)
             )
 
@@ -61,7 +61,7 @@ class TensorNNTestCase(unittest.TestCase):
 
         for axis in [-3, -2, -1, 0, 1, 2]:
             np.testing.assert_allclose(
-                Z.to_numpy(Z.nn.log_softmax(Z.as_tensor(x), axis=axis)),
+                T.to_numpy(T.nn.log_softmax(T.as_tensor(x), axis=axis)),
                 log_softmax(x, axis=axis)
             )
 
@@ -115,32 +115,32 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1})
 
-        _f = Z.as_tensor
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
                 # test integer labels
                 ans = binary_cross_entropy(logits, labels, reduction, negative)
-                out = Z.nn.binary_cross_entropy_with_logits(
+                out = T.nn.binary_cross_entropy_with_logits(
                     _f(logits), _f(labels), reduction, negative)
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
                 # test sparse labels (floating point labels)
                 ans = binary_cross_entropy(
                     logits, sparse_labels, reduction, negative)
-                out = Z.nn.binary_cross_entropy_with_logits(
+                out = T.nn.binary_cross_entropy_with_logits(
                     _f(logits), _f(sparse_labels), reduction, negative)
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
         # invalid `reduction` argument should raise error
         with pytest.raises(Exception):
-            _ = Z.nn.binary_cross_entropy_with_logits(
+            _ = T.nn.binary_cross_entropy_with_logits(
                 _f(logits), _f(labels), 'invalid')
 
         # validation for the shape of logits and labels
         with pytest.raises(Exception):
             # logits and labels shape mismatch
-            _ = Z.nn.binary_cross_entropy_with_logits(
+            _ = T.nn.binary_cross_entropy_with_logits(
                 _f(logits), _f(labels[:-1]))
 
     def test_cross_entropy(self):
@@ -182,59 +182,59 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4, 5))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1, 2, 3, 4, 5})
 
-        _f = Z.as_tensor
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
                 # test cross_entropy
                 ans = cross_entropy(logits, labels, reduction, negative)
-                out = Z.nn.cross_entropy_with_logits(
+                out = T.nn.cross_entropy_with_logits(
                     _f(logits), _f(labels), reduction, negative)
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
                 # test cross_entropy on 2d
                 ans = cross_entropy(
                     logits[0, 0, 0], labels[0, 0], reduction, negative)
-                out = Z.nn.cross_entropy_with_logits(
+                out = T.nn.cross_entropy_with_logits(
                     _f(logits[0, 0, 0]), _f(labels[0, 0]), reduction, negative)
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
                 # test sparse_cross_entropy
                 ans = sparse_cross_entropy(
                     logits, sparse_labels, reduction, negative)
-                out = Z.nn.sparse_cross_entropy_with_logits(
+                out = T.nn.sparse_cross_entropy_with_logits(
                     _f(logits), _f(sparse_labels), reduction, negative)
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
                 # test sparse_cross_entropy on 2d
                 ans = sparse_cross_entropy(
                     logits[0, 0, 0], sparse_labels[0, 0], reduction, negative)
-                out = Z.nn.sparse_cross_entropy_with_logits(
+                out = T.nn.sparse_cross_entropy_with_logits(
                     _f(logits[0, 0, 0]), _f(sparse_labels[0, 0]),
                     reduction, negative
                 )
-                np.testing.assert_allclose(ans, Z.to_numpy(out))
+                np.testing.assert_allclose(ans, T.to_numpy(out))
 
         # invalid `reduction` argument should raise error
         with pytest.raises(Exception):
-            _ = Z.nn.cross_entropy_with_logits(
+            _ = T.nn.cross_entropy_with_logits(
                 _f(logits), _f(labels), 'invalid')
 
         with pytest.raises(Exception):
-            _ = Z.nn.sparse_cross_entropy_with_logits(
+            _ = T.nn.sparse_cross_entropy_with_logits(
                 _f(logits), _f(labels), 'invalid')
 
         # validation for the shape of logits and labels
         with pytest.raises(Exception):
             # logits and labels shape mismatch
-            _ = Z.nn.cross_entropy_with_logits(_f(logits), _f(labels[:-1]))
+            _ = T.nn.cross_entropy_with_logits(_f(logits), _f(labels[:-1]))
 
         with pytest.raises(Exception):
             # logits rank too low
-            _ = Z.nn.sparse_cross_entropy_with_logits(_f(logits[0, 0, 0, 0]),
+            _ = T.nn.sparse_cross_entropy_with_logits(_f(logits[0, 0, 0, 0]),
                                                       _f(labels))
 
         with pytest.raises(Exception):
             # logits and labels shape mismatch
-            _ = Z.nn.sparse_cross_entropy_with_logits(
+            _ = T.nn.sparse_cross_entropy_with_logits(
                 _f(logits), _f(labels[:-1]))

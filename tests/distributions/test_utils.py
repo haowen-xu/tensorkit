@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from mock import Mock
 
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 from tensorkit.distributions.utils import *
 from tests.helper import float_dtypes
 
@@ -109,13 +109,13 @@ class DistributionUtilsTestCase(unittest.TestCase):
 
     def test_log_pdf_mask(self):
         np.random.seed(1234)
-        Z.random.seed(1234)
+        T.random.seed(1234)
         x = np.random.randn(3, 4, 5)
 
         for dtype in float_dtypes:
-            x_t = Z.from_numpy(x, dtype=dtype)
-            ret = log_pdf_mask(x_t >= 0., x_t ** 2, Z.random.LOG_ZERO_VALUE)
-            expected = np.where(x >= 0., x ** 2, Z.random.LOG_ZERO_VALUE)
+            x_t = T.from_numpy(x, dtype=dtype)
+            ret = log_pdf_mask(x_t >= 0., x_t ** 2, T.random.LOG_ZERO_VALUE)
+            expected = np.where(x >= 0., x ** 2, T.random.LOG_ZERO_VALUE)
             np.testing.assert_allclose(ret, expected, rtol=1e-4)
 
     def test_copy_distribution(self):

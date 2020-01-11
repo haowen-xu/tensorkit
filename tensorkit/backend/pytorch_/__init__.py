@@ -1,6 +1,3 @@
-from ._version_check import *
-from .core import *
-from .dtypes import *
-from . import random, nn
+from . import _version_check
 
 name = 'PyTorch'

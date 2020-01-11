@@ -1,6 +1,6 @@
 from typing import *
 
-from ..backend import jit, Tensor, reduce_mean, log_mean_exp
+from ..tensor import jit, Tensor, reduce_mean, log_mean_exp
 
 __all__ = [
     'sgvb_estimator', 'iwae_estimator',

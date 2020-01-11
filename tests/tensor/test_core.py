@@ -6,7 +6,7 @@ import pytest
 from scipy.special import erf, erfc, erfinv
 
 from tensorkit import settings
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 from tests.helper import *
 
 assert_allclose = np.testing.assert_allclose
@@ -15,186 +15,186 @@ assert_allclose = np.testing.assert_allclose
 class TensorCoreTestCase(unittest.TestCase):
 
     def test_backend_info(self):
-        self.assertEqual(Z.backend.name, settings.backend)
+        self.assertEqual(T.backend_name, settings.backend)
 
     def test_dtypes(self):
         x = np.asarray([1, 2, 3])
 
         # various dtypes
-        for dtype in [Z.int8, Z.uint8, Z.int16, Z.int32, Z.int64]:
+        for dtype in [T.int8, T.uint8, T.int16, T.int32, T.int64]:
             self.assertIsInstance(dtype, str)
-            self.assertFalse(Z.is_floating_point(Z.from_numpy(0, dtype=dtype)))
-            self.assertEqual(Z.get_dtype(Z.cast(Z.as_tensor(x), dtype)), dtype)
+            self.assertFalse(T.is_floating_point(T.from_numpy(0, dtype=dtype)))
+            self.assertEqual(T.get_dtype(T.cast(T.as_tensor(x), dtype)), dtype)
 
-        for dtype in [Z.float16, Z.float32, Z.float64]:
+        for dtype in [T.float16, T.float32, T.float64]:
             self.assertIsInstance(dtype, str)
-            self.assertTrue(Z.is_floating_point(Z.from_numpy(0, dtype=dtype)))
-            self.assertEqual(Z.get_dtype(Z.cast(Z.as_tensor(x), dtype)), dtype)
+            self.assertTrue(T.is_floating_point(T.from_numpy(0, dtype=dtype)))
+            self.assertEqual(T.get_dtype(T.cast(T.as_tensor(x), dtype)), dtype)
 
         # floatx
         self.assertEqual(settings.float_x, 'float32')
-        self.assertEqual(Z.float_x(), Z.float32)
+        self.assertEqual(T.float_x(), T.float32)
         try:
             settings.float_x = 'float64'
-            self.assertEqual(Z.float_x(), Z.float64)
+            self.assertEqual(T.float_x(), T.float64)
         finally:
             settings.float_x = 'float32'
 
         # as_tensor
-        t = Z.as_tensor(x)
-        self.assertIsInstance(t, Z.Tensor)
-        np.testing.assert_equal(Z.to_numpy(t), x)
+        t = T.as_tensor(x)
+        self.assertIsInstance(t, T.Tensor)
+        np.testing.assert_equal(T.to_numpy(t), x)
 
         # cast
         for dtype in number_dtypes:
-            t2 = Z.cast(t, dtype)
-            self.assertIsInstance(t2, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t2), dtype)
-            np.testing.assert_equal(Z.to_numpy(t2), x)
+            t2 = T.cast(t, dtype)
+            self.assertIsInstance(t2, T.Tensor)
+            self.assertEqual(T.get_dtype(t2), dtype)
+            np.testing.assert_equal(T.to_numpy(t2), x)
 
         # cast_like
         for dtype_as in (t, t2):
-            t3 = Z.cast_like(t, dtype_as)
-            self.assertIsInstance(t3, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t3), Z.get_dtype(dtype_as))
-            np.testing.assert_equal(Z.to_numpy(t3), x)
+            t3 = T.cast_like(t, dtype_as)
+            self.assertIsInstance(t3, T.Tensor)
+            self.assertEqual(T.get_dtype(t3), T.get_dtype(dtype_as))
+            np.testing.assert_equal(T.to_numpy(t3), x)
 
     def test_tensor_constructors(self):
         np.random.seed(1234)
 
         # as_tensor
         for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
-            t = Z.as_tensor(x)
-            self.assertIsInstance(t, Z.Tensor)
-            np.testing.assert_equal(Z.to_numpy(t), x)
+            t = T.as_tensor(x)
+            self.assertIsInstance(t, T.Tensor)
+            np.testing.assert_equal(T.to_numpy(t), x)
 
-        x = Z.as_tensor(np.asarray([1, 2, 3], dtype=np.int32))
-        t = Z.as_tensor(x)
+        x = T.as_tensor(np.asarray([1, 2, 3], dtype=np.int32))
+        t = T.as_tensor(x)
         self.assertIs(t, x)
 
         with pytest.raises(Exception):
-            _ = Z.from_numpy(object())  # not a tensor, should raise error
+            _ = T.from_numpy(object())  # not a tensor, should raise error
 
         # from_numpy
         for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
-            t = Z.from_numpy(x)
-            self.assertIsInstance(t, Z.Tensor)
-            np.testing.assert_equal(Z.to_numpy(t), x)
+            t = T.from_numpy(x)
+            self.assertIsInstance(t, T.Tensor)
+            np.testing.assert_equal(T.to_numpy(t), x)
 
             for dtype in number_dtypes:
-                t = Z.from_numpy(x, dtype=dtype)
-                self.assertEqual(Z.get_dtype(t), dtype)
-                np.testing.assert_equal(Z.to_numpy(t), x)
+                t = T.from_numpy(x, dtype=dtype)
+                self.assertEqual(T.get_dtype(t), dtype)
+                np.testing.assert_equal(T.to_numpy(t), x)
 
         with pytest.raises(Exception):
-            _ = Z.from_numpy(object())  # not a tensor, should raise error
+            _ = T.from_numpy(object())  # not a tensor, should raise error
 
         # float_scalar
         for value in (1.25, 125):
-            for dtype in (Z.float16, Z.float32, Z.float64):
-                t = Z.float_scalar(value, dtype=dtype)
-                self.assertEqual(Z.get_dtype(t), dtype)
-                self.assertEqual(Z.to_numpy(t), value)
-        self.assertEqual(Z.get_dtype(Z.float_scalar(1.25)), Z.float_x())
+            for dtype in (T.float16, T.float32, T.float64):
+                t = T.float_scalar(value, dtype=dtype)
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.to_numpy(t), value)
+        self.assertEqual(T.get_dtype(T.float_scalar(1.25)), T.float_x())
 
         # int_scalar
         for value in (2, 125):
-            for dtype in (Z.int8, Z.int16, Z.int32, Z.int64):
-                t = Z.int_scalar(value, dtype=dtype)
-                self.assertEqual(Z.get_dtype(t), dtype)
-                self.assertEqual(Z.to_numpy(t), value)
-        self.assertEqual(Z.get_dtype(Z.int_scalar(125)), Z.int32)
+            for dtype in (T.int8, T.int16, T.int32, T.int64):
+                t = T.int_scalar(value, dtype=dtype)
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.to_numpy(t), value)
+        self.assertEqual(T.get_dtype(T.int_scalar(125)), T.int32)
 
         # zeros
         for shape in ([1, 2, 3], []):
             for dtype in number_dtypes:
-                t = Z.zeros(shape, dtype=dtype)
-                self.assertIsInstance(t, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t), dtype)
-                np.testing.assert_equal(Z.to_numpy(t), np.zeros(shape))
+                t = T.zeros(shape, dtype=dtype)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), dtype)
+                np.testing.assert_equal(T.to_numpy(t), np.zeros(shape))
 
                 # zeros_like
-                t2 = Z.zeros_like(t)
-                self.assertIsInstance(t2, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t2), dtype)
-                np.testing.assert_equal(Z.to_numpy(t), np.zeros(shape))
+                t2 = T.zeros_like(t)
+                self.assertIsInstance(t2, T.Tensor)
+                self.assertEqual(T.get_dtype(t2), dtype)
+                np.testing.assert_equal(T.to_numpy(t), np.zeros(shape))
 
                 for dtype2 in (None,) + number_dtypes:
                     for shape2 in (None, [7, 8]):
-                        t2 = Z.zeros_like(t, dtype=dtype2, shape=shape2)
-                        self.assertIsInstance(t2, Z.Tensor)
-                        self.assertEqual(Z.get_dtype(t2), dtype2 or dtype)
-                        np.testing.assert_equal(Z.to_numpy(t2),
+                        t2 = T.zeros_like(t, dtype=dtype2, shape=shape2)
+                        self.assertIsInstance(t2, T.Tensor)
+                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
+                        np.testing.assert_equal(T.to_numpy(t2),
                                                 np.zeros(shape2 or shape))
 
         # ones
         for shape in ([1, 2, 3], []):
             for dtype in number_dtypes:
-                t = Z.ones(shape, dtype=dtype)
-                self.assertIsInstance(t, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t), dtype)
-                np.testing.assert_equal(Z.to_numpy(t), np.ones(shape))
+                t = T.ones(shape, dtype=dtype)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), dtype)
+                np.testing.assert_equal(T.to_numpy(t), np.ones(shape))
 
                 # ones_like
-                t2 = Z.ones_like(t)
-                self.assertIsInstance(t2, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t2), dtype)
-                np.testing.assert_equal(Z.to_numpy(t), np.ones(shape))
+                t2 = T.ones_like(t)
+                self.assertIsInstance(t2, T.Tensor)
+                self.assertEqual(T.get_dtype(t2), dtype)
+                np.testing.assert_equal(T.to_numpy(t), np.ones(shape))
 
                 for dtype2 in (None,) + number_dtypes:
                     for shape2 in (None, [7, 8]):
-                        t2 = Z.ones_like(t, dtype=dtype2, shape=shape2)
-                        self.assertIsInstance(t2, Z.Tensor)
-                        self.assertEqual(Z.get_dtype(t2), dtype2 or dtype)
-                        np.testing.assert_equal(Z.to_numpy(t2),
+                        t2 = T.ones_like(t, dtype=dtype2, shape=shape2)
+                        self.assertIsInstance(t2, T.Tensor)
+                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
+                        np.testing.assert_equal(T.to_numpy(t2),
                                                 np.ones(shape2 or shape))
 
         # full
         fill_value = 123
         for shape in ([1, 2, 3], []):
             for dtype in number_dtypes:
-                t = Z.full(shape, fill_value, dtype=dtype)
-                self.assertIsInstance(t, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t), dtype)
+                t = T.full(shape, fill_value, dtype=dtype)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), dtype)
                 np.testing.assert_equal(
-                    Z.to_numpy(t),
+                    T.to_numpy(t),
                     np.full(shape, fill_value))
 
                 # zeros_like
-                t2 = Z.full_like(t, fill_value)
-                self.assertIsInstance(t2, Z.Tensor)
-                self.assertEqual(Z.get_dtype(t2), dtype)
-                np.testing.assert_equal(Z.to_numpy(t),
+                t2 = T.full_like(t, fill_value)
+                self.assertIsInstance(t2, T.Tensor)
+                self.assertEqual(T.get_dtype(t2), dtype)
+                np.testing.assert_equal(T.to_numpy(t),
                                         np.full(shape, fill_value))
 
                 for dtype2 in (None,) + number_dtypes:
                     for shape2 in (None, [7, 8]):
-                        t2 = Z.full_like(t, fill_value, dtype=dtype2,
+                        t2 = T.full_like(t, fill_value, dtype=dtype2,
                                          shape=shape2)
-                        self.assertIsInstance(t2, Z.Tensor)
-                        self.assertEqual(Z.get_dtype(t2), dtype2 or dtype)
+                        self.assertIsInstance(t2, T.Tensor)
+                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
                         np.testing.assert_equal(
-                            Z.to_numpy(t2),
+                            T.to_numpy(t2),
                             np.full(shape2 or shape, fill_value))
 
         # arange
         for start, end in [(1, 10), (0, 10)]:
-            t = Z.arange(start, end)
-            self.assertIsInstance(t, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t), Z.int32)
-            np.testing.assert_equal(Z.to_numpy(t), np.arange(start, end))
+            t = T.arange(start, end)
+            self.assertIsInstance(t, T.Tensor)
+            self.assertEqual(T.get_dtype(t), T.int32)
+            np.testing.assert_equal(T.to_numpy(t), np.arange(start, end))
 
         for start, end, step in [(0, 10, 2), (-2, -15, -3)]:
-            t = Z.arange(start, end, step)
-            self.assertIsInstance(t, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t), Z.int32)
-            np.testing.assert_equal(Z.to_numpy(t), np.arange(start, end, step))
+            t = T.arange(start, end, step)
+            self.assertIsInstance(t, T.Tensor)
+            self.assertEqual(T.get_dtype(t), T.int32)
+            np.testing.assert_equal(T.to_numpy(t), np.arange(start, end, step))
 
         for dtype in number_dtypes:
-            t = Z.arange(0, 10, dtype=dtype)
-            self.assertIsInstance(t, Z.Tensor)
-            self.assertEqual(Z.get_dtype(t), dtype)
-            np.testing.assert_equal(Z.to_numpy(t), np.arange(10))
+            t = T.arange(0, 10, dtype=dtype)
+            self.assertIsInstance(t, T.Tensor)
+            self.assertEqual(T.get_dtype(t), dtype)
+            np.testing.assert_equal(T.to_numpy(t), np.arange(10))
 
         # one_hot
         for n_classes in [1, 5]:
@@ -202,29 +202,29 @@ class TensorCoreTestCase(unittest.TestCase):
                 I = np.eye(n_classes)
                 x = np.random.randint(0, n_classes, size=shape)
 
-                t = Z.one_hot(Z.as_tensor(x), n_classes)
-                np.testing.assert_equal(Z.to_numpy(t), I[x])
+                t = T.one_hot(T.as_tensor(x), n_classes)
+                np.testing.assert_equal(T.to_numpy(t), I[x])
 
                 for dtype in number_dtypes:
-                    t = Z.one_hot(Z.as_tensor(x), n_classes, dtype=dtype)
-                    self.assertEqual(Z.get_dtype(t), dtype)
-                    np.testing.assert_equal(Z.to_numpy(t), I[x])
+                    t = T.one_hot(T.as_tensor(x), n_classes, dtype=dtype)
+                    self.assertEqual(T.get_dtype(t), dtype)
+                    np.testing.assert_equal(T.to_numpy(t), I[x])
 
     def test_read_assign(self):
         # test to_numpy
         x = np.random.randn(2, 3, 4)
-        t = Z.as_tensor(x)
-        out = Z.to_numpy(t)
+        t = T.as_tensor(x)
+        out = T.to_numpy(t)
         self.assertIsInstance(out, np.ndarray)
         np.testing.assert_equal(out, x)
 
         with pytest.raises(TypeError, match='Not a Tensor'):
-            _ = Z.to_numpy(object())
+            _ = T.to_numpy(object())
 
         # test to_numpy with bool
         x = np.asarray([True, False])
-        t = Z.as_tensor(x)
-        out = Z.to_numpy(t)
+        t = T.as_tensor(x)
+        out = T.to_numpy(t)
         self.assertIsInstance(out, np.ndarray)
         self.assertEqual(out.dtype, np.bool)
         np.testing.assert_equal(out, x)
@@ -232,134 +232,134 @@ class TensorCoreTestCase(unittest.TestCase):
     def test_shape_utils(self):
         # test shape
         x = np.random.randn(2, 3, 4)
-        t = Z.as_tensor(x)
-        s = Z.shape(t)
+        t = T.as_tensor(x)
+        s = T.shape(t)
         self.assertEqual(s, [2, 3, 4])
 
         # test rank
-        self.assertEqual(Z.rank(t), 3)
+        self.assertEqual(T.rank(t), 3)
 
         # test reshape
-        t2 = Z.reshape(t, [3, 8])
-        self.assertEqual(Z.shape(t2), [3, 8])
-        np.testing.assert_equal(Z.to_numpy(t2), np.reshape(x, [3, 8]))
+        t2 = T.reshape(t, [3, 8])
+        self.assertEqual(T.shape(t2), [3, 8])
+        np.testing.assert_equal(T.to_numpy(t2), np.reshape(x, [3, 8]))
 
         with pytest.raises(Exception):
-            _ = Z.reshape(t, [4, 8])
+            _ = T.reshape(t, [4, 8])
 
         # test repeat
         x = np.random.randn(2, 1, 3)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
-        t2 = Z.repeat(t, [])
-        self.assertEqual(Z.shape(t2), [2, 1, 3])
-        np.testing.assert_equal(Z.to_numpy(t2), x)
+        t2 = T.repeat(t, [])
+        self.assertEqual(T.shape(t2), [2, 1, 3])
+        np.testing.assert_equal(T.to_numpy(t2), x)
 
-        t2 = Z.repeat(t, [2])
-        self.assertEqual(Z.shape(t2), [2, 1, 6])
-        np.testing.assert_equal(Z.to_numpy(t2), np.tile(x, [1, 1, 2]))
+        t2 = T.repeat(t, [2])
+        self.assertEqual(T.shape(t2), [2, 1, 6])
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [1, 1, 2]))
 
-        t2 = Z.repeat(t, [4, 3, 2])
-        self.assertEqual(Z.shape(t2), [8, 3, 6])
-        np.testing.assert_equal(Z.to_numpy(t2), np.tile(x, [4, 3, 2]))
+        t2 = T.repeat(t, [4, 3, 2])
+        self.assertEqual(T.shape(t2), [8, 3, 6])
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 3, 2]))
 
-        t2 = Z.repeat(t, [4, 1, 3, 1])
-        self.assertEqual(Z.shape(t2), [4, 2, 3, 3])
-        np.testing.assert_equal(Z.to_numpy(t2), np.tile(x, [4, 1, 3, 1]))
+        t2 = T.repeat(t, [4, 1, 3, 1])
+        self.assertEqual(T.shape(t2), [4, 2, 3, 3])
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 1, 3, 1]))
 
-        t2 = Z.repeat(t, [5, 4, 3, 2])
-        self.assertEqual(Z.shape(t2), [5, 8, 3, 6])
-        np.testing.assert_equal(Z.to_numpy(t2), np.tile(x, [5, 4, 3, 2]))
+        t2 = T.repeat(t, [5, 4, 3, 2])
+        self.assertEqual(T.shape(t2), [5, 8, 3, 6])
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [5, 4, 3, 2]))
 
         # test expand
-        t2 = Z.expand(t, [4, -1, 5, -1])
-        self.assertEqual(Z.shape(t2), [4, 2, 5, 3])
-        np.testing.assert_equal(Z.to_numpy(t2), np.tile(x, [4, 1, 5, 1]))
+        t2 = T.expand(t, [4, -1, 5, -1])
+        self.assertEqual(T.shape(t2), [4, 2, 5, 3])
+        np.testing.assert_equal(T.to_numpy(t2), np.tile(x, [4, 1, 5, 1]))
 
         # test squeeze
         x = np.random.randn(1, 2, 1, 3, 1, 4, 1)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
-        t2 = Z.squeeze(Z.as_tensor(x))
+        t2 = T.squeeze(T.as_tensor(x))
         s2 = [2, 3, 4]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
-        t2 = Z.squeeze(t, [-1])
+        t2 = T.squeeze(t, [-1])
         s2 = [1, 2, 1, 3, 1, 4]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
-        t2 = Z.squeeze(t, [-1, 0, 4, 6])
+        t2 = T.squeeze(t, [-1, 0, 4, 6])
         s2 = [2, 1, 3, 4]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
         with pytest.raises(Exception, match='Axis .* cannot be squeezed'):
-            _ = Z.squeeze(t, [-1, -2])
+            _ = T.squeeze(t, [-1, -2])
 
         # test expand dim
         x = np.random.randn(2, 3)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
-        t2 = Z.expand_dim(t, -1)
+        t2 = T.expand_dim(t, -1)
         s2 = [2, 3, 1]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
-        t2 = Z.expand_dim(t, -2)
+        t2 = T.expand_dim(t, -2)
         s2 = [2, 1, 3]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
-        t2 = Z.expand_dim(t, 0)
+        t2 = T.expand_dim(t, 0)
         s2 = [1, 2, 3]
-        self.assertEqual(Z.shape(t2), s2)
-        np.testing.assert_equal(Z.to_numpy(t2), x.reshape(s2))
+        self.assertEqual(T.shape(t2), s2)
+        np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
 
         # test broadcast_shape
         self.assertEqual(
-            Z.broadcast_shape([3, 4, 2, 1], [4, 1, 5]),
+            T.broadcast_shape([3, 4, 2, 1], [4, 1, 5]),
             [3, 4, 2, 5]
         )
         self.assertEqual(
-            Z.broadcast_shape([4, 1, 5], [3, 4, 2, 1]),
+            T.broadcast_shape([4, 1, 5], [3, 4, 2, 1]),
             [3, 4, 2, 5]
         )
         self.assertEqual(
-            Z.broadcast_shape([3, 4, 2, 1], []),
+            T.broadcast_shape([3, 4, 2, 1], []),
             [3, 4, 2, 1]
         )
         self.assertEqual(
-            Z.broadcast_shape([], [4, 1, 5]),
+            T.broadcast_shape([], [4, 1, 5]),
             [4, 1, 5]
         )
 
         with pytest.raises(Exception, match='cannot broadcast'):
-            _ = Z.broadcast_shape([2], [3])
+            _ = T.broadcast_shape([2], [3])
 
         # test broadcast_to
         x = np.random.randn(1, 2, 1)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
-        t2 = Z.broadcast_to(t, [4, 5, 2, 1])
-        self.assertEqual(Z.shape(t2), [4, 5, 2, 1])
+        t2 = T.broadcast_to(t, [4, 5, 2, 1])
+        self.assertEqual(T.shape(t2), [4, 5, 2, 1])
         np.testing.assert_equal(
-            Z.to_numpy(t2),
+            T.to_numpy(t2),
             np.tile(x.reshape([1, 1, 2, 1]), [4, 5, 1, 1])
         )
 
         with pytest.raises(Exception,
                            match='`x` cannot be broadcast to `new_shape`'):
-            _ = Z.broadcast_to(t, [2, 5])
+            _ = T.broadcast_to(t, [2, 5])
 
         with pytest.raises(Exception,
                            match='`x` cannot be broadcast to `new_shape`'):
-            _ = Z.broadcast_to(t, [1, 1, 1])
+            _ = T.broadcast_to(t, [1, 1, 1])
 
         with pytest.raises(Exception,
                            match='`x` cannot be broadcast to `new_shape`'):
-            _ = Z.broadcast_to(t, [1, 5, 1])
+            _ = T.broadcast_to(t, [1, 5, 1])
 
         # test explicit_broadcast
         def explicit_broadcast(x, y):
@@ -370,9 +370,9 @@ class TensorCoreTestCase(unittest.TestCase):
         def check_explicit_broadcast(shape1, shape2):
             x = np.asarray(np.random.randn(*shape1))
             y = np.asarray(np.random.randn(*shape2))
-            out1, out2 = Z.explicit_broadcast(Z.as_tensor(x), Z.as_tensor(y))
-            out1 = Z.to_numpy(out1)
-            out2 = Z.to_numpy(out2)
+            out1, out2 = T.explicit_broadcast(T.as_tensor(x), T.as_tensor(y))
+            out1 = T.to_numpy(out1)
+            out2 = T.to_numpy(out2)
             ans1, ans2 = explicit_broadcast(x, y)
             np.testing.assert_equal(out1, ans1)
             np.testing.assert_equal(out2, ans2)
@@ -384,13 +384,13 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test flatten_to_ndims
         def run_check(x, k):
-            t = Z.from_numpy(x, dtype=Z.int32)
+            t = T.from_numpy(x, dtype=T.int32)
 
             if len(x.shape) == k:
-                tt, s1 = Z.flatten_to_ndims(t, k)
+                tt, s1 = T.flatten_to_ndims(t, k)
                 self.assertIs(tt, t)
                 self.assertIsNone(s1)
-                self.assertIs(Z.unflatten_from_ndims(tt, s1), t)
+                self.assertIs(T.unflatten_from_ndims(tt, s1), t)
             else:
                 if k == 1:
                     front_shape = list(x.shape)
@@ -399,11 +399,11 @@ class TensorCoreTestCase(unittest.TestCase):
                     front_shape = list(x.shape)[: -(k - 1)]
                     xx = x.reshape([-1] + list(x.shape)[-(k - 1):])
 
-                tt, s1 = Z.flatten_to_ndims(t, k)
+                tt, s1 = T.flatten_to_ndims(t, k)
                 self.assertEqual(s1, front_shape)
-                np.testing.assert_equal(Z.to_numpy(tt), xx)
+                np.testing.assert_equal(T.to_numpy(tt), xx)
                 np.testing.assert_equal(
-                    Z.to_numpy(Z.unflatten_from_ndims(tt, s1)),
+                    T.to_numpy(T.unflatten_from_ndims(tt, s1)),
                     x
                 )
 
@@ -418,90 +418,90 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception,
                            match='`ndims` must be at least 1'):
-            _ = Z.flatten_to_ndims(Z.as_tensor([0.]), 0)
+            _ = T.flatten_to_ndims(T.as_tensor([0.]), 0)
 
         with pytest.raises(Exception, match=r'rank\(x\) < ndims'):
-            _ = Z.flatten_to_ndims(Z.zeros([3, 4]), 3)
+            _ = T.flatten_to_ndims(T.zeros([3, 4]), 3)
 
         with pytest.raises(Exception, match=r'rank\(x\) < ndims'):
-            _ = Z.flatten_to_ndims(Z.zeros([3]), 2)
+            _ = T.flatten_to_ndims(T.zeros([3]), 2)
 
         with pytest.raises(Exception,
                            match=r'Invalid input: rank\(x\) < 1, but '
                                  r'front_shape is not None'):
-            t = Z.as_tensor(123)
-            _ = Z.unflatten_from_ndims(t, [2, 3])
+            t = T.as_tensor(123)
+            _ = T.unflatten_from_ndims(t, [2, 3])
 
     def test_index_select(self):
         x = np.random.randn(3, 4, 5)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(1), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor(1), 0)),
             x[1, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(3), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(3), 1)),
             x[:, 3, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(2), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(2), -1)),
             x[..., 2]
         )
 
         i = np.asarray([0, 2, 1, 1, 0, 2])
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
             x[i, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
             x[:, i, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
             x[..., i]
         )
 
         i = np.asarray([[0, 2, 1], [1, 0, 2]])
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
             x[i, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
             x[:, i, ...]
         )
         np.testing.assert_equal(
-            Z.to_numpy(Z.index_select(t, Z.as_tensor(i), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
             x[..., i]
         )
 
-        if Z.backend.name != 'PyTorch':
+        if T.backend_name != 'PyTorch':
             # TODO: pytorch currently does not support negative index in many
             # of its functions.  enable these test when supported.
             np.testing.assert_equal(
-                Z.to_numpy(Z.index_select(t, Z.as_tensor(-1), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor(-1), 1)),
                 x[:, -1]
             )
 
             i = np.asarray([0, 1, -1, 2, -2, 0])
             np.testing.assert_equal(
-                Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
                 x[:, i, ...]
             )
 
             i = np.asarray([[0, 1, -1], [2, -2, 0]])
             np.testing.assert_equal(
-                Z.to_numpy(Z.index_select(t, Z.as_tensor(i), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
                 x[:, i, ...]
             )
 
         with pytest.raises(Exception, match='`axis` out of range'):
-            _ = Z.index_select(t, Z.as_tensor(0), 3)
+            _ = T.index_select(t, T.as_tensor(0), 3)
 
         with pytest.raises(Exception, match='`axis` out of range'):
-            _ = Z.index_select(t, Z.as_tensor(0), -4)
+            _ = T.index_select(t, T.as_tensor(0), -4)
 
     def test_concat(self):
         x = np.random.randn(2, 3, 4)
@@ -510,66 +510,66 @@ class TensorCoreTestCase(unittest.TestCase):
 
         for arrays, axis in [([x, x, y], -2), ([x, y, y], 1),
                              ([x, x, z], -1), ([x, z, z], 2)]:
-            t = Z.concat([Z.as_tensor(arr) for arr in arrays], axis=axis)
+            t = T.concat([T.as_tensor(arr) for arr in arrays], axis=axis)
             expected = np.concatenate(arrays, axis=axis)
-            np.testing.assert_equal(Z.to_numpy(t), expected)
+            np.testing.assert_equal(T.to_numpy(t), expected)
 
     def test_math_univariate_op(self):
         np.random.seed(1234)
 
         x = np.random.randn(2, 3)
         u = np.random.rand(2, 3)
-        x_t = Z.as_tensor(x)
-        u_t = Z.as_tensor(u)
+        x_t = T.as_tensor(x)
+        u_t = T.as_tensor(u)
 
-        assert_allclose(Z.to_numpy(Z.abs(x_t)), np.abs(x))
-        assert_allclose(Z.to_numpy(Z.neg(x_t)), -x)
-        assert_allclose(Z.to_numpy(Z.square(x_t)), x ** 2)
+        assert_allclose(T.to_numpy(T.abs(x_t)), np.abs(x))
+        assert_allclose(T.to_numpy(T.neg(x_t)), -x)
+        assert_allclose(T.to_numpy(T.square(x_t)), x ** 2)
 
-        assert_allclose(Z.to_numpy(Z.exp(x_t)), np.exp(x))
-        assert_allclose(Z.to_numpy(Z.log(Z.as_tensor(np.abs(x)))),
+        assert_allclose(T.to_numpy(T.exp(x_t)), np.exp(x))
+        assert_allclose(T.to_numpy(T.log(T.as_tensor(np.abs(x)))),
                         np.log(np.abs(x)))
-        assert_allclose(Z.to_numpy(Z.log1p(Z.as_tensor(np.abs(x) - 1. + 1e-7))),
+        assert_allclose(T.to_numpy(T.log1p(T.as_tensor(np.abs(x) - 1. + 1e-7))),
                         np.log1p(np.abs(x) - 1. + 1e-7))
 
-        assert_allclose(Z.to_numpy(Z.sin(x_t)), np.sin(x))
-        assert_allclose(Z.to_numpy(Z.cos(x_t)), np.cos(x))
+        assert_allclose(T.to_numpy(T.sin(x_t)), np.sin(x))
+        assert_allclose(T.to_numpy(T.cos(x_t)), np.cos(x))
 
-        assert_allclose(Z.to_numpy(Z.erf(x_t)), erf(x))
-        assert_allclose(Z.to_numpy(Z.erfc(x_t)), erfc(x))
-        assert_allclose(Z.to_numpy(Z.erfinv(u_t)), erfinv(u))
+        assert_allclose(T.to_numpy(T.erf(x_t)), erf(x))
+        assert_allclose(T.to_numpy(T.erfc(x_t)), erfc(x))
+        assert_allclose(T.to_numpy(T.erfinv(u_t)), erfinv(u))
 
     def test_math_bivariate_op(self):
         np.random.seed(1234)
         x = np.random.randn(2, 3)
         y = np.random.randn(3)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
 
-        assert_allclose(Z.to_numpy(Z.add(t1, t2)), x + y)
-        assert_allclose(Z.to_numpy(Z.sub(t1, t2)), x - y)
-        assert_allclose(Z.to_numpy(Z.mul(t1, t2)), x * y)
-        assert_allclose(Z.to_numpy(Z.pow(Z.as_tensor(np.abs(x)), t2)),
+        assert_allclose(T.to_numpy(T.add(t1, t2)), x + y)
+        assert_allclose(T.to_numpy(T.sub(t1, t2)), x - y)
+        assert_allclose(T.to_numpy(T.mul(t1, t2)), x * y)
+        assert_allclose(T.to_numpy(T.pow(T.as_tensor(np.abs(x)), t2)),
                         np.abs(x) ** y)
 
         # for division, of course y should not equal to zero
         y = np.asarray(y == 0, dtype=y.dtype) + y
-        assert_allclose(Z.to_numpy(Z.div(t1, t2)), x / y)
-        assert_allclose(Z.to_numpy(Z.truediv(t1, t2)), x / y)
+        assert_allclose(T.to_numpy(T.div(t1, t2)), x / y)
+        assert_allclose(T.to_numpy(T.truediv(t1, t2)), x / y)
 
         # for floordiv and mod, we only require the backend tensor engine
         # to produce identical results with numpy when x > 0 and y > 0
         x = np.abs(x)
         y = np.abs(y)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
-        assert_allclose(Z.to_numpy(Z.floordiv(t1, t2)), x // y)
-        assert_allclose(Z.to_numpy(Z.mod(t1, t2)), x % y)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
+        assert_allclose(T.to_numpy(T.floordiv(t1, t2)), x // y)
+        assert_allclose(T.to_numpy(T.mod(t1, t2)), x % y)
 
         # truediv should raise error for dtype mismatch
         with pytest.raises(Exception, match='x and y must have the same dtype'):
-            _ = Z.truediv(Z.cast(t1, dtype=Z.float64),
-                          Z.cast(t2, dtype=Z.float32))
+            _ = T.truediv(T.cast(t1, dtype=T.float64),
+                          T.cast(t2, dtype=T.float32))
 
         # in addition, we need to test truediv when x & y are both integers
         # (which is expected to produce float outputs)
@@ -578,33 +578,33 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randint(0, 255, size=(2, 3), dtype=np.uint8)
         y = np.random.randint(0, 255, size=(3,), dtype=np.uint8)
         y = y + (y == 0).astype(y.dtype)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
-        out = Z.truediv(t1, t2)
-        self.assertEqual(Z.get_dtype(out), Z.float32)
-        assert_allclose(Z.to_numpy(out),
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
+        out = T.truediv(t1, t2)
+        self.assertEqual(T.get_dtype(out), T.float32)
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float32) / y.astype(np.float32))
 
         # input int16, output float32
         x = np.random.randint(-32768, 32767, size=(2, 3), dtype=np.int16)
         y = np.random.randint(-32768, 32767, size=(3,), dtype=np.int16)
         y = y + (y == 0).astype(y.dtype)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
-        out = Z.truediv(t1, t2)
-        self.assertEqual(Z.get_dtype(out), Z.float32)
-        assert_allclose(Z.to_numpy(out),
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
+        out = T.truediv(t1, t2)
+        self.assertEqual(T.get_dtype(out), T.float32)
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float32) / y.astype(np.float32))
 
         # input int32, output float64
         x = np.random.randint(-100000, 100000, size=(2, 3), dtype=np.int32)
         y = np.random.randint(-100000, 100000, size=(3,), dtype=np.int32)
         y = y + (y == 0).astype(y.dtype)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
-        out = Z.truediv(t1, t2)
-        self.assertEqual(Z.get_dtype(out), Z.float64)
-        assert_allclose(Z.to_numpy(out),
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
+        out = T.truediv(t1, t2)
+        self.assertEqual(T.get_dtype(out), T.float64)
+        assert_allclose(T.to_numpy(out),
                         x.astype(np.float64) / y.astype(np.float64))
 
     def test_math_sequential_op(self):
@@ -614,12 +614,12 @@ class TensorCoreTestCase(unittest.TestCase):
         z = np.random.randn(2, 1)
 
         np.testing.assert_allclose(
-            Z.to_numpy(Z.add_n([Z.as_tensor(t) for t in (x, y, z)])),
+            T.to_numpy(T.add_n([T.as_tensor(t) for t in (x, y, z)])),
             x + y + z
         )
 
         with pytest.raises(Exception, match='`tensors` must not be empty'):
-            _ = Z.add_n([])
+            _ = T.add_n([])
 
     def test_reduction_op(self):
         def log_f_exp(f, x, axis=None, keepdims=False):
@@ -637,12 +637,12 @@ class TensorCoreTestCase(unittest.TestCase):
         # prepare for the data
         np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
-        t = Z.as_tensor(x)
+        t = T.as_tensor(x)
 
         # test sum, mean, max, min
         for name in ['sum', 'mean', 'min', 'max',
                      'log_sum_exp', 'log_mean_exp']:
-            T_op = getattr(Z, 'reduce_' + name, getattr(Z, name, None))
+            T_op = getattr(T, 'reduce_' + name, getattr(T, name, None))
             np_op = getattr(np, name,
                             {
                                 'log_sum_exp': log_sum_exp,
@@ -650,33 +650,33 @@ class TensorCoreTestCase(unittest.TestCase):
                             }.get(name))
 
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t)),
+                T.to_numpy(T_op(t)),
                 np_op(x)
             )
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t, keepdims=True)),
+                T.to_numpy(T_op(t, keepdims=True)),
                 np_op(x, keepdims=True)
             )
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t, axes=[-1])),
+                T.to_numpy(T_op(t, axes=[-1])),
                 np_op(x, axis=-1)
             )
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t, axes=[-1], keepdims=True)),
+                T.to_numpy(T_op(t, axes=[-1], keepdims=True)),
                 np_op(x, axis=-1, keepdims=True)
             )
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t, axes=[0, -1])),
+                T.to_numpy(T_op(t, axes=[0, -1])),
                 np_op(x, axis=(0, -1))
             )
             np.testing.assert_allclose(
-                Z.to_numpy(T_op(t, axes=[0, -1], keepdims=True)),
+                T.to_numpy(T_op(t, axes=[0, -1], keepdims=True)),
                 np_op(x, axis=(0, -1), keepdims=True)
             )
 
     def test_logical_op(self):
         def read_bool(t):
-            return Z.to_numpy(t)
+            return T.to_numpy(t)
 
         def with_raise(name, fn):
             with pytest.raises(Exception, match=f'Expected {name} to be .*, '
@@ -686,45 +686,45 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.asarray([[True, True, False, False],
                         [False, False, True, True]])
         y = np.asarray([True, False, False, True])
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
 
         # test as_boolean
-        self.assertEqual(Z.get_dtype(t1), Z.boolean)
+        self.assertEqual(T.get_dtype(t1), T.boolean)
         np.testing.assert_equal(read_bool(t1), x)
 
         # test logical_not
-        out = Z.logical_not(t1)
+        out = T.logical_not(t1)
         np.testing.assert_equal(read_bool(out), np.logical_not(x))
-        with_raise('x', lambda: Z.logical_not(Z.as_tensor([1, 2, 3])))
+        with_raise('x', lambda: T.logical_not(T.as_tensor([1, 2, 3])))
 
         # test logical_and
-        out = Z.logical_and(t1, t2)
+        out = T.logical_and(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_and(x, y))
-        with_raise('x', lambda: Z.logical_and(Z.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: Z.logical_and(t1, Z.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_and(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_and(t1, T.as_tensor([1, 2, 3, 4])))
 
         # test logical_or
-        out = Z.logical_or(t1, t2)
+        out = T.logical_or(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_or(x, y))
-        with_raise('x', lambda: Z.logical_or(Z.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: Z.logical_or(t1, Z.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_or(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_or(t1, T.as_tensor([1, 2, 3, 4])))
 
         # test logical_xor
-        out = Z.logical_xor(t1, t2)
+        out = T.logical_xor(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_xor(x, y))
-        with_raise('x', lambda: Z.logical_xor(Z.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: Z.logical_xor(t1, Z.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_xor(T.as_tensor([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_xor(t1, T.as_tensor([1, 2, 3, 4])))
 
         # test multiply_mask
         def test_multiply_mask(x, y, dtype, mask_dtype):
-            t = Z.multiply_mask(
-                Z.from_numpy(x, dtype=dtype),
-                Z.from_numpy(y, dtype=mask_dtype)
+            t = T.multiply_mask(
+                T.from_numpy(x, dtype=dtype),
+                T.from_numpy(y, dtype=mask_dtype)
             )
-            self.assertEqual(Z.get_dtype(t), dtype)
+            self.assertEqual(T.get_dtype(t), dtype)
             np.testing.assert_allclose(
-                Z.to_numpy(t),
+                T.to_numpy(t),
                 np.asarray(x * np.asarray(y, dtype=x.dtype),
                            dtype=dtype)
             )
@@ -751,20 +751,20 @@ class TensorCoreTestCase(unittest.TestCase):
                 x = np.asarray(x, dtype=dtype)
                 y = np.asarray(y, dtype=dtype)
                 expected = np.where(condition, x, y)
-                ret = Z.where(
-                    Z.from_numpy(condition, dtype=Z.boolean),
-                    Z.from_numpy(x, dtype=dtype),
-                    Z.from_numpy(y, dtype=dtype),
+                ret = T.where(
+                    T.from_numpy(condition, dtype=T.boolean),
+                    T.from_numpy(x, dtype=dtype),
+                    T.from_numpy(y, dtype=dtype),
                 )
-                self.assertEqual(Z.get_dtype(ret), dtype)
-                np.testing.assert_equal(Z.to_numpy(ret), expected)
+                self.assertEqual(T.get_dtype(ret), dtype)
+                np.testing.assert_equal(T.to_numpy(ret), expected)
             else:
                 expected = np.where(condition)
                 self.assertEqual(len(expected), len(condition.shape))
-                ret = Z.where(Z.from_numpy(condition, dtype=Z.boolean))
+                ret = T.where(T.from_numpy(condition, dtype=T.boolean))
                 self.assertEqual(len(ret), len(condition.shape))
                 for a, b in zip(ret, expected):
-                    np.testing.assert_equal(Z.to_numpy(a), b)
+                    np.testing.assert_equal(T.to_numpy(a), b)
 
         do_test_where([True, False])
         do_test_where([[True, False], [False, True]])
@@ -790,45 +790,45 @@ class TensorCoreTestCase(unittest.TestCase):
 
     def test_comparison_op(self):
         def read_bool(t):
-            self.assertEqual(Z.get_dtype(t), Z.boolean)
-            return Z.to_numpy(t)
+            self.assertEqual(T.get_dtype(t), T.boolean)
+            return T.to_numpy(t)
 
         np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
         y = np.random.randn(1, 3, 4)
         x = np.concatenate([y, x], axis=0)
-        t1 = Z.as_tensor(x)
-        t2 = Z.as_tensor(y)
+        t1 = T.as_tensor(x)
+        t2 = T.as_tensor(y)
 
         # test equal
-        np.testing.assert_equal(read_bool(Z.equal(t1, t2)), (x == y))
+        np.testing.assert_equal(read_bool(T.equal(t1, t2)), (x == y))
 
         # test not_equal
-        np.testing.assert_equal(read_bool(Z.not_equal(t1, t2)), (x != y))
+        np.testing.assert_equal(read_bool(T.not_equal(t1, t2)), (x != y))
 
         # test less
-        np.testing.assert_equal(read_bool(Z.less(t1, t2)), (x < y))
+        np.testing.assert_equal(read_bool(T.less(t1, t2)), (x < y))
 
         # test less_equal
-        np.testing.assert_equal(read_bool(Z.less_equal(t1, t2)), (x <= y))
+        np.testing.assert_equal(read_bool(T.less_equal(t1, t2)), (x <= y))
 
         # test greater
-        np.testing.assert_equal(read_bool(Z.greater(t1, t2)), (x > y))
+        np.testing.assert_equal(read_bool(T.greater(t1, t2)), (x > y))
 
         # test greater_equal
-        np.testing.assert_equal(read_bool(Z.greater_equal(t1, t2)), (x >= y))
+        np.testing.assert_equal(read_bool(T.greater_equal(t1, t2)), (x >= y))
 
         # test minimum
-        np.testing.assert_equal(Z.to_numpy(Z.minimum(t1, t2)), np.minimum(x, y))
+        np.testing.assert_equal(T.to_numpy(T.minimum(t1, t2)), np.minimum(x, y))
 
         # test maximum
-        np.testing.assert_equal(Z.to_numpy(Z.maximum(t1, t2)), np.maximum(x, y))
+        np.testing.assert_equal(T.to_numpy(T.maximum(t1, t2)), np.maximum(x, y))
 
         # test clip
         self.assertTrue(np.any(x < -0.5))
         self.assertTrue(np.any(x > 0.5))
         np.testing.assert_equal(
-            Z.to_numpy(Z.clip(t1, -0.5, 0.5)),
+            T.to_numpy(T.clip(t1, -0.5, 0.5)),
             np.clip(x, -0.5, 0.5)
         )
 
@@ -837,92 +837,92 @@ class TensorCoreTestCase(unittest.TestCase):
         y = np.random.randn(2, 3, 4)
 
         # requires_grad
-        yt = Z.requires_grad(Z.as_tensor(y))
+        yt = T.requires_grad(T.as_tensor(y))
 
-        xt = Z.as_tensor(x)
-        xt_copy = Z.requires_grad(xt, copy=False)
+        xt = T.as_tensor(x)
+        xt_copy = T.requires_grad(xt, copy=False)
         self.assertIs(xt_copy, xt)
-        l_sum = Z.reduce_sum(xt + xt_copy)
+        l_sum = T.reduce_sum(xt + xt_copy)
         # xtt and xt are the same tensor, thus gradient should pass along the both paths
-        [x_grad] = Z.grad([l_sum], [xt_copy])
-        np.testing.assert_allclose(Z.to_numpy(x_grad), np.full_like(x, 2))
+        [x_grad] = T.grad([l_sum], [xt_copy])
+        np.testing.assert_allclose(T.to_numpy(x_grad), np.full_like(x, 2))
 
-        xt_copy = Z.requires_grad(xt, copy=True)
+        xt_copy = T.requires_grad(xt, copy=True)
         self.assertIsNot(xt_copy, xt)
-        l_sum = Z.reduce_sum(xt + xt_copy)
+        l_sum = T.reduce_sum(xt + xt_copy)
         # xttt is a copy of xt, thus grad should pass to xt along both paths
         # when taking derivative against xt
-        [x_grad] = Z.grad([l_sum], [xt])
-        np.testing.assert_allclose(Z.to_numpy(x_grad), np.full_like(x, 2))
+        [x_grad] = T.grad([l_sum], [xt])
+        np.testing.assert_allclose(T.to_numpy(x_grad), np.full_like(x, 2))
         # but grad should not pass to xt if taking derivative against xttt
-        [x_grad] = Z.grad([l_sum], [xt_copy])
-        np.testing.assert_allclose(Z.to_numpy(x_grad), np.full_like(x, 1))
+        [x_grad] = T.grad([l_sum], [xt_copy])
+        np.testing.assert_allclose(T.to_numpy(x_grad), np.full_like(x, 1))
 
         # grad
-        l_sum = Z.reduce_sum(xt * yt)
+        l_sum = T.reduce_sum(xt * yt)
         l_squares = 7 * xt ** 3 + 11 * yt ** 3
 
-        [x_grad, y_grad] = Z.grad(
+        [x_grad, y_grad] = T.grad(
             [l_sum, l_squares],
             [xt, yt],
-            grad_outputs=[None, Z.ones_like(l_squares)],
+            grad_outputs=[None, T.ones_like(l_squares)],
             keep_graph=True,
             create_graph=True
         )
-        np.testing.assert_allclose(Z.to_numpy(x_grad), y + 21 * x ** 2)
-        np.testing.assert_allclose(Z.to_numpy(y_grad), x + 33 * y ** 2)
+        np.testing.assert_allclose(T.to_numpy(x_grad), y + 21 * x ** 2)
+        np.testing.assert_allclose(T.to_numpy(y_grad), x + 33 * y ** 2)
 
         # second order grad
-        [x_grad_2, y_grad_2] = Z.grad(
+        [x_grad_2, y_grad_2] = T.grad(
             [x_grad, y_grad],
             [xt, yt],
-            grad_outputs=[Z.ones_like(xt), Z.ones_like(yt)],
+            grad_outputs=[T.ones_like(xt), T.ones_like(yt)],
             keep_graph=True,
             create_graph=False
         )
-        np.testing.assert_allclose(Z.to_numpy(x_grad_2), 42. * x + 1.)
-        np.testing.assert_allclose(Z.to_numpy(y_grad_2), 66. * y + 1.)
+        np.testing.assert_allclose(T.to_numpy(x_grad_2), 42. * x + 1.)
+        np.testing.assert_allclose(T.to_numpy(y_grad_2), 66. * y + 1.)
 
         # get the first order grad again, but once for each of x and y
-        [x_grad] = Z.grad(
+        [x_grad] = T.grad(
             [l_sum, l_squares],
             [xt],
-            grad_outputs=[None, Z.ones_like(l_squares)],
+            grad_outputs=[None, T.ones_like(l_squares)],
             keep_graph=True,
             create_graph=True
         )
-        np.testing.assert_allclose(Z.to_numpy(x_grad), y + 21 * x ** 2)
+        np.testing.assert_allclose(T.to_numpy(x_grad), y + 21 * x ** 2)
 
-        [y_grad] = Z.grad(
+        [y_grad] = T.grad(
             [l_sum, l_squares],
             [yt],
-            grad_outputs=[None, Z.ones_like(l_squares)],
+            grad_outputs=[None, T.ones_like(l_squares)],
             keep_graph=True,
             create_graph=True
         )
-        np.testing.assert_allclose(Z.to_numpy(y_grad), x + 33 * y ** 2)
+        np.testing.assert_allclose(T.to_numpy(y_grad), x + 33 * y ** 2)
 
         # stop_grad
-        l_sum = Z.reduce_sum(Z.stop_grad(xt ** 2) * yt)
-        [x_grad, y_grad] = Z.grad(
+        l_sum = T.reduce_sum(T.stop_grad(xt ** 2) * yt)
+        [x_grad, y_grad] = T.grad(
             [l_sum],
             [xt, yt],
             keep_graph=False,
             create_graph=False,
             allow_unused=True,
         )
-        self.assertTrue(Z.is_null_grad(xt, x_grad))
-        self.assertFalse(Z.is_null_grad(yt, y_grad))
-        np.testing.assert_allclose(Z.to_numpy(y_grad), x ** 2)
+        self.assertTrue(T.is_null_grad(xt, x_grad))
+        self.assertFalse(T.is_null_grad(yt, y_grad))
+        np.testing.assert_allclose(T.to_numpy(y_grad), x ** 2)
 
         # is_null_grad counterexample
-        self.assertFalse(Z.is_null_grad(Z.zeros([]), Z.zeros([])))
-        self.assertFalse(Z.is_null_grad(Z.random.randn([1, 2]), Z.ones([])))
+        self.assertFalse(T.is_null_grad(T.zeros([]), T.zeros([])))
+        self.assertFalse(T.is_null_grad(T.random.randn([1, 2]), T.ones([])))
 
         # stop_grad, but `allow_unused` is False
-        l_sum = Z.reduce_sum(Z.stop_grad(xt ** 2) * yt)
+        l_sum = T.reduce_sum(T.stop_grad(xt ** 2) * yt)
         with pytest.raises(Exception, match='Set allow_unused=True'):
-            _ = Z.grad(
+            _ = T.grad(
                 [l_sum],
                 [xt, yt],
                 keep_graph=False,
@@ -935,13 +935,13 @@ class TensorCoreTestCase(unittest.TestCase):
         for x in [np.array([-1, 0, 1]), np.array([1., 2., 3.]),
                   np.array([np.inf, 0.]), np.array([np.nan, 0.]),
                   np.array([np.inf, np.nan])]:
-            t = Z.as_tensor(x)
-            np.testing.assert_equal(Z.is_finite(t), np.isfinite(x))
+            t = T.as_tensor(x)
+            np.testing.assert_equal(T.is_finite(t), np.isfinite(x))
             is_finite = np.all(np.isfinite(x))
 
             if is_finite:
-                np.testing.assert_equal(Z.to_numpy(Z.assert_finite(t, 't')), x)
+                np.testing.assert_equal(T.to_numpy(T.assert_finite(t, 't')), x)
             else:
                 with pytest.raises(Exception,
                                    match='Infinity or NaN value encountered'):
-                    _ = Z.assert_finite(t, 't')
+                    _ = T.assert_finite(t, 't')

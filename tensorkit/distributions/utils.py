@@ -1,7 +1,7 @@
 import copy
 from typing import *
 
-from ..backend import jit, Tensor, where, as_tensor
+from ..tensor import jit, Tensor, where, as_tensor
 
 __all__ = [
     'get_overrided_parameterized',

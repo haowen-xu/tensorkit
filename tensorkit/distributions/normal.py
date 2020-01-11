@@ -1,6 +1,6 @@
 from typing import *
 
-from .. import backend as Z
+from .. import tensor as T
 from ..stochastic import StochasticTensor
 from .base import Distribution
 from .utils import copy_distribution
@@ -24,13 +24,13 @@ class UnitNormal(Distribution):
     reparameterized = True
     min_event_ndims = 0
 
-    _mean: Optional[Z.Tensor] = None
-    _std: Optional[Z.Tensor] = None
-    _logstd: Optional[Z.Tensor] = None
+    _mean: Optional[T.Tensor] = None
+    _std: Optional[T.Tensor] = None
+    _logstd: Optional[T.Tensor] = None
 
     def __init__(self,
                  shape: List[int],
-                 dtype: str = Z.float_x(),
+                 dtype: str = T.float_x(),
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None):
@@ -55,24 +55,24 @@ class UnitNormal(Distribution):
         )
 
     @property
-    def mean(self) -> Z.Tensor:
+    def mean(self) -> T.Tensor:
         """The mean of the normal distribution."""
         if self._mean is None:
-            self._mean = Z.zeros(self.value_shape, self.dtype)
+            self._mean = T.zeros(self.value_shape, self.dtype)
         return self._mean
 
     @property
-    def std(self) -> Z.Tensor:
+    def std(self) -> T.Tensor:
         """The standard deviation (std) of the normal distribution."""
         if self._std is None:
-            self._std = Z.ones(self.value_shape, self.dtype)
+            self._std = T.ones(self.value_shape, self.dtype)
         return self._std
 
     @property
-    def logstd(self) -> Z.Tensor:
+    def logstd(self) -> T.Tensor:
         """The log-std of the normal distribution."""
         if self._logstd is None:
-            self._logstd = Z.zeros(self.value_shape, self.dtype)
+            self._logstd = T.zeros(self.value_shape, self.dtype)
         return self._logstd
 
     def _sample(self,
@@ -81,7 +81,7 @@ class UnitNormal(Distribution):
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
         return StochasticTensor(
-            tensor=Z.random.randn(
+            tensor=T.random.randn(
                 shape=([n_samples] + self.value_shape if n_samples is not None
                        else self.value_shape),
                 dtype=self.dtype,
@@ -93,10 +93,10 @@ class UnitNormal(Distribution):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.randn_log_pdf(given=given, group_ndims=reduce_ndims)
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.randn_log_pdf(given=given, group_ndims=reduce_ndims)
 
     def copy(self, **overrided_params):
         return copy_distribution(
@@ -127,7 +127,7 @@ class BaseNormal(Distribution):
     in the constructor of :class:`BaseNormal`.
     """
 
-    mean: Z.Tensor
+    mean: T.Tensor
     """
     The mean of the normal distribution.
 
@@ -140,10 +140,10 @@ class BaseNormal(Distribution):
     """Dict that stores the original `std` or `logstd` constructor argument."""
 
     def __init__(self,
-                 mean: Z.Tensor,
-                 std: Optional[Z.Tensor] = None,
+                 mean: T.Tensor,
+                 std: Optional[T.Tensor] = None,
                  *,
-                 logstd: Optional[Z.Tensor] = None,
+                 logstd: Optional[T.Tensor] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None):
@@ -159,16 +159,16 @@ class BaseNormal(Distribution):
             mutual_params = {'logstd': logstd}
             stdx = logstd
 
-        dtype = Z.get_dtype(mean)
-        if Z.get_dtype(stdx) != dtype:
+        dtype = T.get_dtype(mean)
+        if T.get_dtype(stdx) != dtype:
             raise ValueError(
                 f'The dtype of `mean` does not equal the dtype of '
-                f'`{list(mutual_params)[0]}`: {dtype} vs {Z.get_dtype(stdx)}'
+                f'`{list(mutual_params)[0]}`: {dtype} vs {T.get_dtype(stdx)}'
             )
 
-        mean_shape = Z.shape(mean)
-        stdx_shape = Z.shape(stdx)
-        value_shape = Z.broadcast_shape(mean_shape, stdx_shape)
+        mean_shape = T.shape(mean)
+        stdx_shape = T.shape(stdx)
+        value_shape = T.broadcast_shape(mean_shape, stdx_shape)
 
         # construct the object
         super().__init__(
@@ -186,7 +186,7 @@ class BaseNormal(Distribution):
         self._logstd = mutual_params.get('logstd', None)
 
     @property
-    def std(self) -> Z.Tensor:
+    def std(self) -> T.Tensor:
         """
         The standard deviation (std) of the normal distribution.
 
@@ -195,11 +195,11 @@ class BaseNormal(Distribution):
         standard normal distribution.
         """
         if self._std is None:
-            self._std = self._assert_finite(Z.exp(self._logstd), 'std')
+            self._std = self._assert_finite(T.exp(self._logstd), 'std')
         return self._std
 
     @property
-    def logstd(self) -> Z.Tensor:
+    def logstd(self) -> T.Tensor:
         """
         The log-std of the normal distribution.
 
@@ -208,7 +208,7 @@ class BaseNormal(Distribution):
         standard normal distribution.
         """
         if self._logstd is None:
-            self._logstd = self._assert_finite(Z.log(self._std), 'logstd')
+            self._logstd = self._assert_finite(T.log(self._std), 'logstd')
         return self._logstd
 
     def copy(self, **overrided_params):
@@ -229,10 +229,10 @@ class Normal(BaseNormal):
     """Univariate normal distribution."""
 
     def __init__(self,
-                 mean: Z.Tensor,
-                 std: Optional[Z.Tensor] = None,
+                 mean: T.Tensor,
+                 std: Optional[T.Tensor] = None,
                  *,
-                 logstd: Optional[Z.Tensor] = None,
+                 logstd: Optional[T.Tensor] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None):
@@ -260,7 +260,7 @@ class Normal(BaseNormal):
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
         return StochasticTensor(
-            tensor=Z.random.normal(
+            tensor=T.random.normal(
                 mean=self.mean,
                 std=self.std,
                 n_samples=n_samples,
@@ -273,10 +273,10 @@ class Normal(BaseNormal):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.normal_log_pdf(
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.normal_log_pdf(
             given=given,
             mean=self.mean,
             logstd=self.logstd,
@@ -302,16 +302,16 @@ class TruncatedNormal(BaseNormal):
     _extra_args = ('low', 'high', 'epsilon', 'log_zero')
 
     def __init__(self,
-                 mean: Z.Tensor,
-                 std: Optional[Z.Tensor] = None,
+                 mean: T.Tensor,
+                 std: Optional[T.Tensor] = None,
                  *,
-                 logstd: Optional[Z.Tensor] = None,
+                 logstd: Optional[T.Tensor] = None,
                  low: Optional[float] = None,
                  high: Optional[float] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  epsilon: float = 1e-7,
-                 log_zero: float = Z.random.LOG_ZERO_VALUE,
+                 log_zero: float = T.random.LOG_ZERO_VALUE,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`TruncatedNormal` distribution instance.
@@ -351,7 +351,7 @@ class TruncatedNormal(BaseNormal):
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
         return StochasticTensor(
-            tensor=Z.random.truncated_normal(
+            tensor=T.random.truncated_normal(
                 mean=self.mean,
                 std=self.std,
                 low=self.low,
@@ -367,10 +367,10 @@ class TruncatedNormal(BaseNormal):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.truncated_normal_log_pdf(
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.truncated_normal_log_pdf(
             given=given,
             mean=self.mean,
             std=self.std,

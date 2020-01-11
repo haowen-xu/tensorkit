@@ -3,7 +3,7 @@ from typing import *
 
 from frozendict import frozendict
 
-from . import backend as Z
+from . import tensor as T
 from .distributions import Distribution
 from .stochastic import StochasticTensor
 
@@ -22,17 +22,17 @@ class BayesianNet(Mapping[str, StochasticTensor]):
 
     __slots__ = ('_observed', '_original_observed', '_stochastic_tensors')
 
-    _observed: Mapping[str, Z.Tensor]
+    _observed: Mapping[str, T.Tensor]
     """The observation tensors."""
 
-    _original_observed: Dict[str, Union[Z.Tensor, StochasticTensor]]
+    _original_observed: Dict[str, Union[T.Tensor, StochasticTensor]]
     """The original `observed` dict specified in the constructor."""
 
     _stochastic_tensors: Mapping[str, StochasticTensor]
     """The stochastic tensors added to this Bayesian net."""
 
     def __init__(self,
-                 observed: Mapping[str, Union[Z.Tensor, StochasticTensor]] = None):
+                 observed: Mapping[str, Union[T.Tensor, StochasticTensor]] = None):
         """
         Construct a new :class:`BayesianNet` instance.
 
@@ -53,7 +53,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         self._stochastic_tensors: Dict[str, StochasticTensor] = {}
 
     @property
-    def observed(self) -> Mapping[str, Z.Tensor]:
+    def observed(self) -> Mapping[str, T.Tensor]:
         """Get the observation tensors."""
         return self._observed
 
@@ -119,7 +119,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
                     reparameterized = distribution.reparameterized
 
             if not reparameterized:
-                ob_tensor = Z.stop_grad(ob_tensor)
+                ob_tensor = T.stop_grad(ob_tensor)
 
             t = StochasticTensor(
                 distribution=distribution,
@@ -174,7 +174,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
     def __len__(self) -> int:
         return len(self._stochastic_tensors)
 
-    def outputs(self, names: Iterable[str]) -> List[Z.Tensor]:
+    def outputs(self, names: Iterable[str]) -> List[T.Tensor]:
         """
         Get the outputs of stochastic nodes.
         The output of a stochastic node is its :attr:`StochasticTensor.tensor`.
@@ -187,7 +187,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         """
         return [self._stochastic_tensors[n].tensor for n in names]
 
-    def output(self, name: str) -> Z.Tensor:
+    def output(self, name: str) -> T.Tensor:
         """
         Get the output of a stochastic node.
         The output of a stochastic node is its :attr:`StochasticTensor.tensor`.
@@ -200,7 +200,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         """
         return self._stochastic_tensors[name].tensor
 
-    def log_probs(self, names: Iterable[str]) -> List[Z.Tensor]:
+    def log_probs(self, names: Iterable[str]) -> List[T.Tensor]:
         """
         Get the log-probability or log-density of stochastic nodes.
 
@@ -215,7 +215,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
             ret.append(self._stochastic_tensors[name].log_prob())
         return ret
 
-    def log_prob(self, name: str) -> Z.Tensor:
+    def log_prob(self, name: str) -> T.Tensor:
         """
         Get the log-probability or log-density of a stochastic node.
 
@@ -228,7 +228,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         return self._stochastic_tensors[name].log_prob()
 
     def query_pairs(self, names: Iterable[str]
-                    ) -> List[Tuple[Z.Tensor, Z.Tensor]]:
+                    ) -> List[Tuple[T.Tensor, T.Tensor]]:
         """
         Get the output and log-probability/log-density of stochastic nodes.
 
@@ -244,7 +244,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
             for n in names
         ]
 
-    def query_pair(self, name: str) -> Tuple[Z.Tensor, Z.Tensor]:
+    def query_pair(self, name: str) -> Tuple[T.Tensor, T.Tensor]:
         """
         Get the output and log-probability/log-density of a stochastic node.
 
@@ -261,7 +261,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
               net_builder: ModelBuilderFunctionType,
               latent_names: Optional[Iterable[str]] = None,
               latent_axes: Optional[Union[int, List[int]]] = None,
-              observed: Mapping[str, Z.Tensor] = None,
+              observed: Mapping[str, T.Tensor] = None,
               **kwargs
               ) -> 'VariationalChain':
         """

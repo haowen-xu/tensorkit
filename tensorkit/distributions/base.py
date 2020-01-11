@@ -2,7 +2,7 @@ from typing import *
 
 from mltk.utils import DocInherit
 
-from .. import backend as Z
+from .. import tensor as T
 from ..settings_ import settings
 from .utils import *
 
@@ -160,13 +160,13 @@ class Distribution(metaclass=DocInherit):
         Take samples from this distribution.
 
         This method will return a :class:`StochasticTensor` object, with
-        both this distribution object and the generated samples sealed inside::
+        both this distribution object and the generated samples sealed inside.
+        For example::
 
             import tensorkit as tk
-            from tensorkit import backend as Z
+            from tensorkit import tensor as T
 
-            normal = tk.distributions.Normal(mean=Z.zeros([2, 3]),
-                                             std=Z.ones([2, 3]))
+            normal = tk.Normal(mean=T.zeros([2, 3]), std=T.ones([2, 3]))
             samples = normal.sample(n_samples=4, group_ndims=1)
             samples.tensor  # get the sample values
             samples.log_prob()  # get the sample log-prob,
@@ -196,14 +196,14 @@ class Distribution(metaclass=DocInherit):
             n_samples, group_ndims, reduce_ndims, reparameterized)
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
+                  reduce_ndims: int) -> T.Tensor:
         raise NotImplementedError()
 
     def log_prob(self,
-                 given: Union[Z.Tensor, 'StochasticTensor'],
-                 group_ndims: int = 0) -> Z.Tensor:
+                 given: Union[T.Tensor, 'StochasticTensor'],
+                 group_ndims: int = 0) -> T.Tensor:
         """
         Compute the log-prob or log-density of the given tensor.
 
@@ -221,7 +221,7 @@ class Distribution(metaclass=DocInherit):
         reduce_ndims = get_prob_reduce_ndims(
             # here `given` might have lower rank than `len(value_shape)`,
             # in which case `given` should be broadcasted to match `value_shape`.
-            max(Z.rank(given), len(self.value_shape)),
+            max(T.rank(given), len(self.value_shape)),
             self.min_event_ndims,
             self.event_ndims,
             group_ndims,
@@ -229,8 +229,8 @@ class Distribution(metaclass=DocInherit):
         return self._log_prob(given, group_ndims, reduce_ndims)
 
     def prob(self,
-             given: Union[Z.Tensor, 'StochasticTensor'],
-             group_ndims: int = 0) -> Z.Tensor:
+             given: Union[T.Tensor, 'StochasticTensor'],
+             group_ndims: int = 0) -> T.Tensor:
         """
         Compute the probability or density of the given tensor.
 
@@ -243,11 +243,11 @@ class Distribution(metaclass=DocInherit):
         Returns:
             The computed probability or density.
         """
-        return Z.exp(self.log_prob(given, group_ndims))
+        return T.exp(self.log_prob(given, group_ndims))
 
-    def _assert_finite(self, tensor: Z.Tensor, message: str) -> Z.Tensor:
+    def _assert_finite(self, tensor: T.Tensor, message: str) -> T.Tensor:
         if self.validate_tensors:
-            tensor = Z.assert_finite(tensor, message)
+            tensor = T.assert_finite(tensor, message)
         return tensor
 
     def copy(self, **overrided_params):

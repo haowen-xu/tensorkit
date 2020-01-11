@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 from mock import Mock
 
-from tensorkit import Distribution, backend as Z, settings
+from tensorkit import tensor as T
+from tensorkit import *
 
 
 class BaseDistributionTestCase(unittest.TestCase):
@@ -13,11 +14,11 @@ class BaseDistributionTestCase(unittest.TestCase):
     def test_construct(self):
         def check_all_specified_by_constructor(cls):
             d = cls(
-                dtype=Z.int32, value_shape=[2, 3, 4], continuous=True,
+                dtype=T.int32, value_shape=[2, 3, 4], continuous=True,
                 reparameterized=False, event_ndims=2, min_event_ndims=1,
                 validate_tensors=True,
             )
-            self.assertEqual(d.dtype, Z.int32)
+            self.assertEqual(d.dtype, T.int32)
             self.assertEqual(d.value_shape, [2, 3, 4])
             self.assertEqual(d.continuous, True)
             self.assertEqual(d.reparameterized, False)
@@ -38,8 +39,8 @@ class BaseDistributionTestCase(unittest.TestCase):
             reparameterized = True
             min_event_ndims = 1
 
-        d = MyDistribution(dtype=Z.int64, value_shape=[2, 3, 4])
-        self.assertEqual(d.dtype, Z.int64)
+        d = MyDistribution(dtype=T.int64, value_shape=[2, 3, 4])
+        self.assertEqual(d.dtype, T.int64)
         self.assertEqual(d.value_shape, [2, 3, 4])
         self.assertEqual(d.continuous, True)
         self.assertEqual(d.reparameterized, True)
@@ -53,9 +54,9 @@ class BaseDistributionTestCase(unittest.TestCase):
         old_validate_tensors = settings.validate_tensors
         try:
             settings.validate_tensors = False
-            self.assertEqual(MyDistribution(Z.int64, [2]).validate_tensors, False)
+            self.assertEqual(MyDistribution(T.int64, [2]).validate_tensors, False)
             settings.validate_tensors = True
-            self.assertEqual(MyDistribution(Z.int64, [2]).validate_tensors, True)
+            self.assertEqual(MyDistribution(T.int64, [2]).validate_tensors, True)
         finally:
             settings.validate_tensors = old_validate_tensors
 
@@ -68,44 +69,44 @@ class BaseDistributionTestCase(unittest.TestCase):
         with pytest.raises(ValueError,
                            match='`continuous` has already been defined by '
                                  'class attribute, thus cannot be overrided'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2], continuous=True)
+            _ = MyDistribution(dtype=T.int64, value_shape=[2], continuous=True)
 
         with pytest.raises(ValueError,
                            match='`min_event_ndims` has already been defined by '
                                  'class attribute, thus cannot be overrided'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2], min_event_ndims=0)
+            _ = MyDistribution(dtype=T.int64, value_shape=[2], min_event_ndims=0)
 
         with pytest.raises(ValueError,
                            match=f'Distribution `{MyDistribution.__qualname__}'
                                  f'` is not re-parameterizable, thus '
                                  f'`reparameterized` cannot be set to True'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2],
+            _ = MyDistribution(dtype=T.int64, value_shape=[2],
                                reparameterized=True)
 
         with pytest.raises(ValueError,
                            match='`event_ndims >= min_event_ndims` does not '
                                  'hold: `event_ndims` == 0, while '
                                  '`min_event_ndims` == 1'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2], event_ndims=0)
+            _ = MyDistribution(dtype=T.int64, value_shape=[2], event_ndims=0)
 
         with pytest.raises(ValueError,
                            match='`event_ndims >= min_event_ndims` does not '
                                  'hold: `event_ndims` == 0, while '
                                  '`min_event_ndims` == 1'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2], event_ndims=0)
+            _ = MyDistribution(dtype=T.int64, value_shape=[2], event_ndims=0)
 
         with pytest.raises(ValueError,
                            match=r'`event_ndims <= len\(value_shape\)` does '
                                  r'not hold: `event_ndims` == 2, while '
                                  r'`len\(value_shape\)` == 1'):
-            _ = MyDistribution(dtype=Z.int64, value_shape=[2], event_ndims=2)
+            _ = MyDistribution(dtype=T.int64, value_shape=[2], event_ndims=2)
 
     def test_assert_finite(self):
-        d = Distribution(Z.int32, [], continuous=True, reparameterized=True,
+        d = Distribution(T.int32, [], continuous=True, reparameterized=True,
                          event_ndims=0, min_event_ndims=0)
 
         d.validate_tensors = False
-        t = Z.from_numpy(np.nan)
+        t = T.from_numpy(np.nan)
         self.assertIs(d._assert_finite(t, 't'), t)
 
         d.validate_tensors = True
@@ -114,9 +115,9 @@ class BaseDistributionTestCase(unittest.TestCase):
             _ = d._assert_finite(t, 't')
 
     def test_sample(self):
-        t0 = Z.zeros([], Z.float32)
+        t0 = T.zeros([], T.float32)
         d = Distribution(
-            Z.float32, [2, 3], continuous=True, reparameterized=True,
+            T.float32, [2, 3], continuous=True, reparameterized=True,
             event_ndims=1, min_event_ndims=0)
         d._sample = Mock(return_value=t0)
 
@@ -168,9 +169,9 @@ class BaseDistributionTestCase(unittest.TestCase):
             _ = d.sample(reparameterized=True)
 
     def test_log_prob(self):
-        t0 = Z.zeros([], Z.float32)
+        t0 = T.zeros([], T.float32)
         d = Distribution(
-            Z.float32, [2, 3], continuous=True, reparameterized=True,
+            T.float32, [2, 3], continuous=True, reparameterized=True,
             event_ndims=1, min_event_ndims=0)
         d._log_prob = Mock(return_value=t0)
 
@@ -184,9 +185,9 @@ class BaseDistributionTestCase(unittest.TestCase):
             d._log_prob.reset_mock()
 
         for sample_shape in ([], [1], [1, 1]):
-            do_check(Z.zeros(sample_shape), None, (0, 1))
+            do_check(T.zeros(sample_shape), None, (0, 1))
             for group_ndims in (-1, 0, 1):
-                do_check(Z.zeros(sample_shape),
+                do_check(T.zeros(sample_shape),
                          group_ndims,
                          (group_ndims, 1 + group_ndims))
 
@@ -195,24 +196,24 @@ class BaseDistributionTestCase(unittest.TestCase):
                                    match=re.compile('`min_event_ndims - event_ndims <= group_ndims <= .*'
                                                     'sample_ndims - event_ndims` does not hold: ',
                                                     re.DOTALL)):
-                    _ = d.log_prob(Z.zeros(sample_shape), group_ndims)
+                    _ = d.log_prob(T.zeros(sample_shape), group_ndims)
             d._log_prob.reset_mock()
 
         for group_ndims in (-1, 0, 1, 2):
-            do_check(Z.zeros([5, 2, 3]),
+            do_check(T.zeros([5, 2, 3]),
                      group_ndims,
                      (group_ndims, 1 + group_ndims))
 
     def test_prob(self):
         np.random.seed(1234)
         t00 = np.random.randn(2, 3)
-        t0 = Z.from_numpy(t00)
+        t0 = T.from_numpy(t00)
         d = Distribution(
-            Z.float32, [2, 3], continuous=True, reparameterized=True,
+            T.float32, [2, 3], continuous=True, reparameterized=True,
             event_ndims=1, min_event_ndims=0)
         d.log_prob = Mock(return_value=t0)
 
-        given = Z.random.randn([5, 2, 3])
+        given = T.random.randn([5, 2, 3])
         ret = d.prob(given, group_ndims=1)
         self.assertEqual(d.log_prob.call_args, ((given, 1), {}))
-        np.testing.assert_allclose(Z.to_numpy(ret), np.exp(t00))
+        np.testing.assert_allclose(T.to_numpy(ret), np.exp(t00))

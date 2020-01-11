@@ -1,6 +1,6 @@
 from typing import *
 
-from .. import backend as Z
+from .. import tensor as T
 from ..stochastic import StochasticTensor
 from .base import Distribution
 from .utils import copy_distribution
@@ -20,10 +20,10 @@ class Bernoulli(Distribution):
     reparameterized = False
     min_event_ndims = 0
 
-    _logits: Optional[Z.Tensor]
+    _logits: Optional[T.Tensor]
     """Logits of the probability of being 1."""
 
-    _probs: Optional[Z.Tensor]
+    _probs: Optional[T.Tensor]
     """The probability of being 1."""
 
     epsilon: float
@@ -34,9 +34,9 @@ class Bernoulli(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.Tensor] = None,
-                 probs: Optional[Z.Tensor] = None,
-                 dtype: str = Z.int32,
+                 logits: Optional[T.Tensor] = None,
+                 probs: Optional[T.Tensor] = None,
+                 dtype: str = T.int32,
                  event_ndims: int = 0,
                  epsilon: float = 1e-7,
                  validate_tensors: Optional[bool] = None):
@@ -63,11 +63,11 @@ class Bernoulli(Distribution):
         epsilon = float(epsilon)
 
         if logits is not None:
-            value_shape = Z.shape(logits)
+            value_shape = T.shape(logits)
             probs = None
             mutual_params = {'logits': logits}
         else:
-            value_shape = Z.shape(probs)
+            value_shape = T.shape(probs)
             logits = None
             mutual_params = {'probs': probs}
 
@@ -87,18 +87,18 @@ class Bernoulli(Distribution):
         self._mutual_params = mutual_params
 
     @property
-    def logits(self) -> Z.Tensor:
+    def logits(self) -> T.Tensor:
         """Get the logits of the probability of being 1."""
         if self._logits is None:
-            self._logits = Z.random.bernoulli_probs_to_logits(self._probs,
+            self._logits = T.random.bernoulli_probs_to_logits(self._probs,
                                                               self.epsilon)
         return self._logits
 
     @property
-    def probs(self) -> Z.Tensor:
+    def probs(self) -> T.Tensor:
         """Get the probability of being 1."""
         if self._probs is None:
-            self._probs = Z.random.bernoulli_logits_to_probs(self._logits)
+            self._probs = T.random.bernoulli_logits_to_probs(self._logits)
         return self._probs
 
     def _sample(self,
@@ -107,7 +107,7 @@ class Bernoulli(Distribution):
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
         # generate samples
-        samples = Z.random.bernoulli(probs=self.probs,
+        samples = T.random.bernoulli(probs=self.probs,
                                      n_samples=n_samples,
                                      dtype=self.dtype)
 
@@ -121,10 +121,10 @@ class Bernoulli(Distribution):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.bernoulli_log_prob(
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.bernoulli_log_prob(
             given=given,
             logits=self.logits,
             group_ndims=reduce_ndims,

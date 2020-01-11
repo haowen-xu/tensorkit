@@ -5,7 +5,8 @@ import mock
 import numpy as np
 import pytest
 
-from tensorkit import Uniform, backend as Z, StochasticTensor
+from tensorkit import tensor as T
+from tensorkit import *
 from tensorkit.distributions.utils import copy_distribution
 from tests.helper import float_dtypes
 
@@ -32,8 +33,8 @@ class UniformTestCase(unittest.TestCase):
             self.assertEqual(uniform.event_ndims, 0)
 
             # specify `low`, `high` tensors
-            low_t = Z.full([2, 1], -1., dtype=dtype)
-            high_t = Z.full([1, 3], 2., dtype=dtype)
+            low_t = T.full([2, 1], -1., dtype=dtype)
+            high_t = T.full([1, 3], 2., dtype=dtype)
             uniform = Uniform(low=low_t, high=high_t, dtype=dtype,
                               event_ndims=2)
             self.assertEqual(uniform.value_shape, [2, 3])
@@ -43,20 +44,20 @@ class UniformTestCase(unittest.TestCase):
             self.assertIs(uniform.high, high_t)
 
             # specify `low` or `high`, one as tensor and one as numpy array
-            for low, high in [(low_t, Z.to_numpy(high_t)),
-                              (Z.to_numpy(low_t), high_t)]:
+            for low, high in [(low_t, T.to_numpy(high_t)),
+                              (T.to_numpy(low_t), high_t)]:
                 uniform = Uniform(low=low, high=high,
-                                  dtype=Z.float32,  # should be ignored
+                                  dtype=T.float32,  # should be ignored
                                   event_ndims=2)
                 self.assertEqual(uniform.value_shape, [2, 3])
                 self.assertEqual(uniform.dtype, dtype)
-                self.assertEqual(Z.get_dtype(uniform.low), dtype)
-                self.assertEqual(Z.get_dtype(uniform.high), dtype)
+                self.assertEqual(T.get_dtype(uniform.low), dtype)
+                self.assertEqual(T.get_dtype(uniform.high), dtype)
                 self.assertEqual(uniform.event_ndims, 2)
                 np.testing.assert_equal(
-                    Z.to_numpy(uniform.low), Z.to_numpy(low_t))
+                    T.to_numpy(uniform.low), T.to_numpy(low_t))
                 np.testing.assert_equal(
-                    Z.to_numpy(uniform.high), Z.to_numpy(high_t))
+                    T.to_numpy(uniform.high), T.to_numpy(high_t))
 
         for event_ndims, dtype, shape in product(range(0, 3), float_dtypes,
                                                  ([], [2, 3])):
@@ -85,10 +86,10 @@ class UniformTestCase(unittest.TestCase):
             if event_ndims > len(shape) + 2:
                 continue
             # specify `shape` and `low`, `high` tensors
-            low_t = Z.full([2, 1], -1., dtype=dtype)
-            high_t = Z.full([1, 3], 2., dtype=dtype)
+            low_t = T.full([2, 1], -1., dtype=dtype)
+            high_t = T.full([1, 3], 2., dtype=dtype)
             uniform = Uniform(shape=shape, low=low_t, high=high_t,
-                              dtype=Z.float32,  # should be ignored
+                              dtype=T.float32,  # should be ignored
                               event_ndims=event_ndims)
             self.assertEqual(uniform.value_shape, shape + [2, 3])
             self.assertEqual(uniform.dtype, dtype)
@@ -104,8 +105,8 @@ class UniformTestCase(unittest.TestCase):
         with pytest.raises(ValueError,
                            match='`low.dtype` != `high.dtype`: `low.dtype` == '
                                  'float32, while `high.dtype` == float64'):
-            _ = Uniform(low=Z.full([2, 3], -1., dtype=Z.float32),
-                        high=Z.full([2, 3], 2., dtype=Z.float64))
+            _ = Uniform(low=T.full([2, 3], -1., dtype=T.float32),
+                        high=T.full([2, 3], 2., dtype=T.float64))
 
         with pytest.raises(ValueError,
                            match='`low` < `high` does not hold: `low` == 2.0, '
@@ -113,17 +114,17 @@ class UniformTestCase(unittest.TestCase):
             _ = Uniform(low=2., high=1.)
 
         with pytest.raises(Exception, match='`low` < `high` does not hold'):
-            _ = Uniform(low=Z.full([2, 3], 2., dtype=Z.float32),
-                        high=Z.full([2, 3], -1., dtype=Z.float32),
+            _ = Uniform(low=T.full([2, 3], 2., dtype=T.float32),
+                        high=T.full([2, 3], -1., dtype=T.float32),
                         validate_tensors=True)
 
     def test_copy(self):
         np.random.seed(1234)
-        Z.random.seed(1234)
+        T.random.seed(1234)
 
         for dtype in float_dtypes:
-            low_t = Z.full([2, 1], -1., dtype=dtype)
-            high_t = Z.full([1, 3], 2., dtype=dtype)
+            low_t = T.full([2, 1], -1., dtype=dtype)
+            high_t = T.full([1, 3], 2., dtype=dtype)
             uniform = Uniform(shape=[5, 4], low=low_t, high=high_t,
                               event_ndims=1, log_zero=-1e6,
                               reparameterized=False)
@@ -156,7 +157,7 @@ class UniformTestCase(unittest.TestCase):
 
     def test_sample_and_log_prob(self):
         np.random.seed(1234)
-        Z.random.seed(1234)
+        T.random.seed(1234)
 
         array_low = np.random.randn(2, 1)
         array_high = np.exp(np.random.randn(1, 3)) + 1.
@@ -181,8 +182,8 @@ class UniformTestCase(unittest.TestCase):
                 continue
 
             if isinstance(low, np.ndarray):
-                low_t = Z.from_numpy(low, dtype=dtype)
-                high_t = Z.from_numpy(high, dtype=dtype)
+                low_t = T.from_numpy(low, dtype=dtype)
+                high_t = T.from_numpy(high, dtype=dtype)
                 uniform = Uniform(shape=shape, low=low_t, high=high_t,
                                   event_ndims=event_ndims, log_zero=log_zero)
                 value_shape = (shape or []) + [2, 3]
@@ -199,26 +200,26 @@ class UniformTestCase(unittest.TestCase):
 
             # sample(n_samples=None)
             t = uniform.sample()
-            x = Z.to_numpy(t.tensor)
+            x = T.to_numpy(t.tensor)
             sample_shape = value_shape
             self.assertIsInstance(t, StochasticTensor)
             self.assertIs(t.distribution, uniform)
-            self.assertEqual(Z.get_dtype(t.tensor), dtype)
+            self.assertEqual(T.get_dtype(t.tensor), dtype)
             self.assertEqual(t.n_samples, None)
             self.assertEqual(t.group_ndims, 0)
             self.assertEqual(t.reparameterized, True)
-            self.assertIsInstance(t.tensor, Z.Tensor)
-            self.assertEqual(Z.shape(t.tensor), sample_shape)
+            self.assertIsInstance(t.tensor, T.Tensor)
+            self.assertEqual(T.shape(t.tensor), sample_shape)
 
             for log_pdf in [t.log_prob(), uniform.log_prob(t)]:
-                self.assertEqual(Z.get_dtype(log_pdf), dtype)
+                self.assertEqual(T.get_dtype(log_pdf), dtype)
                 np.testing.assert_allclose(
-                    Z.to_numpy(log_pdf), log_prob(x, low, high, event_ndims),
+                    T.to_numpy(log_pdf), log_prob(x, low, high, event_ndims),
                     rtol=1e-4
                 )
             # test log-prob on out-of-range values
             np.testing.assert_allclose(
-                Z.to_numpy(uniform.log_prob(t.tensor * 10.)),
+                T.to_numpy(uniform.log_prob(t.tensor * 10.)),
                 log_prob(x * 10., low, high, event_ndims),
                 rtol=1e-4,
             )
@@ -227,46 +228,46 @@ class UniformTestCase(unittest.TestCase):
             if event_ndims >= 1:
                 t = uniform.sample(n_samples=7, group_ndims=-1,
                                    reparameterized=False)
-                x = Z.to_numpy(t.tensor)
+                x = T.to_numpy(t.tensor)
                 sample_shape = [7] + value_shape
                 self.assertIsInstance(t, StochasticTensor)
                 self.assertIs(t.distribution, uniform)
-                self.assertEqual(Z.get_dtype(t.tensor), dtype)
+                self.assertEqual(T.get_dtype(t.tensor), dtype)
                 self.assertEqual(t.n_samples, 7)
                 self.assertEqual(t.group_ndims, -1)
                 self.assertEqual(t.reparameterized, False)
-                self.assertIsInstance(t.tensor, Z.Tensor)
-                self.assertEqual(Z.shape(t.tensor), sample_shape)
+                self.assertIsInstance(t.tensor, T.Tensor)
+                self.assertEqual(T.shape(t.tensor), sample_shape)
                 reduce_ndims = event_ndims - 1
 
                 for log_pdf in [t.log_prob(),
                                 uniform.log_prob(t, group_ndims=-1)]:
-                    self.assertEqual(Z.get_dtype(log_pdf), dtype)
+                    self.assertEqual(T.get_dtype(log_pdf), dtype)
                     np.testing.assert_allclose(
-                        Z.to_numpy(log_pdf),
+                        T.to_numpy(log_pdf),
                         log_prob(x, low, high, reduce_ndims),
                         rtol=1e-4
                     )
 
         # test reparameterized
-        low_t = Z.requires_grad(Z.from_numpy(array_low))
-        high_t = Z.requires_grad(Z.from_numpy(array_high))
+        low_t = T.requires_grad(T.from_numpy(array_low))
+        high_t = T.requires_grad(T.from_numpy(array_high))
         uniform = Uniform(low=low_t, high=high_t)
 
         t = uniform.sample()
         self.assertTrue(t.reparameterized)
-        u = (Z.to_numpy(t.tensor) - array_low) / (array_high - array_low)
-        [low_grad, high_grad] = Z.grad([Z.reduce_sum(t.tensor)], [low_t, high_t])
+        u = (T.to_numpy(t.tensor) - array_low) / (array_high - array_low)
+        [low_grad, high_grad] = T.grad([T.reduce_sum(t.tensor)], [low_t, high_t])
         np.testing.assert_allclose(
-            Z.to_numpy(low_grad), np.sum(1. - u, axis=-1, keepdims=True), rtol=1e-4)
+            T.to_numpy(low_grad), np.sum(1. - u, axis=-1, keepdims=True), rtol=1e-4)
         np.testing.assert_allclose(
-            Z.to_numpy(high_grad), np.sum(u, axis=0, keepdims=True), rtol=1e-4)
+            T.to_numpy(high_grad), np.sum(u, axis=0, keepdims=True), rtol=1e-4)
 
         t = uniform.sample(reparameterized=False)
-        w_t = Z.requires_grad(Z.from_numpy(np.random.randn(2, 3)))
+        w_t = T.requires_grad(T.from_numpy(np.random.randn(2, 3)))
         self.assertFalse(t.reparameterized)
-        [low_grad, high_grad] = Z.grad(
-            [Z.reduce_sum(w_t * t.tensor)], [low_t, high_t],
+        [low_grad, high_grad] = T.grad(
+            [T.reduce_sum(w_t * t.tensor)], [low_t, high_t],
             allow_unused=True)
-        self.assertTrue(Z.is_null_grad(low_t, low_grad))
-        self.assertTrue(Z.is_null_grad(high_t, high_grad))
+        self.assertTrue(T.is_null_grad(low_t, low_grad))
+        self.assertTrue(T.is_null_grad(high_t, high_grad))

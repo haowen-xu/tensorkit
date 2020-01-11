@@ -1,7 +1,7 @@
 import weakref
 from typing import *
 
-from .. import backend as Z
+from .. import tensor as T
 from .estimators import *
 from .evaluation import *
 from .objectives import *
@@ -22,10 +22,10 @@ class VariationalInference(object):
         '__weakref__',  # to support weakref.ref
     )
 
-    log_joint: Z.Tensor
+    log_joint: T.Tensor
     """Joint log-probability or log-density of the generative net."""
 
-    latent_log_joint: Z.Tensor
+    latent_log_joint: T.Tensor
     """Joint log-probability or log-density of the latent variables."""
 
     axes: Optional[List[int]]
@@ -45,8 +45,8 @@ class VariationalInference(object):
     """The factory for evaluation outputs."""
 
     def __init__(self,
-                 log_joint: Z.Tensor,
-                 latent_log_joint: Z.Tensor,
+                 log_joint: T.Tensor,
+                 latent_log_joint: T.Tensor,
                  axes: Optional[List[int]] = None):
         """
         Construct a new :class:`VariationalInference` instance.
@@ -80,7 +80,7 @@ class VariationalLowerBounds(object):
     def __init__(self, vi: VariationalInference):
         self._vi = weakref.ref(vi)
 
-    def elbo(self, keepdims: bool = False) -> Z.Tensor:
+    def elbo(self, keepdims: bool = False) -> T.Tensor:
         """
         Get the evidence lower-bound.
 
@@ -98,7 +98,7 @@ class VariationalLowerBounds(object):
             keepdims=keepdims,
         )
 
-    def monte_carlo_objective(self, keepdims: bool = False) -> Z.Tensor:
+    def monte_carlo_objective(self, keepdims: bool = False) -> T.Tensor:
         """
         Get the importance weighted lower-bound (Monte Carlo objective).
 
@@ -129,7 +129,7 @@ class VariationalTrainingObjectives(object):
     def __init__(self, vi: VariationalInference):
         self._vi = weakref.ref(vi)
 
-    def sgvb(self, keepdims: bool = False) -> Z.Tensor:
+    def sgvb(self, keepdims: bool = False) -> T.Tensor:
         """
         Get the SGVB training objective.
 
@@ -147,7 +147,7 @@ class VariationalTrainingObjectives(object):
             keepdims=keepdims,
         )
 
-    def iwae(self, keepdims: bool = False) -> Z.Tensor:
+    def iwae(self, keepdims: bool = False) -> T.Tensor:
         """
         Get the SGVB training objective for importance weighted objective.
 
@@ -178,7 +178,7 @@ class VariationalEvaluation(object):
         self._vi = weakref.ref(vi)
 
     def importance_sampling_log_likelihood(self,
-                                           keepdims: bool = False) -> Z.Tensor:
+                                           keepdims: bool = False) -> T.Tensor:
         """
         Compute :math:`log p(x)` by importance sampling.
 

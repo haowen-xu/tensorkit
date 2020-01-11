@@ -1,4 +1,4 @@
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 
 __all__ = [
     'int_dtypes', 'float_dtypes', 'number_dtypes',
@@ -8,8 +8,8 @@ __all__ = [
 
 # Not all integer or float dtypes are listed as follows.  Just some commonly
 # used dtypes, enough for test.
-int_dtypes = (Z.int32, Z.int64)
-float_dtypes = (Z.float32, Z.float64)
+int_dtypes = (T.int32, T.int64)
+float_dtypes = (T.float32, T.float64)
 number_dtypes = int_dtypes + float_dtypes
 
 # The number of samples to take for tests which requires random samples.

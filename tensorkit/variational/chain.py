@@ -1,6 +1,6 @@
 from typing import *
 
-from .. import backend as Z
+from .. import tensor as T
 from .inference import VariationalInference
 
 __all__ = ['VariationalChain']
@@ -36,8 +36,8 @@ class VariationalChain(object):
     latent_axes: Optional[List[int]]
     """The sampling dimensions of the latent variables."""
 
-    _log_joint: Optional[Z.Tensor]
-    _latent_log_joint: Optional[Z.Tensor]
+    _log_joint: Optional[T.Tensor]
+    _latent_log_joint: Optional[T.Tensor]
     _vi: Optional[VariationalInference]
 
     def __init__(self,
@@ -45,8 +45,8 @@ class VariationalChain(object):
                  q: 'BayesianNet',
                  latent_names: Optional[Sequence[str]] = None,
                  latent_axes: Optional[List[int]] = None,
-                 log_joint: Optional[Z.Tensor] = None,
-                 latent_log_joint: Optional[Z.Tensor] = None):
+                 log_joint: Optional[T.Tensor] = None,
+                 latent_log_joint: Optional[T.Tensor] = None):
         """
         Construct a new :class:`VariationalChain` instance.
 
@@ -79,20 +79,20 @@ class VariationalChain(object):
         self._vi = None  # constructed on demand later
 
     @property
-    def log_joint(self) -> Z.Tensor:
+    def log_joint(self) -> T.Tensor:
         """The joint log-probability or log-density of the generative net."""
         if self._log_joint is None:
-            self._log_joint = Z.add_n(self.p.log_probs(self.p))
+            self._log_joint = T.add_n(self.p.log_probs(self.p))
         return self._log_joint
 
     @property
-    def latent_log_joint(self) -> Z.Tensor:
+    def latent_log_joint(self) -> T.Tensor:
         """
         The joint log-probability or log-density of the latent variables
         from the variational net.
         """
         if self._latent_log_joint is None:
-            self._latent_log_joint = Z.add_n(self.q.log_probs(self.latent_names))
+            self._latent_log_joint = T.add_n(self.q.log_probs(self.latent_names))
         return self._latent_log_joint
 
     @property

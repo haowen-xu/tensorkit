@@ -3,14 +3,14 @@ import unittest
 import numpy as np
 import pytest
 
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 from tensorkit import *
 
 
 def prepare_test_payload():
     np.random.seed(1234)
-    log_p = Z.from_numpy(np.random.normal(size=[13]))
-    log_q = Z.from_numpy(np.random.normal(size=[7, 13]))
+    log_p = T.from_numpy(np.random.normal(size=[13]))
+    log_q = T.from_numpy(np.random.normal(size=[7, 13]))
     return log_p, log_q
 
 
@@ -35,16 +35,16 @@ class ImportanceSamplingLogLikelihoodTestCase(unittest.TestCase):
         log_p, log_q = prepare_test_payload()
 
         ll = importance_sampling_log_likelihood(log_p, log_q, axes=[0])
-        ll_shape = Z.shape(ll)
+        ll_shape = T.shape(ll)
         assert_allclose(
-            Z.to_numpy(ll),
-            Z.to_numpy(Z.log_mean_exp(log_p - log_q, axes=[0]))
+            T.to_numpy(ll),
+            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0]))
         )
 
         ll_k = importance_sampling_log_likelihood(
             log_p, log_q, axes=[0], keepdims=True)
-        self.assertListEqual([1] + ll_shape, Z.shape(ll_k))
+        self.assertListEqual([1] + ll_shape, T.shape(ll_k))
         assert_allclose(
-            Z.to_numpy(ll_k),
-            Z.to_numpy(Z.log_mean_exp(log_p - log_q, axes=[0], keepdims=True))
+            T.to_numpy(ll_k),
+            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0], keepdims=True))
         )

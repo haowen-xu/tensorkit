@@ -1,6 +1,6 @@
 from typing import *
 
-from . import backend as Z
+from . import tensor as T
 
 __all__ = ['StochasticTensor']
 
@@ -18,7 +18,7 @@ class StochasticTensor(object):
                  'reparameterized', 'transform_origin', '_cached_log_prob',
                  '_cached_prob')
 
-    tensor: Z.Tensor
+    tensor: T.Tensor
     """The sample or observation."""
 
     distribution: 'Distribution'
@@ -42,17 +42,17 @@ class StochasticTensor(object):
     from which this stochastic tensor is transformed.
     """
 
-    _cached_log_prob: Optional[Z.Tensor]
-    _cached_prob: Optional[Z.Tensor]
+    _cached_log_prob: Optional[T.Tensor]
+    _cached_prob: Optional[T.Tensor]
 
     def __init__(self,
-                 tensor: Z.Tensor,
+                 tensor: T.Tensor,
                  distribution: 'Distribution',
                  n_samples: Optional[int],
                  group_ndims: int,
                  reparameterized: bool,
                  transform_origin: Optional['StochasticTensor'] = None,
-                 log_prob: Optional[Z.Tensor] = None):
+                 log_prob: Optional[T.Tensor] = None):
         """
         Construct a new :class:`StochasticTensor`.
 
@@ -96,7 +96,7 @@ class StochasticTensor(object):
     def continuous(self) -> bool:
         return self.distribution.continuous
 
-    def log_prob(self, group_ndims: Optional[int] = None) -> Z.Tensor:
+    def log_prob(self, group_ndims: Optional[int] = None) -> T.Tensor:
         """
         Compute the log-probability or log-density of the samples.
 
@@ -116,7 +116,7 @@ class StochasticTensor(object):
         else:
             return self.distribution.log_prob(self.tensor, group_ndims)
 
-    def prob(self, group_ndims: Optional[int] = None) -> Z.Tensor:
+    def prob(self, group_ndims: Optional[int] = None) -> T.Tensor:
         """
         Compute the probability or density of the samples.
 
@@ -128,7 +128,7 @@ class StochasticTensor(object):
         """
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._cached_prob is None:
-                self._cached_prob = Z.exp(self.log_prob())
+                self._cached_prob = T.exp(self.log_prob())
             return self._cached_prob
         else:
             return self.distribution.prob(

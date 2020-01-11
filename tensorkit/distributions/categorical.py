@@ -1,6 +1,6 @@
 from typing import *
 
-from .. import backend as Z
+from .. import tensor as T
 from ..stochastic import StochasticTensor
 from .base import Distribution
 from .utils import copy_distribution
@@ -13,10 +13,10 @@ class BaseCategorical(Distribution):
     continuous = False
     reparameterized = False
 
-    _logits: Optional[Z.Tensor]
+    _logits: Optional[T.Tensor]
     """Logits of the probabilities of being each class."""
 
-    _probs: Optional[Z.Tensor]
+    _probs: Optional[T.Tensor]
     """The probabilities of being each class."""
 
     n_classes: int
@@ -30,8 +30,8 @@ class BaseCategorical(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.Tensor],
-                 probs: Optional[Z.Tensor],
+                 logits: Optional[T.Tensor],
+                 probs: Optional[T.Tensor],
                  dtype: str,
                  event_ndims: int,
                  epsilon: float = 1e-7,
@@ -43,11 +43,11 @@ class BaseCategorical(Distribution):
         epsilon = float(epsilon)
 
         if logits is not None:
-            param_shape = Z.shape(logits)
+            param_shape = T.shape(logits)
             probs = None
             mutual_params = {'logits': logits}
         else:
-            param_shape = Z.shape(probs)
+            param_shape = T.shape(probs)
             logits = None
             mutual_params = {'probs': probs}
 
@@ -75,21 +75,21 @@ class BaseCategorical(Distribution):
         self._mutual_params = mutual_params
 
     @property
-    def logits(self) -> Z.Tensor:
+    def logits(self) -> T.Tensor:
         """Logits of the probabilities of being each class."""
         if self._logits is None:
-            self._logits = Z.random.categorical_probs_to_logits(self._probs,
+            self._logits = T.random.categorical_probs_to_logits(self._probs,
                                                                 self.epsilon)
         return self._logits
 
     @property
-    def probs(self) -> Z.Tensor:
+    def probs(self) -> T.Tensor:
         """The probabilities of being each class."""
         if self._probs is None:
-            self._probs = Z.random.categorical_logits_to_probs(self._logits)
+            self._probs = T.random.categorical_logits_to_probs(self._logits)
         return self._probs
 
-    def to_indexed(self, dtype: str = Z.categorical_dtype) -> 'Categorical':
+    def to_indexed(self, dtype: str = T.categorical_dtype) -> 'Categorical':
         """
         Get a :class:`Categorical` object according to this distribution.
 
@@ -103,7 +103,7 @@ class BaseCategorical(Distribution):
         """
         raise NotImplementedError()
 
-    def to_one_hot(self, dtype: str = Z.int32) -> 'OneHotCategorical':
+    def to_one_hot(self, dtype: str = T.int32) -> 'OneHotCategorical':
         """
         Get a :class:`OneHotCategorical` object according to this distribution.
 
@@ -142,9 +142,9 @@ class Categorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.Tensor] = None,
-                 probs: Optional[Z.Tensor] = None,
-                 dtype: str = Z.categorical_dtype,
+                 logits: Optional[T.Tensor] = None,
+                 probs: Optional[T.Tensor] = None,
+                 dtype: str = T.categorical_dtype,
                  event_ndims: int = 0,
                  epsilon: float = 1e-7,
                  validate_tensors: Optional[bool] = None):
@@ -178,7 +178,7 @@ class Categorical(BaseCategorical):
                 group_ndims: int,
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
-        samples = Z.random.categorical(
+        samples = T.random.categorical(
             probs=self.probs, n_samples=n_samples, dtype=self.dtype)
         return StochasticTensor(
             distribution=self, tensor=samples, n_samples=n_samples,
@@ -186,16 +186,16 @@ class Categorical(BaseCategorical):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.categorical_log_prob(
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.categorical_log_prob(
             given=given, logits=self.logits, group_ndims=reduce_ndims)
 
-    def to_indexed(self, dtype: str = Z.categorical_dtype) -> 'Categorical':
+    def to_indexed(self, dtype: str = T.categorical_dtype) -> 'Categorical':
         return self if dtype == self.dtype else self.copy(dtype=dtype)
 
-    def to_one_hot(self, dtype: str = Z.int32) -> 'OneHotCategorical':
+    def to_one_hot(self, dtype: str = T.int32) -> 'OneHotCategorical':
         return copy_distribution(
             cls=OneHotCategorical,
             base=self,
@@ -222,9 +222,9 @@ class OneHotCategorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[Z.Tensor] = None,
-                 probs: Optional[Z.Tensor] = None,
-                 dtype: str = Z.int32,
+                 logits: Optional[T.Tensor] = None,
+                 probs: Optional[T.Tensor] = None,
+                 dtype: str = T.int32,
                  event_ndims: int = 1,
                  epsilon: float = 1e-7,
                  validate_tensors: Optional[bool] = None):
@@ -258,7 +258,7 @@ class OneHotCategorical(BaseCategorical):
                 group_ndims: int,
                 reduce_ndims: int,
                 reparameterized: bool) -> StochasticTensor:
-        samples = Z.random.one_hot_categorical(
+        samples = T.random.one_hot_categorical(
             probs=self.probs, n_samples=n_samples, dtype=self.dtype)
         return StochasticTensor(
             distribution=self, tensor=samples, n_samples=n_samples,
@@ -266,13 +266,13 @@ class OneHotCategorical(BaseCategorical):
         )
 
     def _log_prob(self,
-                  given: Z.Tensor,
+                  given: T.Tensor,
                   group_ndims: int,
-                  reduce_ndims: int) -> Z.Tensor:
-        return Z.random.one_hot_categorical_log_prob(
+                  reduce_ndims: int) -> T.Tensor:
+        return T.random.one_hot_categorical_log_prob(
             given=given, logits=self.logits, group_ndims=reduce_ndims)
 
-    def to_indexed(self, dtype: str = Z.categorical_dtype) -> 'Categorical':
+    def to_indexed(self, dtype: str = T.categorical_dtype) -> 'Categorical':
         return copy_distribution(
             cls=Categorical,
             base=self,
@@ -284,5 +284,5 @@ class OneHotCategorical(BaseCategorical):
                               'event_ndims': self.event_ndims - 1}
         )
 
-    def to_one_hot(self, dtype: str = Z.int32) -> 'OneHotCategorical':
+    def to_one_hot(self, dtype: str = T.int32) -> 'OneHotCategorical':
         return self if dtype == self.dtype else self.copy(dtype=dtype)

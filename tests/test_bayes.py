@@ -4,7 +4,7 @@ import mock
 import numpy as np
 import pytest
 
-from tensorkit import backend as Z
+from tensorkit import tensor as T
 from tensorkit import *
 
 
@@ -20,11 +20,11 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertEqual(net._stochastic_tensors, {})
         with pytest.raises(Exception):
             # `net.observed` should be read-only
-            net.observed['x'] = Z.zeros([])
+            net.observed['x'] = T.zeros([])
 
         # with observation
         normal = UnitNormal([2, 3, 4])
-        x = Z.from_numpy(np.random.randn(3, 4))
+        x = T.from_numpy(np.random.randn(3, 4))
         y = normal.sample()
 
         net = BayesianNet({'x': x, 'y': y})
@@ -37,7 +37,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertIs(net._original_observed['y'], y)
 
     def test_add(self):
-        x_observed = Z.from_numpy(
+        x_observed = T.from_numpy(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         d = UnitNormal([3, 4])
@@ -57,7 +57,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertEqual(x.group_ndims, 1)
         self.assertEqual(x.reparameterized, True)
         self.assertIs(x.tensor, x_observed)
-        self.assertEqual(Z.shape(x.tensor), [2, 3, 4])
+        self.assertEqual(T.shape(x.tensor), [2, 3, 4])
 
         # add an unobserved node
         y = net.add('y', d, group_ndims=1, reparameterized=False)
@@ -71,7 +71,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertEqual(y.n_samples, None)
         self.assertEqual(y.group_ndims, 1)
         self.assertEqual(y.reparameterized, False)
-        self.assertEqual(Z.shape(y.tensor), [3, 4])
+        self.assertEqual(T.shape(y.tensor), [3, 4])
 
         # error adding the same variable
         with pytest.raises(
@@ -83,8 +83,8 @@ class BayesianNetTestCase(unittest.TestCase):
         normal = UnitNormal(shape=[2, 3])
 
         # test reparameterized: False
-        with mock.patch('tensorkit.backend.stop_grad',
-                        mock.Mock(wraps=Z.stop_grad)) as m:
+        with mock.patch('tensorkit.tensor.stop_grad',
+                        mock.Mock(wraps=T.stop_grad)) as m:
             # TODO: switch to some other namespace when refractored
             x = normal.sample(5, reparameterized=True)
             self.assertTrue(x.reparameterized)
@@ -100,18 +100,18 @@ class BayesianNetTestCase(unittest.TestCase):
         net = BayesianNet({'x': x})
         t = net.add('x', normal, n_samples=5)
         self.assertEqual(t.reparameterized, x.reparameterized)
-        np.testing.assert_allclose(Z.to_numpy(x.tensor), Z.to_numpy(t.tensor))
+        np.testing.assert_allclose(T.to_numpy(x.tensor), T.to_numpy(t.tensor))
 
         x = normal.sample(5, reparameterized=False)
         self.assertFalse(x.reparameterized)
         net = BayesianNet({'x': x})
         t = net.add('x', normal, n_samples=5)
         self.assertEqual(t.reparameterized, x.reparameterized)
-        np.testing.assert_allclose(Z.to_numpy(x.tensor), Z.to_numpy(t.tensor))
+        np.testing.assert_allclose(T.to_numpy(x.tensor), T.to_numpy(t.tensor))
 
         # test override reparameterized: True -> False
-        with mock.patch('tensorkit.backend.stop_grad',
-                        mock.Mock(wraps=Z.stop_grad)) as m:
+        with mock.patch('tensorkit.tensor.stop_grad',
+                        mock.Mock(wraps=T.stop_grad)) as m:
             x = normal.sample(5, reparameterized=True)
             self.assertTrue(x.reparameterized)
             net = BayesianNet({'x': x})
@@ -131,7 +131,7 @@ class BayesianNetTestCase(unittest.TestCase):
             _ = net.add('x', normal, n_samples=5, reparameterized=True)
 
     def test_outputs(self):
-        x_observed = Z.from_numpy(
+        x_observed = T.from_numpy(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])
@@ -141,19 +141,19 @@ class BayesianNetTestCase(unittest.TestCase):
         # test single query
         x_out = net.output('x')
         self.assertIs(x_out, x.tensor)
-        self.assertIsInstance(x_out, Z.Tensor)
-        np.testing.assert_equal(Z.to_numpy(x_out), Z.to_numpy(x_observed))
+        self.assertIsInstance(x_out, T.Tensor)
+        np.testing.assert_equal(T.to_numpy(x_out), T.to_numpy(x_observed))
 
         # test multiple query
         x_out, y_out = net.outputs(iter(['x', 'y']))
         self.assertIs(x_out, x.tensor)
         self.assertIs(y_out, y.tensor)
-        self.assertIsInstance(x_out, Z.Tensor)
-        self.assertIsInstance(y_out, Z.Tensor)
-        np.testing.assert_equal(Z.to_numpy(x_out), Z.to_numpy(x_observed))
+        self.assertIsInstance(x_out, T.Tensor)
+        self.assertIsInstance(y_out, T.Tensor)
+        np.testing.assert_equal(T.to_numpy(x_out), T.to_numpy(x_observed))
 
     def test_log_prob(self):
-        x_observed = Z.from_numpy(
+        x_observed = T.from_numpy(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])
@@ -162,27 +162,27 @@ class BayesianNetTestCase(unittest.TestCase):
 
         # test single query
         x_log_prob = net.log_prob('x')
-        self.assertIsInstance(x_log_prob, Z.Tensor)
+        self.assertIsInstance(x_log_prob, T.Tensor)
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x_observed)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x_observed)))
 
         # test multiple query
         x_log_prob, y_log_prob = net.log_probs(iter(['x', 'y']))
-        self.assertIsInstance(x_log_prob, Z.Tensor)
-        self.assertIsInstance(y_log_prob, Z.Tensor)
+        self.assertIsInstance(x_log_prob, T.Tensor)
+        self.assertIsInstance(y_log_prob, T.Tensor)
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x_observed)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x_observed)))
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x.tensor)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x.tensor)))
         np.testing.assert_allclose(
-            Z.to_numpy(y_log_prob),
-            Z.to_numpy(normal.log_prob(y.tensor)))
+            T.to_numpy(y_log_prob),
+            T.to_numpy(normal.log_prob(y.tensor)))
 
     def test_query_pair(self):
-        x_observed = Z.from_numpy(
+        x_observed = T.from_numpy(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])
@@ -191,40 +191,40 @@ class BayesianNetTestCase(unittest.TestCase):
 
         # test single query
         x_out, x_log_prob = net.query_pair('x')
-        self.assertIsInstance(x_out, Z.Tensor)
-        self.assertIsInstance(x_log_prob, Z.Tensor)
+        self.assertIsInstance(x_out, T.Tensor)
+        self.assertIsInstance(x_log_prob, T.Tensor)
         self.assertIs(x_out, x.tensor)
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x_observed)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x_observed)))
 
         # test multiple query
         [(x_out, x_log_prob), (y_out, y_log_prob)] = \
             net.query_pairs(iter(['x', 'y']))
         for o in [x_out, x_log_prob, y_out, y_log_prob]:
-            self.assertIsInstance(o, Z.Tensor)
+            self.assertIsInstance(o, T.Tensor)
         self.assertIs(x_out, x.tensor)
         self.assertIs(y_out, y.tensor)
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x_observed)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x_observed)))
         np.testing.assert_allclose(
-            Z.to_numpy(x_log_prob),
-            Z.to_numpy(normal.log_prob(x.tensor)))
+            T.to_numpy(x_log_prob),
+            T.to_numpy(normal.log_prob(x.tensor)))
         np.testing.assert_allclose(
-            Z.to_numpy(y_log_prob),
-            Z.to_numpy(normal.log_prob(y.tensor)))
+            T.to_numpy(y_log_prob),
+            T.to_numpy(normal.log_prob(y.tensor)))
 
     def test_chain(self):
-        q_net = BayesianNet({'x': Z.ones([1])})
-        q_net.add('z', Normal(q_net.observed['x'], Z.float_scalar(1.)))
-        q_net.add('y', Normal(q_net.observed['x'] * 2, Z.float_scalar(2.)))
+        q_net = BayesianNet({'x': T.ones([1])})
+        q_net.add('z', Normal(q_net.observed['x'], T.float_scalar(1.)))
+        q_net.add('y', Normal(q_net.observed['x'] * 2, T.float_scalar(2.)))
 
         def net_builder(observed):
             net = BayesianNet(observed)
             z = net.add('z', UnitNormal([1]))
-            y = net.add('y', Normal(Z.zeros([1]), Z.full([1], 2.)))
-            x = net.add('x', Normal(z.tensor + y.tensor, Z.ones([1])))
+            y = net.add('y', Normal(T.zeros([1]), T.full([1], 2.)))
+            x = net.add('x', Normal(z.tensor + y.tensor, T.ones([1])))
             return net
 
         net_builder = mock.Mock(wraps=net_builder)
