@@ -10,8 +10,8 @@ from tensorkit import *
 
 def prepare_test_payload(reparameterized):
     np.random.seed(1234)
-    x = T.from_numpy(np.random.normal(size=[7, 13]))  # input
-    y = T.requires_grad(T.from_numpy(np.random.normal(size=[13])))  # param
+    x = T.as_tensor(np.random.normal(size=[7, 13]))  # input
+    y = T.requires_grad(T.as_tensor(np.random.normal(size=[13])))  # param
     if reparameterized:
         z = y * x  # sample
     else:

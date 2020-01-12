@@ -22,7 +22,7 @@ __all__ = [
     'cast', 'cast_like', 'get_dtype', 'is_floating_point',
 
     # tensor constructors
-    'as_tensor', 'from_numpy', 'float_scalar', 'int_scalar',
+    'as_tensor_jit', 'as_tensor', 'float_scalar', 'int_scalar',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
     'arange', 'one_hot',
 
@@ -132,15 +132,42 @@ def is_floating_point(x: Tensor) -> bool:
 
 
 # ---- tensor constructors ----
-as_tensor = torch.as_tensor
+as_tensor_jit = torch.as_tensor
 """
-Use only the form ``(data) -> torch.Tensor``, or the form
-``(data, dtype=another_tensor.dtype) -> torch.Tensor``.
+``T.as_tensor`` with JIT support.
+
+This should be an alias of the backend function ``as_tensor(data, dtype=None)``.
+Use only ``(data) -> torch.Tensor``, or ``(data, dtype=another_tensor.dtype) -> torch.Tensor``.
 """
 
 
 @jit_ignore
-def from_numpy(data, dtype: Optional[Union[torch.dtype, str]] = None) -> Tensor:
+def as_tensor(data,
+              dtype: Optional[Union[torch.dtype, str]] = None,
+              force_copy: bool = False) -> Tensor:
+    """
+    Construct a new tensor from `data`.
+
+    This method will copy `data` only when it is required to do so, or
+    when `force_copy` is set to :obj:`True`.
+
+    Args:
+        data: The tensor data.  It might be a Python number, a NumPy array,
+            another tensor, a :class:`~tensorkit.StochasticTensor`, or anything
+            else that the backend supports.
+        dtype: The expected dtype of the constructed tensor.
+        force_copy: Force to copy `data` even if it is not necessary.
+
+            It should not be necessary to copy the given `data`, if `data`
+            is already another tensor with `dtype`; or if `data` is a NumPy
+            array with compatible `dtype`, and the backend supports to share
+            memory between a tensor and a NumPy array.
+
+    Returns:
+        The constructed tensor.
+    """
+    from tensorkit import StochasticTensor
+
     # check the dtype argument
     target_dtype = dtype
     if dtype is not None:
@@ -150,16 +177,26 @@ def from_numpy(data, dtype: Optional[Union[torch.dtype, str]] = None) -> Tensor:
             elif dtype == 'int32':
                 target_dtype = torch.int32
             else:
-                target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+                target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64,
+                                'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
 
-    # construct the tensor
-    r = torch.from_numpy(np.asarray(data))
+    # if `data` is already a tensor
+    if isinstance(data, StochasticTensor):
+        data = data.tensor
 
-    # cast to desired type
-    if target_dtype is not None and r.dtype != target_dtype:
-        r = r.to(target_dtype)
+    if isinstance(data, Tensor):
+        # input `data` may be `StochasticTensor`, `Tensor` or `numpy.ndarray`
+        if data.dtype != target_dtype:
+            data = data.to(target_dtype)
+        if force_copy:
+            data = torch.tensor(data)
+        return data
 
-    return r
+    # or if `data` is other types
+    ret = torch.as_tensor(data, dtype=target_dtype)
+    if force_copy:
+        ret = torch.tensor(ret)
+    return ret
 
 
 @jit

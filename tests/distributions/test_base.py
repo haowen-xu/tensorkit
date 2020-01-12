@@ -106,7 +106,7 @@ class BaseDistributionTestCase(unittest.TestCase):
                          event_ndims=0, min_event_ndims=0)
 
         d.validate_tensors = False
-        t = T.from_numpy(np.nan)
+        t = T.as_tensor(np.nan)
         self.assertIs(d._assert_finite(t, 't'), t)
 
         d.validate_tensors = True
@@ -207,7 +207,7 @@ class BaseDistributionTestCase(unittest.TestCase):
     def test_prob(self):
         np.random.seed(1234)
         t00 = np.random.randn(2, 3)
-        t0 = T.from_numpy(t00)
+        t0 = T.as_tensor(t00)
         d = Distribution(
             T.float32, [2, 3], continuous=True, reparameterized=True,
             event_ndims=1, min_event_ndims=0)

@@ -9,8 +9,8 @@ from tensorkit import *
 
 def prepare_test_payload():
     np.random.seed(1234)
-    log_p = T.from_numpy(np.random.normal(size=[13]))
-    log_q = T.from_numpy(np.random.normal(size=[7, 13]))
+    log_p = T.as_tensor(np.random.normal(size=[13]))
+    log_q = T.as_tensor(np.random.normal(size=[7, 13]))
     return log_p, log_q
 
 

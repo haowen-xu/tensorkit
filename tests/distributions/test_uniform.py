@@ -182,8 +182,8 @@ class UniformTestCase(unittest.TestCase):
                 continue
 
             if isinstance(low, np.ndarray):
-                low_t = T.from_numpy(low, dtype=dtype)
-                high_t = T.from_numpy(high, dtype=dtype)
+                low_t = T.as_tensor(low, dtype=dtype)
+                high_t = T.as_tensor(high, dtype=dtype)
                 uniform = Uniform(shape=shape, low=low_t, high=high_t,
                                   event_ndims=event_ndims, log_zero=log_zero)
                 value_shape = (shape or []) + [2, 3]
@@ -250,8 +250,8 @@ class UniformTestCase(unittest.TestCase):
                     )
 
         # test reparameterized
-        low_t = T.requires_grad(T.from_numpy(array_low))
-        high_t = T.requires_grad(T.from_numpy(array_high))
+        low_t = T.requires_grad(T.as_tensor(array_low))
+        high_t = T.requires_grad(T.as_tensor(array_high))
         uniform = Uniform(low=low_t, high=high_t)
 
         t = uniform.sample()
@@ -264,7 +264,7 @@ class UniformTestCase(unittest.TestCase):
             T.to_numpy(high_grad), np.sum(u, axis=0, keepdims=True), rtol=1e-4)
 
         t = uniform.sample(reparameterized=False)
-        w_t = T.requires_grad(T.from_numpy(np.random.randn(2, 3)))
+        w_t = T.requires_grad(T.as_tensor(np.random.randn(2, 3)))
         self.assertFalse(t.reparameterized)
         [low_grad, high_grad] = T.grad(
             [T.reduce_sum(w_t * t.tensor)], [low_t, high_t],

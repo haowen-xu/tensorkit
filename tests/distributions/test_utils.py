@@ -113,7 +113,7 @@ class DistributionUtilsTestCase(unittest.TestCase):
         x = np.random.randn(3, 4, 5)
 
         for dtype in float_dtypes:
-            x_t = T.from_numpy(x, dtype=dtype)
+            x_t = T.as_tensor(x, dtype=dtype)
             ret = log_pdf_mask(x_t >= 0., x_t ** 2, T.random.LOG_ZERO_VALUE)
             expected = np.where(x >= 0., x ** 2, T.random.LOG_ZERO_VALUE)
             np.testing.assert_allclose(ret, expected, rtol=1e-4)

@@ -24,7 +24,7 @@ class BayesianNetTestCase(unittest.TestCase):
 
         # with observation
         normal = UnitNormal([2, 3, 4])
-        x = T.from_numpy(np.random.randn(3, 4))
+        x = T.as_tensor(np.random.randn(3, 4))
         y = normal.sample()
 
         net = BayesianNet({'x': x, 'y': y})
@@ -37,7 +37,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertIs(net._original_observed['y'], y)
 
     def test_add(self):
-        x_observed = T.from_numpy(
+        x_observed = T.as_tensor(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         d = UnitNormal([3, 4])
@@ -131,7 +131,7 @@ class BayesianNetTestCase(unittest.TestCase):
             _ = net.add('x', normal, n_samples=5, reparameterized=True)
 
     def test_outputs(self):
-        x_observed = T.from_numpy(
+        x_observed = T.as_tensor(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])
@@ -153,7 +153,7 @@ class BayesianNetTestCase(unittest.TestCase):
         np.testing.assert_equal(T.to_numpy(x_out), T.to_numpy(x_observed))
 
     def test_log_prob(self):
-        x_observed = T.from_numpy(
+        x_observed = T.as_tensor(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])
@@ -182,7 +182,7 @@ class BayesianNetTestCase(unittest.TestCase):
             T.to_numpy(normal.log_prob(y.tensor)))
 
     def test_query_pair(self):
-        x_observed = T.from_numpy(
+        x_observed = T.as_tensor(
             np.arange(24, dtype=np.float32).reshape([2, 3, 4]))
         net = BayesianNet({'x': x_observed})
         normal = UnitNormal([3, 4])

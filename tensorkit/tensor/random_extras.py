@@ -107,17 +107,17 @@ def truncated_randn_log_pdf(given: Tensor,
         log_pdf = where(
             logical_and(low <= given, given <= high),
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     elif low is not None:
         log_pdf = where(
             low <= given,
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     elif high is not None:
         log_pdf = where(
             given <= high,
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     else:
         log_pdf = log_pdf  # do nothing, but JIT requires this branch
 
@@ -178,17 +178,17 @@ def truncated_normal_log_pdf(given: Tensor,
             logical_and((low * std + mean) <= given,
                         given <= (high * std + mean)),
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     elif low is not None:
         log_pdf = where(
             (low * std + mean) <= given,
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     elif high is not None:
         log_pdf = where(
             given <= (high * std + mean),
             log_pdf,
-            as_tensor(log_zero, dtype=log_pdf.dtype))
+            as_tensor_jit(log_zero, dtype=log_pdf.dtype))
     else:
         log_pdf = log_pdf  # do nothing, but JIT requires this branch
 

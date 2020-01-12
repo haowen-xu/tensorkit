@@ -20,23 +20,23 @@ class TensorNNTestCase(unittest.TestCase):
 
         # test relu
         np.testing.assert_allclose(
-            T.to_numpy(T.nn.relu(T.as_tensor(x))),
+            T.to_numpy(T.nn.relu(T.as_tensor_jit(x))),
             x * (x >= 0)
         )
 
         # test leaky_relu
         np.testing.assert_allclose(
-            T.to_numpy(T.nn.leaky_relu(T.as_tensor(x))),
+            T.to_numpy(T.nn.leaky_relu(T.as_tensor_jit(x))),
             x * (x >= 0) + (0.01 * x * (x < 0))
         )
         np.testing.assert_allclose(
-            T.to_numpy(T.nn.leaky_relu(T.as_tensor(x), a=0.02)),
+            T.to_numpy(T.nn.leaky_relu(T.as_tensor_jit(x), a=0.02)),
             x * (x >= 0) + (0.02 * x * (x < 0))
         )
 
         # test sigmoid
         np.testing.assert_allclose(
-            T.to_numpy(T.nn.sigmoid(T.as_tensor(x))),
+            T.to_numpy(T.nn.sigmoid(T.as_tensor_jit(x))),
             np.where(x >= 0, 1. / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
         )
 
@@ -48,7 +48,7 @@ class TensorNNTestCase(unittest.TestCase):
 
         for axis in [-3, -2, -1, 0, 1, 2]:
             np.testing.assert_allclose(
-                T.to_numpy(T.nn.softmax(T.as_tensor(x), axis=axis)),
+                T.to_numpy(T.nn.softmax(T.as_tensor_jit(x), axis=axis)),
                 softmax(x, axis=axis)
             )
 
@@ -61,7 +61,7 @@ class TensorNNTestCase(unittest.TestCase):
 
         for axis in [-3, -2, -1, 0, 1, 2]:
             np.testing.assert_allclose(
-                T.to_numpy(T.nn.log_softmax(T.as_tensor(x), axis=axis)),
+                T.to_numpy(T.nn.log_softmax(T.as_tensor_jit(x), axis=axis)),
                 log_softmax(x, axis=axis)
             )
 
@@ -115,7 +115,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1})
 
-        _f = T.as_tensor
+        _f = T.as_tensor_jit
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -182,7 +182,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4, 5))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1, 2, 3, 4, 5})
 
-        _f = T.as_tensor
+        _f = T.as_tensor_jit
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:

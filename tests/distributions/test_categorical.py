@@ -40,8 +40,8 @@ class CategoricalTestCase(unittest.TestCase):
         logits = np.log(probs)
 
         for dtype, float_dtype in product(number_dtypes, float_dtypes):
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
-            probs_t = T.from_numpy(probs, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
+            probs_t = T.as_tensor(probs, dtype=float_dtype)
             mutual_params = {'logits': logits_t, 'probs': probs_t}
 
             # construct from logits or probs
@@ -95,14 +95,14 @@ class CategoricalTestCase(unittest.TestCase):
                                    match='Infinity or NaN value encountered'):
                     _ = _MyBaseCategorical(
                         validate_tensors=True, dtype=dtype, event_ndims=2,
-                        **{key: T.from_numpy(np.asarray([[np.nan]]),
+                        **{key: T.as_tensor(np.asarray([[np.nan]]),
                                              dtype=float_dtype)}
                     )
 
     def test_copy(self):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
-        logits_t = T.from_numpy(logits)
+        logits_t = T.as_tensor(logits)
         cat = _MyBaseCategorical(logits=logits_t, probs=None, event_ndims=1,
                                  dtype=T.int32)
 
@@ -128,7 +128,7 @@ class CategoricalTestCase(unittest.TestCase):
 
         for dtype, float_dtype, is_one_hot in \
                 product(number_dtypes, float_dtypes, [False, True]):
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
             if is_one_hot:
                 cls, other_cls = OneHotCategorical, Categorical
                 sample_shape = [2, 3, 4]

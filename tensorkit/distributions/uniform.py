@@ -73,9 +73,9 @@ class Uniform(Distribution):
         if low is not None and high is not None:
             if isinstance(low, T.Tensor) or isinstance(high, T.Tensor):
                 if not isinstance(low, T.Tensor):
-                    low = T.as_tensor(low, dtype=high.dtype)
+                    low = T.as_tensor_jit(low, dtype=high.dtype)
                 if not isinstance(high, T.Tensor):
-                    high = T.as_tensor(high, dtype=low.dtype)
+                    high = T.as_tensor_jit(high, dtype=low.dtype)
 
                 low_dtype = T.get_dtype(low)
                 high_dtype = T.get_dtype(high)

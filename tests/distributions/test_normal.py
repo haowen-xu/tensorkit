@@ -143,9 +143,9 @@ class NormalTestCase(unittest.TestCase):
         std = np.exp(logstd)
 
         for dtype in float_dtypes:
-            mean_t = T.from_numpy(mean, dtype=dtype)
-            std_t = T.from_numpy(std, dtype=dtype)
-            logstd_t = T.from_numpy(logstd, dtype=dtype)
+            mean_t = T.as_tensor(mean, dtype=dtype)
+            std_t = T.as_tensor(std, dtype=dtype)
+            logstd_t = T.as_tensor(logstd, dtype=dtype)
             mutual_params = {'std': std_t, 'logstd': logstd_t}
 
             # construct from mean & std/logstd
@@ -190,14 +190,14 @@ class NormalTestCase(unittest.TestCase):
             # nan test
             with pytest.raises(Exception,
                                match='Infinity or NaN value encountered'):
-                _ = _MyBaseNormal(mean=T.from_numpy(np.nan, dtype=dtype),
+                _ = _MyBaseNormal(mean=T.as_tensor(np.nan, dtype=dtype),
                                   logstd=logstd_t, validate_tensors=True)
 
             for key, val in mutual_params.items():
                 with pytest.raises(Exception,
                                    match='Infinity or NaN value encountered'):
                     _ = _MyBaseNormal(mean=mean_t, validate_tensors=True,
-                                      **{key: T.from_numpy(np.nan, dtype=dtype)})
+                                      **{key: T.as_tensor(np.nan, dtype=dtype)})
 
             normal = _MyBaseNormal(mean=mean_t, std=T.zeros_like(std_t),
                                    validate_tensors=True)
@@ -209,8 +209,8 @@ class NormalTestCase(unittest.TestCase):
         np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
-        mean_t = T.from_numpy(mean)
-        logstd_t = T.from_numpy(logstd)
+        mean_t = T.as_tensor(mean)
+        logstd_t = T.as_tensor(logstd)
         normal = _MyBaseNormal(mean=mean_t, logstd=logstd_t, event_ndims=1,
                                xyz=123, reparameterized=False)
         self.assertEqual(normal.xyz, 123)
@@ -238,8 +238,8 @@ class NormalTestCase(unittest.TestCase):
         np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
-        mean_t = T.from_numpy(mean)
-        logstd_t = T.from_numpy(logstd)
+        mean_t = T.as_tensor(mean)
+        logstd_t = T.as_tensor(logstd)
 
         normal = Normal(mean=mean_t, logstd=logstd_t, event_ndims=1)
 
@@ -293,9 +293,9 @@ class NormalTestCase(unittest.TestCase):
         logstd = np.random.randn(2, 3, 4)
         std = np.exp(logstd)
 
-        mean_t = T.from_numpy(mean)
-        logstd_t = T.from_numpy(logstd)
-        std_t = T.from_numpy(std)
+        mean_t = T.as_tensor(mean)
+        logstd_t = T.as_tensor(logstd)
+        std_t = T.as_tensor(std)
 
         with pytest.raises(ValueError, match='`low` < `high` does not hold'):
             _ = TruncatedNormal(mean=mean_t, logstd=logstd_t, low=2., high=1.)

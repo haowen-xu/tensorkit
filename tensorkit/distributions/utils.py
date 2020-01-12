@@ -1,7 +1,7 @@
 import copy
 from typing import *
 
-from ..tensor import jit, Tensor, where, as_tensor
+from ..tensor import jit, Tensor, where, as_tensor_jit
 
 __all__ = [
     'get_overrided_parameterized',
@@ -80,7 +80,7 @@ def log_pdf_mask(condition: Tensor,
     out remaining positions (i.e., set log-pdf of these locations to
     `log_zero`).
     """
-    return where(condition, log_pdf, as_tensor(log_zero, dtype=log_pdf.dtype))
+    return where(condition, log_pdf, as_tensor_jit(log_zero, dtype=log_pdf.dtype))
 
 
 def copy_distribution(cls: Type[TDistribution],

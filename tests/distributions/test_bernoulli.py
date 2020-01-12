@@ -24,8 +24,8 @@ class BernoulliTestCase(unittest.TestCase):
         probs = sigmoid(logits)
 
         for int_dtype, float_dtype in product(int_dtypes, float_dtypes):
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
-            probs_t = T.from_numpy(probs, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
+            probs_t = T.as_tensor(probs, dtype=float_dtype)
             mutual_params = {'logits': logits_t, 'probs': probs_t}
 
             # construct from logits or probs
@@ -64,12 +64,12 @@ class BernoulliTestCase(unittest.TestCase):
                                    match='Infinity or NaN value encountered'):
                     _ = Bernoulli(
                         validate_tensors=True, dtype=int_dtype,
-                        **{key: T.from_numpy(np.nan, dtype=float_dtype)})
+                        **{key: T.as_tensor(np.nan, dtype=float_dtype)})
 
     def test_copy(self):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
-        logits_t = T.from_numpy(logits)
+        logits_t = T.as_tensor(logits)
         bernoulli = Bernoulli(logits=logits_t, event_ndims=1)
 
         with mock.patch('tensorkit.distributions.bernoulli.copy_distribution',
@@ -91,7 +91,7 @@ class BernoulliTestCase(unittest.TestCase):
     def test_sample_and_log_prob(self):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
-        logits_t = T.from_numpy(logits)
+        logits_t = T.as_tensor(logits)
 
         for int_dtype in int_dtypes:
             bernoulli = Bernoulli(logits=logits_t, event_ndims=1,

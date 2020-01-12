@@ -30,12 +30,12 @@ class TensorRandomTestCase(unittest.TestCase):
 
     def test_seed(self):
         T.random.seed(1234)
-        x = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
-        y = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
+        x = T.to_numpy(T.random.normal(T.as_tensor_jit(0.), T.as_tensor_jit(1.)))
+        y = T.to_numpy(T.random.normal(T.as_tensor_jit(0.), T.as_tensor_jit(1.)))
         self.assertFalse(np.allclose(x, y))
 
         T.random.seed(1234)
-        z = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
+        z = T.to_numpy(T.random.normal(T.as_tensor_jit(0.), T.as_tensor_jit(1.)))
         np.testing.assert_allclose(x, z)
 
     def test_rand(self):
@@ -170,7 +170,7 @@ class TensorRandomTestCase(unittest.TestCase):
         # test Z almost equal to zero, thus `... - log(Z)` == -log_zero
         self.assertEqual(
             T.to_numpy(T.random.truncated_randn_log_pdf(
-                T.from_numpy(np.array(10000.0)),
+                T.as_tensor(np.array(10000.0)),
                 low=9999.0,
                 high=10001.0,
             )),
@@ -196,9 +196,9 @@ class TensorRandomTestCase(unittest.TestCase):
         # test n_samples by manual expanding the param shape
         for dtype in float_dtypes:
             # test sample dtype and shape
-            mean_t = T.cast(T.expand(T.as_tensor(mean), [n_samples, 2, 3, 4]), dtype)
-            std_t = T.cast(T.expand(T.as_tensor(std), [n_samples, 1, 3, 4]), dtype)
-            logstd_t = T.cast(T.expand(T.as_tensor(logstd), [n_samples, 1, 3, 4]), dtype)
+            mean_t = T.cast(T.expand(T.as_tensor_jit(mean), [n_samples, 2, 3, 4]), dtype)
+            std_t = T.cast(T.expand(T.as_tensor_jit(std), [n_samples, 1, 3, 4]), dtype)
+            logstd_t = T.cast(T.expand(T.as_tensor_jit(logstd), [n_samples, 1, 3, 4]), dtype)
             t = T.random.normal(mean_t, std_t)
             self.assertEqual(T.get_dtype(t), dtype)
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
@@ -223,9 +223,9 @@ class TensorRandomTestCase(unittest.TestCase):
         # test with n_samples
         for dtype in float_dtypes:
             # test sample dtype and shape
-            mean_t = T.from_numpy(mean, dtype)
-            std_t = T.from_numpy(std, dtype)
-            logstd_t = T.from_numpy(logstd, dtype)
+            mean_t = T.as_tensor(mean, dtype)
+            std_t = T.as_tensor(std, dtype)
+            logstd_t = T.as_tensor(logstd, dtype)
             t = T.random.normal(mean_t, std_t, n_samples=n_samples)
             self.assertEqual(T.get_dtype(t), dtype)
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
@@ -249,9 +249,9 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # test no n_samples
         for dtype in float_dtypes:
-            mean_t = T.from_numpy(mean, dtype)
-            std_t = T.from_numpy(std, dtype)
-            logstd_t = T.from_numpy(logstd, dtype)
+            mean_t = T.as_tensor(mean, dtype)
+            std_t = T.as_tensor(std, dtype)
+            logstd_t = T.as_tensor(logstd, dtype)
             t = T.random.normal(mean_t, std_t)
             self.assertEqual(T.get_dtype(t), dtype)
 
@@ -268,9 +268,9 @@ class TensorRandomTestCase(unittest.TestCase):
         w = np.random.randn(2, 3, 4)
 
         for dtype in float_dtypes:
-            w_t = T.requires_grad(T.from_numpy(w))
-            mean_t = T.requires_grad(T.from_numpy(mean, dtype))
-            std_t = T.requires_grad(T.from_numpy(std, dtype))
+            w_t = T.requires_grad(T.as_tensor(w))
+            mean_t = T.requires_grad(T.as_tensor(mean, dtype))
+            std_t = T.requires_grad(T.as_tensor(std, dtype))
             t = w_t * T.random.normal(mean_t, std_t)
             [mean_grad, std_grad] = T.grad(
                 [t], [mean_t, std_t], [T.ones_like(t)])
@@ -283,9 +283,9 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # test not reparameterized
         for dtype in float_dtypes:
-            w_t = T.requires_grad(T.from_numpy(w))
-            mean_t = T.requires_grad(T.from_numpy(mean, dtype))
-            std_t = T.requires_grad(T.from_numpy(std, dtype))
+            w_t = T.requires_grad(T.as_tensor(w))
+            mean_t = T.requires_grad(T.as_tensor(mean, dtype))
+            std_t = T.requires_grad(T.as_tensor(std, dtype))
             t = w_t * T.random.normal(mean_t, std_t, reparameterized=False)
             [mean_grad, std_grad] = T.grad(
                 [t], [mean_t, std_t], [T.ones_like(t)], allow_unused=True)
@@ -294,8 +294,8 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # given has lower rank than params, broadcasted to match param
         for dtype in float_dtypes:
-            mean_t = T.from_numpy(mean, dtype)
-            logstd_t = T.from_numpy(logstd, dtype)
+            mean_t = T.as_tensor(mean, dtype)
+            logstd_t = T.as_tensor(logstd, dtype)
             for val in (0., 1., -1.):
                 np.testing.assert_allclose(
                     T.to_numpy(T.random.normal_log_pdf(
@@ -306,13 +306,13 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # dtype mismatch
         with pytest.raises(Exception, match='`mean.dtype` != `std.dtype`'):
-            _ = T.random.normal(T.from_numpy(mean, T.float32),
-                                T.from_numpy(std, T.float64))
+            _ = T.random.normal(T.as_tensor(mean, T.float32),
+                                T.as_tensor(std, T.float64))
 
         # check numerics
-        mean_t = T.from_numpy(mean)
+        mean_t = T.as_tensor(mean)
         std_t = T.zeros_like(mean_t)
-        logstd_t = T.from_numpy(T.log(std_t))
+        logstd_t = T.as_tensor(T.log(std_t))
         t = T.random.normal(mean_t, std_t)
         with pytest.raises(Exception,
                            match='Infinity or NaN value encountered'):
@@ -356,9 +356,9 @@ class TensorRandomTestCase(unittest.TestCase):
             # test(n_samples=n_samples)
             for dtype in float_dtypes:
                 # test sample dtype and shape
-                mean_t = T.from_numpy(mean, dtype)
-                std_t = T.from_numpy(std, dtype)
-                logstd_t = T.from_numpy(logstd, dtype)
+                mean_t = T.as_tensor(mean, dtype)
+                std_t = T.as_tensor(std, dtype)
+                logstd_t = T.as_tensor(logstd, dtype)
                 t = T.random.truncated_normal(
                     mean_t, std_t, n_samples=n_samples, low=low, high=high)
                 self.assertEqual(T.get_dtype(t), dtype)
@@ -395,9 +395,9 @@ class TensorRandomTestCase(unittest.TestCase):
 
             # test(n_samples=None)
             for dtype in float_dtypes:
-                mean_t = T.from_numpy(mean, dtype)
-                std_t = T.from_numpy(std, dtype)
-                logstd_t = T.from_numpy(logstd, dtype)
+                mean_t = T.as_tensor(mean, dtype)
+                std_t = T.as_tensor(std, dtype)
+                logstd_t = T.as_tensor(logstd, dtype)
                 t = T.random.truncated_normal(mean_t, std_t, low=low, high=high)
                 self.assertEqual(T.get_dtype(t), dtype)
 
@@ -434,9 +434,9 @@ class TensorRandomTestCase(unittest.TestCase):
             w = np.random.randn(2, 3, 4)
 
             for dtype in float_dtypes:
-                w_t = T.requires_grad(T.from_numpy(w))
-                mean_t = T.requires_grad(T.from_numpy(mean, dtype))
-                std_t = T.requires_grad(T.from_numpy(std, dtype))
+                w_t = T.requires_grad(T.as_tensor(w))
+                mean_t = T.requires_grad(T.as_tensor(mean, dtype))
+                std_t = T.requires_grad(T.as_tensor(std, dtype))
                 t = w_t * T.random.truncated_normal(mean_t, std_t)
                 [mean_grad, std_grad] = T.grad(
                     [t], [mean_t, std_t], [T.ones_like(t)])
@@ -449,9 +449,9 @@ class TensorRandomTestCase(unittest.TestCase):
 
             # test not reparameterized
             for dtype in float_dtypes:
-                w_t = T.requires_grad(T.from_numpy(w))
-                mean_t = T.requires_grad(T.from_numpy(mean, dtype))
-                std_t = T.requires_grad(T.from_numpy(std, dtype))
+                w_t = T.requires_grad(T.as_tensor(w))
+                mean_t = T.requires_grad(T.as_tensor(mean, dtype))
+                std_t = T.requires_grad(T.as_tensor(std, dtype))
                 t = w_t * T.random.truncated_normal(
                     mean_t, std_t, reparameterized=False)
                 [mean_grad, std_grad] = T.grad(
@@ -461,9 +461,9 @@ class TensorRandomTestCase(unittest.TestCase):
 
             # given has lower rank than params, broadcasted to match param
             for dtype in float_dtypes:
-                mean_t = T.from_numpy(mean, dtype)
-                std_t = T.from_numpy(std, dtype)
-                logstd_t = T.from_numpy(logstd, dtype)
+                mean_t = T.as_tensor(mean, dtype)
+                std_t = T.as_tensor(std, dtype)
+                logstd_t = T.as_tensor(logstd, dtype)
                 np.testing.assert_allclose(
                     T.to_numpy(T.random.truncated_normal_log_pdf(
                         T.float_scalar(0.), mean_t, std_t, logstd_t,
@@ -475,15 +475,15 @@ class TensorRandomTestCase(unittest.TestCase):
 
             # dtype mismatch
             with pytest.raises(Exception, match='`mean.dtype` != `std.dtype`'):
-                _ = T.random.truncated_normal(T.from_numpy(mean, T.float32),
-                                              T.from_numpy(std, T.float64),
+                _ = T.random.truncated_normal(T.as_tensor(mean, T.float32),
+                                              T.as_tensor(std, T.float64),
                                               low=low,
                                               high=high)
 
             # check numerics
-            mean_t = T.from_numpy(mean)
+            mean_t = T.as_tensor(mean)
             std_t = T.zeros_like(mean_t)
-            logstd_t = T.from_numpy(T.log(std_t))
+            logstd_t = T.as_tensor(T.log(std_t))
             t = T.random.normal(mean_t, std_t)
             with pytest.raises(Exception,
                                match='Infinity or NaN value encountered'):
@@ -510,8 +510,8 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # bernoulli_logits_to_probs and bernoulli_probs_to_logits
         for float_dtype in float_dtypes:
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
-            probs_t = T.from_numpy(probs, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
+            probs_t = T.as_tensor(probs, dtype=float_dtype)
             np.testing.assert_allclose(
                 T.to_numpy(T.random.bernoulli_probs_to_logits(probs_t)),
                 logits,
@@ -523,13 +523,13 @@ class TensorRandomTestCase(unittest.TestCase):
                 rtol=1e-4
             )
 
-        t = T.random.bernoulli_probs_to_logits(T.from_numpy(np.array([0., 1.])))
+        t = T.random.bernoulli_probs_to_logits(T.as_tensor(np.array([0., 1.])))
         T.assert_finite(t, 'logits')
 
         # sample
         for float_dtype in float_dtypes:
-            probs_t = T.from_numpy(probs, dtype=float_dtype)
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
+            probs_t = T.as_tensor(probs, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
             for n_z, sample_shape in [(None, []), (n_samples, [n_samples])]:
                 for dtype in number_dtypes:
                     t = T.random.bernoulli(
@@ -551,11 +551,11 @@ class TensorRandomTestCase(unittest.TestCase):
                     )
 
         with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-            _ = T.random.bernoulli(probs=T.as_tensor(probs), n_samples=0)
+            _ = T.random.bernoulli(probs=T.as_tensor_jit(probs), n_samples=0)
 
         # given has lower rank than params, broadcasted to match param
         for float_dtype in float_dtypes:
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
             for val in (0, 1):
                 np.testing.assert_allclose(
                     T.to_numpy(T.random.bernoulli_log_prob(
@@ -594,8 +594,8 @@ class TensorRandomTestCase(unittest.TestCase):
 
         # categorical_logits_to_probs and categorical_probs_to_logits
         for dtype in float_dtypes:
-            logits_t = T.from_numpy(logits, dtype=dtype)
-            probs_t = T.from_numpy(probs, dtype=dtype)
+            logits_t = T.as_tensor(logits, dtype=dtype)
+            probs_t = T.as_tensor(probs, dtype=dtype)
 
             np.testing.assert_allclose(
                 T.to_numpy(T.random.categorical_logits_to_probs(logits_t)),
@@ -610,7 +610,7 @@ class TensorRandomTestCase(unittest.TestCase):
 
         T.assert_finite(
             T.random.categorical_probs_to_logits(
-                T.from_numpy(np.array([0., 1.]))),
+                T.as_tensor(np.array([0., 1.]))),
             'logits'
         )
 
@@ -620,8 +620,8 @@ class TensorRandomTestCase(unittest.TestCase):
                            sample_shape: List[int],
                            dtype: Optional[str],
                            float_dtype: str):
-            probs_t = T.from_numpy(probs, dtype=float_dtype)
-            logits_t = T.from_numpy(logits, dtype=float_dtype)
+            probs_t = T.as_tensor(probs, dtype=float_dtype)
+            logits_t = T.as_tensor(logits, dtype=float_dtype)
             value_shape = [n_classes] if is_one_hot else []
 
             if dtype is not None:
@@ -672,7 +672,7 @@ class TensorRandomTestCase(unittest.TestCase):
             is_one_hot = Z_sample_fn == T.random.one_hot_categorical
             this_probs = probs[0, 0]
             t = Z_sample_fn(
-                probs=T.as_tensor(this_probs),
+                probs=T.as_tensor_jit(this_probs),
                 n_samples=n_samples
             )
             self.assertEqual(
@@ -681,7 +681,7 @@ class TensorRandomTestCase(unittest.TestCase):
             )
 
             x = T.to_numpy(t)
-            logits_t = T.as_tensor(np.log(this_probs))
+            logits_t = T.as_tensor_jit(np.log(this_probs))
             do_check_log_prob(
                 given=t,
                 batch_ndims=len(t.shape) - int(is_one_hot),
@@ -696,11 +696,11 @@ class TensorRandomTestCase(unittest.TestCase):
         # given has lower rank than params, broadcasted to match param
         for is_one_hot in (False, True):
             for float_dtype in float_dtypes:
-                logits_t = T.from_numpy(logits, dtype=float_dtype)
+                logits_t = T.as_tensor(logits, dtype=float_dtype)
                 for val in range(n_classes):
                     given = (one_hot(np.asarray(val), n_classes) if is_one_hot
                              else np.asarray(val))
-                    given_t = T.from_numpy(given)
+                    given_t = T.as_tensor(given)
                     Z_log_prob_fn = (
                         T.random.one_hot_categorical_log_prob
                         if is_one_hot else T.random.categorical_log_prob)
@@ -713,8 +713,8 @@ class TensorRandomTestCase(unittest.TestCase):
         # argument error
         for Z_sample_fn in (T.random.categorical, T.random.one_hot_categorical):
             with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor(probs), n_samples=0)
+                _ = Z_sample_fn(probs=T.as_tensor_jit(probs), n_samples=0)
 
             with pytest.raises(Exception, match='The rank of `probs` must be at '
                                                 'least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor(probs[0, 0, 0, 0]))
+                _ = Z_sample_fn(probs=T.as_tensor_jit(probs[0, 0, 0, 0]))

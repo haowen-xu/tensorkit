@@ -1,3 +1,4 @@
+import copy
 import unittest
 from functools import partial
 
@@ -5,8 +6,8 @@ import numpy as np
 import pytest
 from scipy.special import erf, erfc, erfinv
 
-from tensorkit import settings
 from tensorkit import tensor as T
+from tensorkit import *
 from tests.helper import *
 
 assert_allclose = np.testing.assert_allclose
@@ -23,13 +24,13 @@ class TensorCoreTestCase(unittest.TestCase):
         # various dtypes
         for dtype in [T.int8, T.uint8, T.int16, T.int32, T.int64]:
             self.assertIsInstance(dtype, str)
-            self.assertFalse(T.is_floating_point(T.from_numpy(0, dtype=dtype)))
-            self.assertEqual(T.get_dtype(T.cast(T.as_tensor(x), dtype)), dtype)
+            self.assertFalse(T.is_floating_point(T.as_tensor(0, dtype=dtype)))
+            self.assertEqual(T.get_dtype(T.cast(T.as_tensor_jit(x), dtype)), dtype)
 
         for dtype in [T.float16, T.float32, T.float64]:
             self.assertIsInstance(dtype, str)
-            self.assertTrue(T.is_floating_point(T.from_numpy(0, dtype=dtype)))
-            self.assertEqual(T.get_dtype(T.cast(T.as_tensor(x), dtype)), dtype)
+            self.assertTrue(T.is_floating_point(T.as_tensor(0, dtype=dtype)))
+            self.assertEqual(T.get_dtype(T.cast(T.as_tensor_jit(x), dtype)), dtype)
 
         # floatx
         self.assertEqual(settings.float_x, 'float32')
@@ -41,7 +42,7 @@ class TensorCoreTestCase(unittest.TestCase):
             settings.float_x = 'float32'
 
         # as_tensor
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
         self.assertIsInstance(t, T.Tensor)
         np.testing.assert_equal(T.to_numpy(t), x)
 
@@ -62,32 +63,63 @@ class TensorCoreTestCase(unittest.TestCase):
     def test_tensor_constructors(self):
         np.random.seed(1234)
 
-        # as_tensor
+        # as_tensor_jit
         for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
-            t = T.as_tensor(x)
+            t = T.as_tensor_jit(x)
             self.assertIsInstance(t, T.Tensor)
             np.testing.assert_equal(T.to_numpy(t), x)
 
-        x = T.as_tensor(np.asarray([1, 2, 3], dtype=np.int32))
-        t = T.as_tensor(x)
+        x = T.as_tensor_jit(np.asarray([1, 2, 3], dtype=np.int32))
+        t = T.as_tensor_jit(x)
         self.assertIs(t, x)
 
         with pytest.raises(Exception):
-            _ = T.from_numpy(object())  # not a tensor, should raise error
+            _ = T.as_tensor_jit(object())  # not a tensor, should raise error
 
-        # from_numpy
-        for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
-            t = T.from_numpy(x)
-            self.assertIsInstance(t, T.Tensor)
-            np.testing.assert_equal(T.to_numpy(t), x)
+        # as_tensor
+        def copy_tensor(o):
+            if isinstance(o, StochasticTensor):
+                return StochasticTensor(
+                    tensor=T.as_tensor(np.copy(T.to_numpy(o.tensor))),
+                    distribution=o.distribution,
+                    n_samples=o.n_samples,
+                    group_ndims=o.group_ndims,
+                    reparameterized=o.reparameterized,
+                )
+            if isinstance(o, T.Tensor):
+                return T.as_tensor(np.copy(T.to_numpy(o)))
+            return copy.copy(o)
 
-            for dtype in number_dtypes:
-                t = T.from_numpy(x, dtype=dtype)
-                self.assertEqual(T.get_dtype(t), dtype)
-                np.testing.assert_equal(T.to_numpy(t), x)
+        stochastic_tensor = UnitNormal(shape=[3]).sample()
+        stochastic_tensor.tensor = T.as_tensor([1., 2., 3.])
+        for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.]),
+                  T.as_tensor(np.array([1., 2., 3.])),
+                  stochastic_tensor]:
+            if isinstance(x, StochasticTensor):
+                x_value = T.to_numpy(x.tensor)
+            elif isinstance(x, T.Tensor):
+                x_value = T.to_numpy(x)
+            else:
+                x_value = copy.copy(x)
+
+            for should_copy in [True, False]:
+                for dtype in (None,) + number_dtypes:
+                    xx = copy_tensor(x)
+                    self.assertIsInstance(xx, type(x))
+                    dtype_kwargs = {'dtype': dtype} if dtype is not None else {}
+
+                    t = T.as_tensor(xx, force_copy=should_copy, **dtype_kwargs)
+                    self.assertIsInstance(t, T.Tensor)
+                    if should_copy:
+                        if hasattr(xx, '__setitem__'):
+                            xx[0] = 12345.
+                    np.testing.assert_equal(
+                        T.to_numpy(t), x_value,
+                        err_msg=f'{x}, {should_copy}, {dtype}'
+                    )
 
         with pytest.raises(Exception):
-            _ = T.from_numpy(object())  # not a tensor, should raise error
+            _ = T.as_tensor(object())  # not a tensor, should raise error
 
         # float_scalar
         for value in (1.25, 125):
@@ -202,18 +234,18 @@ class TensorCoreTestCase(unittest.TestCase):
                 I = np.eye(n_classes)
                 x = np.random.randint(0, n_classes, size=shape)
 
-                t = T.one_hot(T.as_tensor(x), n_classes)
+                t = T.one_hot(T.as_tensor_jit(x), n_classes)
                 np.testing.assert_equal(T.to_numpy(t), I[x])
 
                 for dtype in number_dtypes:
-                    t = T.one_hot(T.as_tensor(x), n_classes, dtype=dtype)
+                    t = T.one_hot(T.as_tensor_jit(x), n_classes, dtype=dtype)
                     self.assertEqual(T.get_dtype(t), dtype)
                     np.testing.assert_equal(T.to_numpy(t), I[x])
 
     def test_read_assign(self):
         # test to_numpy
         x = np.random.randn(2, 3, 4)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
         out = T.to_numpy(t)
         self.assertIsInstance(out, np.ndarray)
         np.testing.assert_equal(out, x)
@@ -223,7 +255,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test to_numpy with bool
         x = np.asarray([True, False])
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
         out = T.to_numpy(t)
         self.assertIsInstance(out, np.ndarray)
         self.assertEqual(out.dtype, np.bool)
@@ -232,7 +264,7 @@ class TensorCoreTestCase(unittest.TestCase):
     def test_shape_utils(self):
         # test shape
         x = np.random.randn(2, 3, 4)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
         s = T.shape(t)
         self.assertEqual(s, [2, 3, 4])
 
@@ -249,7 +281,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test repeat
         x = np.random.randn(2, 1, 3)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
         t2 = T.repeat(t, [])
         self.assertEqual(T.shape(t2), [2, 1, 3])
@@ -278,9 +310,9 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test squeeze
         x = np.random.randn(1, 2, 1, 3, 1, 4, 1)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
-        t2 = T.squeeze(T.as_tensor(x))
+        t2 = T.squeeze(T.as_tensor_jit(x))
         s2 = [2, 3, 4]
         self.assertEqual(T.shape(t2), s2)
         np.testing.assert_equal(T.to_numpy(t2), x.reshape(s2))
@@ -300,7 +332,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test expand dim
         x = np.random.randn(2, 3)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
         t2 = T.expand_dim(t, -1)
         s2 = [2, 3, 1]
@@ -340,7 +372,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test broadcast_to
         x = np.random.randn(1, 2, 1)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
         t2 = T.broadcast_to(t, [4, 5, 2, 1])
         self.assertEqual(T.shape(t2), [4, 5, 2, 1])
@@ -370,7 +402,7 @@ class TensorCoreTestCase(unittest.TestCase):
         def check_explicit_broadcast(shape1, shape2):
             x = np.asarray(np.random.randn(*shape1))
             y = np.asarray(np.random.randn(*shape2))
-            out1, out2 = T.explicit_broadcast(T.as_tensor(x), T.as_tensor(y))
+            out1, out2 = T.explicit_broadcast(T.as_tensor_jit(x), T.as_tensor_jit(y))
             out1 = T.to_numpy(out1)
             out2 = T.to_numpy(out2)
             ans1, ans2 = explicit_broadcast(x, y)
@@ -384,7 +416,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # test flatten_to_ndims
         def run_check(x, k):
-            t = T.from_numpy(x, dtype=T.int32)
+            t = T.as_tensor(x, dtype=T.int32)
 
             if len(x.shape) == k:
                 tt, s1 = T.flatten_to_ndims(t, k)
@@ -418,7 +450,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         with pytest.raises(Exception,
                            match='`ndims` must be at least 1'):
-            _ = T.flatten_to_ndims(T.as_tensor([0.]), 0)
+            _ = T.flatten_to_ndims(T.as_tensor_jit([0.]), 0)
 
         with pytest.raises(Exception, match=r'rank\(x\) < ndims'):
             _ = T.flatten_to_ndims(T.zeros([3, 4]), 3)
@@ -429,51 +461,51 @@ class TensorCoreTestCase(unittest.TestCase):
         with pytest.raises(Exception,
                            match=r'Invalid input: rank\(x\) < 1, but '
                                  r'front_shape is not None'):
-            t = T.as_tensor(123)
+            t = T.as_tensor_jit(123)
             _ = T.unflatten_from_ndims(t, [2, 3])
 
     def test_index_select(self):
         x = np.random.randn(3, 4, 5)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(1), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(1), 0)),
             x[1, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(3), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(3), 1)),
             x[:, 3, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(2), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(2), -1)),
             x[..., 2]
         )
 
         i = np.asarray([0, 2, 1, 1, 0, 2])
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 0)),
             x[i, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 1)),
             x[:, i, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), -1)),
             x[..., i]
         )
 
         i = np.asarray([[0, 2, 1], [1, 0, 2]])
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), 0)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 0)),
             x[i, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 1)),
             x[:, i, ...]
         )
         np.testing.assert_equal(
-            T.to_numpy(T.index_select(t, T.as_tensor(i), -1)),
+            T.to_numpy(T.index_select(t, T.as_tensor_jit(i), -1)),
             x[..., i]
         )
 
@@ -481,27 +513,27 @@ class TensorCoreTestCase(unittest.TestCase):
             # TODO: pytorch currently does not support negative index in many
             # of its functions.  enable these test when supported.
             np.testing.assert_equal(
-                T.to_numpy(T.index_select(t, T.as_tensor(-1), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor_jit(-1), 1)),
                 x[:, -1]
             )
 
             i = np.asarray([0, 1, -1, 2, -2, 0])
             np.testing.assert_equal(
-                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 1)),
                 x[:, i, ...]
             )
 
             i = np.asarray([[0, 1, -1], [2, -2, 0]])
             np.testing.assert_equal(
-                T.to_numpy(T.index_select(t, T.as_tensor(i), 1)),
+                T.to_numpy(T.index_select(t, T.as_tensor_jit(i), 1)),
                 x[:, i, ...]
             )
 
         with pytest.raises(Exception, match='`axis` out of range'):
-            _ = T.index_select(t, T.as_tensor(0), 3)
+            _ = T.index_select(t, T.as_tensor_jit(0), 3)
 
         with pytest.raises(Exception, match='`axis` out of range'):
-            _ = T.index_select(t, T.as_tensor(0), -4)
+            _ = T.index_select(t, T.as_tensor_jit(0), -4)
 
     def test_concat(self):
         x = np.random.randn(2, 3, 4)
@@ -510,7 +542,7 @@ class TensorCoreTestCase(unittest.TestCase):
 
         for arrays, axis in [([x, x, y], -2), ([x, y, y], 1),
                              ([x, x, z], -1), ([x, z, z], 2)]:
-            t = T.concat([T.as_tensor(arr) for arr in arrays], axis=axis)
+            t = T.concat([T.as_tensor_jit(arr) for arr in arrays], axis=axis)
             expected = np.concatenate(arrays, axis=axis)
             np.testing.assert_equal(T.to_numpy(t), expected)
 
@@ -519,17 +551,17 @@ class TensorCoreTestCase(unittest.TestCase):
 
         x = np.random.randn(2, 3)
         u = np.random.rand(2, 3)
-        x_t = T.as_tensor(x)
-        u_t = T.as_tensor(u)
+        x_t = T.as_tensor_jit(x)
+        u_t = T.as_tensor_jit(u)
 
         assert_allclose(T.to_numpy(T.abs(x_t)), np.abs(x))
         assert_allclose(T.to_numpy(T.neg(x_t)), -x)
         assert_allclose(T.to_numpy(T.square(x_t)), x ** 2)
 
         assert_allclose(T.to_numpy(T.exp(x_t)), np.exp(x))
-        assert_allclose(T.to_numpy(T.log(T.as_tensor(np.abs(x)))),
+        assert_allclose(T.to_numpy(T.log(T.as_tensor_jit(np.abs(x)))),
                         np.log(np.abs(x)))
-        assert_allclose(T.to_numpy(T.log1p(T.as_tensor(np.abs(x) - 1. + 1e-7))),
+        assert_allclose(T.to_numpy(T.log1p(T.as_tensor_jit(np.abs(x) - 1. + 1e-7))),
                         np.log1p(np.abs(x) - 1. + 1e-7))
 
         assert_allclose(T.to_numpy(T.sin(x_t)), np.sin(x))
@@ -543,13 +575,13 @@ class TensorCoreTestCase(unittest.TestCase):
         np.random.seed(1234)
         x = np.random.randn(2, 3)
         y = np.random.randn(3)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
 
         assert_allclose(T.to_numpy(T.add(t1, t2)), x + y)
         assert_allclose(T.to_numpy(T.sub(t1, t2)), x - y)
         assert_allclose(T.to_numpy(T.mul(t1, t2)), x * y)
-        assert_allclose(T.to_numpy(T.pow(T.as_tensor(np.abs(x)), t2)),
+        assert_allclose(T.to_numpy(T.pow(T.as_tensor_jit(np.abs(x)), t2)),
                         np.abs(x) ** y)
 
         # for division, of course y should not equal to zero
@@ -561,8 +593,8 @@ class TensorCoreTestCase(unittest.TestCase):
         # to produce identical results with numpy when x > 0 and y > 0
         x = np.abs(x)
         y = np.abs(y)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
         assert_allclose(T.to_numpy(T.floordiv(t1, t2)), x // y)
         assert_allclose(T.to_numpy(T.mod(t1, t2)), x % y)
 
@@ -578,8 +610,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randint(0, 255, size=(2, 3), dtype=np.uint8)
         y = np.random.randint(0, 255, size=(3,), dtype=np.uint8)
         y = y + (y == 0).astype(y.dtype)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
         out = T.truediv(t1, t2)
         self.assertEqual(T.get_dtype(out), T.float32)
         assert_allclose(T.to_numpy(out),
@@ -589,8 +621,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randint(-32768, 32767, size=(2, 3), dtype=np.int16)
         y = np.random.randint(-32768, 32767, size=(3,), dtype=np.int16)
         y = y + (y == 0).astype(y.dtype)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
         out = T.truediv(t1, t2)
         self.assertEqual(T.get_dtype(out), T.float32)
         assert_allclose(T.to_numpy(out),
@@ -600,8 +632,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randint(-100000, 100000, size=(2, 3), dtype=np.int32)
         y = np.random.randint(-100000, 100000, size=(3,), dtype=np.int32)
         y = y + (y == 0).astype(y.dtype)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
         out = T.truediv(t1, t2)
         self.assertEqual(T.get_dtype(out), T.float64)
         assert_allclose(T.to_numpy(out),
@@ -614,7 +646,7 @@ class TensorCoreTestCase(unittest.TestCase):
         z = np.random.randn(2, 1)
 
         np.testing.assert_allclose(
-            T.to_numpy(T.add_n([T.as_tensor(t) for t in (x, y, z)])),
+            T.to_numpy(T.add_n([T.as_tensor_jit(t) for t in (x, y, z)])),
             x + y + z
         )
 
@@ -637,7 +669,7 @@ class TensorCoreTestCase(unittest.TestCase):
         # prepare for the data
         np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
-        t = T.as_tensor(x)
+        t = T.as_tensor_jit(x)
 
         # test sum, mean, max, min
         for name in ['sum', 'mean', 'min', 'max',
@@ -686,8 +718,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.asarray([[True, True, False, False],
                         [False, False, True, True]])
         y = np.asarray([True, False, False, True])
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
 
         # test as_boolean
         self.assertEqual(T.get_dtype(t1), T.boolean)
@@ -696,31 +728,31 @@ class TensorCoreTestCase(unittest.TestCase):
         # test logical_not
         out = T.logical_not(t1)
         np.testing.assert_equal(read_bool(out), np.logical_not(x))
-        with_raise('x', lambda: T.logical_not(T.as_tensor([1, 2, 3])))
+        with_raise('x', lambda: T.logical_not(T.as_tensor_jit([1, 2, 3])))
 
         # test logical_and
         out = T.logical_and(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_and(x, y))
-        with_raise('x', lambda: T.logical_and(T.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: T.logical_and(t1, T.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_and(T.as_tensor_jit([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_and(t1, T.as_tensor_jit([1, 2, 3, 4])))
 
         # test logical_or
         out = T.logical_or(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_or(x, y))
-        with_raise('x', lambda: T.logical_or(T.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: T.logical_or(t1, T.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_or(T.as_tensor_jit([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_or(t1, T.as_tensor_jit([1, 2, 3, 4])))
 
         # test logical_xor
         out = T.logical_xor(t1, t2)
         np.testing.assert_equal(read_bool(out), np.logical_xor(x, y))
-        with_raise('x', lambda: T.logical_xor(T.as_tensor([1, 2, 3, 4]), t2))
-        with_raise('y', lambda: T.logical_xor(t1, T.as_tensor([1, 2, 3, 4])))
+        with_raise('x', lambda: T.logical_xor(T.as_tensor_jit([1, 2, 3, 4]), t2))
+        with_raise('y', lambda: T.logical_xor(t1, T.as_tensor_jit([1, 2, 3, 4])))
 
         # test multiply_mask
         def test_multiply_mask(x, y, dtype, mask_dtype):
             t = T.multiply_mask(
-                T.from_numpy(x, dtype=dtype),
-                T.from_numpy(y, dtype=mask_dtype)
+                T.as_tensor(x, dtype=dtype),
+                T.as_tensor(y, dtype=mask_dtype)
             )
             self.assertEqual(T.get_dtype(t), dtype)
             np.testing.assert_allclose(
@@ -752,16 +784,16 @@ class TensorCoreTestCase(unittest.TestCase):
                 y = np.asarray(y, dtype=dtype)
                 expected = np.where(condition, x, y)
                 ret = T.where(
-                    T.from_numpy(condition, dtype=T.boolean),
-                    T.from_numpy(x, dtype=dtype),
-                    T.from_numpy(y, dtype=dtype),
+                    T.as_tensor(condition, dtype=T.boolean),
+                    T.as_tensor(x, dtype=dtype),
+                    T.as_tensor(y, dtype=dtype),
                 )
                 self.assertEqual(T.get_dtype(ret), dtype)
                 np.testing.assert_equal(T.to_numpy(ret), expected)
             else:
                 expected = np.where(condition)
                 self.assertEqual(len(expected), len(condition.shape))
-                ret = T.where(T.from_numpy(condition, dtype=T.boolean))
+                ret = T.where(T.as_tensor(condition, dtype=T.boolean))
                 self.assertEqual(len(ret), len(condition.shape))
                 for a, b in zip(ret, expected):
                     np.testing.assert_equal(T.to_numpy(a), b)
@@ -797,8 +829,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randn(2, 3, 4)
         y = np.random.randn(1, 3, 4)
         x = np.concatenate([y, x], axis=0)
-        t1 = T.as_tensor(x)
-        t2 = T.as_tensor(y)
+        t1 = T.as_tensor_jit(x)
+        t2 = T.as_tensor_jit(y)
 
         # test equal
         np.testing.assert_equal(read_bool(T.equal(t1, t2)), (x == y))
@@ -837,9 +869,9 @@ class TensorCoreTestCase(unittest.TestCase):
         y = np.random.randn(2, 3, 4)
 
         # requires_grad
-        yt = T.requires_grad(T.as_tensor(y))
+        yt = T.requires_grad(T.as_tensor_jit(y))
 
-        xt = T.as_tensor(x)
+        xt = T.as_tensor_jit(x)
         xt_copy = T.requires_grad(xt, copy=False)
         self.assertIs(xt_copy, xt)
         l_sum = T.reduce_sum(xt + xt_copy)
@@ -935,7 +967,7 @@ class TensorCoreTestCase(unittest.TestCase):
         for x in [np.array([-1, 0, 1]), np.array([1., 2., 3.]),
                   np.array([np.inf, 0.]), np.array([np.nan, 0.]),
                   np.array([np.inf, np.nan])]:
-            t = T.as_tensor(x)
+            t = T.as_tensor_jit(x)
             np.testing.assert_equal(T.is_finite(t), np.isfinite(x))
             is_finite = np.all(np.isfinite(x))
 
