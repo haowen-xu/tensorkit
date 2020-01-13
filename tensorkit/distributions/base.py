@@ -202,7 +202,7 @@ class Distribution(metaclass=DocInherit):
         raise NotImplementedError()
 
     def log_prob(self,
-                 given: Union[T.Tensor, 'StochasticTensor'],
+                 given: 'TensorOrData',
                  group_ndims: int = 0) -> T.Tensor:
         """
         Compute the log-prob or log-density of the given tensor.
@@ -216,8 +216,7 @@ class Distribution(metaclass=DocInherit):
         Returns:
             The computed log-prob or log-density.
         """
-        if isinstance(given, StochasticTensor):
-            given = given.tensor
+        given = T.as_tensor(given)
         reduce_ndims = get_prob_reduce_ndims(
             # here `given` might have lower rank than `len(value_shape)`,
             # in which case `given` should be broadcasted to match `value_shape`.
@@ -229,7 +228,7 @@ class Distribution(metaclass=DocInherit):
         return self._log_prob(given, group_ndims, reduce_ndims)
 
     def prob(self,
-             given: Union[T.Tensor, 'StochasticTensor'],
+             given: 'TensorOrData',
              group_ndims: int = 0) -> T.Tensor:
         """
         Compute the probability or density of the given tensor.
@@ -265,3 +264,4 @@ class Distribution(metaclass=DocInherit):
 
 # back reference to the StochasticTensor
 from ..stochastic import StochasticTensor
+from ..typing_ import TensorOrData

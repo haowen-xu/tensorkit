@@ -2,8 +2,9 @@ from typing import *
 
 from .. import tensor as T
 from ..stochastic import StochasticTensor
+from ..typing_ import *
 from .base import Distribution
-from .utils import copy_distribution
+from .utils import copy_distribution, check_tensor_arg_types
 
 __all__ = [
     'UnitNormal',
@@ -141,32 +142,23 @@ class BaseNormal(Distribution):
 
     def __init__(self,
                  mean: T.Tensor,
-                 std: Optional[T.Tensor] = None,
+                 std: Optional[TensorOrData] = None,
                  *,
-                 logstd: Optional[T.Tensor] = None,
+                 logstd: Optional[TensorOrData] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None):
         # validate the arguments
-        if (std is None) == (logstd is None):
-            raise ValueError('Either `std` or `logstd` must be specified, '
-                             'but not both.')
-
+        mean, (std, logstd) = check_tensor_arg_types(
+            ('mean', mean), [('std', std), ('logstd', logstd)])
         if std is not None:
             mutual_params = {'std': std}
             stdx = std
         else:
             mutual_params = {'logstd': logstd}
             stdx = logstd
-
-        dtype = T.get_dtype(mean)
-        if T.get_dtype(stdx) != dtype:
-            raise ValueError(
-                f'The dtype of `mean` does not equal the dtype of '
-                f'`{list(mutual_params)[0]}`: {dtype} vs {T.get_dtype(stdx)}'
-            )
-
         mean_shape = T.shape(mean)
+        dtype = T.get_dtype(mean)
         stdx_shape = T.shape(stdx)
         value_shape = T.broadcast_shape(mean_shape, stdx_shape)
 
@@ -230,9 +222,9 @@ class Normal(BaseNormal):
 
     def __init__(self,
                  mean: T.Tensor,
-                 std: Optional[T.Tensor] = None,
+                 std: Optional[TensorOrData] = None,
                  *,
-                 logstd: Optional[T.Tensor] = None,
+                 logstd: Optional[TensorOrData] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
                  validate_tensors: Optional[bool] = None):
@@ -303,9 +295,9 @@ class TruncatedNormal(BaseNormal):
 
     def __init__(self,
                  mean: T.Tensor,
-                 std: Optional[T.Tensor] = None,
+                 std: Optional[TensorOrData] = None,
                  *,
-                 logstd: Optional[T.Tensor] = None,
+                 logstd: Optional[TensorOrData] = None,
                  low: Optional[float] = None,
                  high: Optional[float] = None,
                  reparameterized: bool = True,

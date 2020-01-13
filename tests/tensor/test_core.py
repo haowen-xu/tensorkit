@@ -121,6 +121,23 @@ class TensorCoreTestCase(unittest.TestCase):
         with pytest.raises(Exception):
             _ = T.as_tensor(object())  # not a tensor, should raise error
 
+        # from numpy: force copied
+        for x in [np.array([1., 2., 3.])]:
+            for dtype in (None,) + number_dtypes:
+                xx = copy.copy(x)
+                self.assertIsInstance(xx, type(x))
+                dtype_kwargs = {'dtype': dtype} if dtype is not None else {}
+                t = T.from_numpy(xx, **dtype_kwargs)
+                self.assertIsInstance(t, T.Tensor)
+                xx[0] = 12345.
+                np.testing.assert_equal(
+                    T.to_numpy(t), x,
+                    err_msg=f'{x}, {dtype}'
+                )
+
+        with pytest.raises(Exception):
+            _ = T.from_numpy(object())  # not a tensor, should raise error
+
         # float_scalar
         for value in (1.25, 125):
             for dtype in (T.float16, T.float32, T.float64):

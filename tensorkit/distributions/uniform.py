@@ -3,8 +3,9 @@ from typing import *
 
 from .. import tensor as T
 from ..stochastic import StochasticTensor
+from ..typing_ import *
 from .base import Distribution
-from .utils import log_pdf_mask, copy_distribution
+from .utils import log_pdf_mask, copy_distribution, check_tensor_arg_types
 
 __all__ = ['Uniform']
 
@@ -19,10 +20,10 @@ class Uniform(Distribution):
     _shape: Optional[List[int]]
     """The original `shape` argument for constructor."""
 
-    low: Union[float, T.Tensor]
+    low: Union[T.Tensor]
     """The lower-bound of the uniform distribution."""
 
-    high: Union[float, T.Tensor]
+    high: Union[T.Tensor]
     """The upper-bound of the uniform distribution (exclusive)."""
 
     log_zero: float
@@ -32,8 +33,8 @@ class Uniform(Distribution):
 
     def __init__(self,
                  shape: Optional[List[int]] = None,
-                 low: Optional[Union[float, T.Tensor]] = None,
-                 high: Optional[Union[float, T.Tensor]] = None,
+                 low: Optional[TensorOrData] = None,
+                 high: Optional[TensorOrData] = None,
                  dtype: str = T.float_x(),
                  reparameterized: bool = True,
                  event_ndims: int = 0,
@@ -50,8 +51,8 @@ class Uniform(Distribution):
                 distribution will be ``[0, 1)``.  Specifying only one of
                 `low` or `high` is not allowed.
             high: The upper-bound of the uniform distribution (exclusive).
-            dtype: Dtype of the samples.
-                Ignored if `low` and `high` are specified.
+            dtype: Dtype of the samples.  Ignored if `low` and `high` are
+                specified, and either of them is a tensor.
             reparameterized: Whether the distribution should be reparameterized?
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
@@ -70,29 +71,27 @@ class Uniform(Distribution):
             raise ValueError('`low` and `high` must be both specified, or '
                              'neither specified.')
 
+        range_checked = False
         if low is not None and high is not None:
-            if isinstance(low, T.Tensor) or isinstance(high, T.Tensor):
-                if not isinstance(low, T.Tensor):
-                    low = T.as_tensor_jit(low, dtype=high.dtype)
-                if not isinstance(high, T.Tensor):
-                    high = T.as_tensor_jit(high, dtype=low.dtype)
-
-                low_dtype = T.get_dtype(low)
-                high_dtype = T.get_dtype(high)
-                if low_dtype != high_dtype:
-                    raise ValueError(f'`low.dtype` != `high.dtype`: '
-                                     f'`low.dtype` == {low_dtype}, while '
-                                     f'`high.dtype` == {high_dtype}')
-
-                dtype = low_dtype
-                value_shape = value_shape + \
-                              T.broadcast_shape(T.shape(low), T.shape(high))
-            else:
-                low = float(low)
-                high = float(high)
+            if isinstance(low, float) and isinstance(high, float):
                 if low >= high:
                     raise ValueError(f'`low` < `high` does not hold: '
                                      f'`low` == {low}, `high` == {high}')
+                range_checked = True
+
+            low, high = check_tensor_arg_types(
+                ('low', low), ('high', high), default_dtype=dtype)
+
+            low_dtype = T.get_dtype(low)
+            high_dtype = T.get_dtype(high)
+            if low_dtype != high_dtype:
+                raise ValueError(f'`low.dtype` != `high.dtype`: '
+                                 f'`low.dtype` == {low_dtype}, while '
+                                 f'`high.dtype` == {high_dtype}')
+
+            dtype = low_dtype
+            value_shape = (value_shape +
+                           T.broadcast_shape(T.shape(low), T.shape(high)))
 
         super().__init__(
             dtype=dtype,
@@ -102,8 +101,8 @@ class Uniform(Distribution):
             validate_tensors=validate_tensors,
         )
 
-        if self.validate_tensors and isinstance(low, T.Tensor) and \
-                isinstance(high, T.Tensor):
+        if self.validate_tensors and low is not None and high is not None and \
+                not range_checked:
             if not T.is_all(T.less(low, high)):
                 raise ValueError('`low` < `high` does not hold.')
 
@@ -116,9 +115,6 @@ class Uniform(Distribution):
         if self._neg_log_high_minus_low is None:
             if self.low is None or self.high is None:
                 self._neg_log_high_minus_low = T.zeros([], dtype=self.dtype)
-            elif isinstance(self.low, float) and isinstance(self.high, float):
-                self._neg_log_high_minus_low = T.float_scalar(
-                    -math.log(self.high - self.low), dtype=self.dtype)
             else:
                 self._neg_log_high_minus_low = -T.log(self.high - self.low)
         return self._neg_log_high_minus_low

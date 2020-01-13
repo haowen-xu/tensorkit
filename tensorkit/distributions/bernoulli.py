@@ -1,9 +1,10 @@
 from typing import *
 
 from .. import tensor as T
+from ..typing_ import *
 from ..stochastic import StochasticTensor
 from .base import Distribution
-from .utils import copy_distribution
+from .utils import copy_distribution, check_tensor_arg_types
 
 __all__ = ['Bernoulli']
 
@@ -34,8 +35,8 @@ class Bernoulli(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[T.Tensor] = None,
-                 probs: Optional[T.Tensor] = None,
+                 logits: Optional[TensorOrData] = None,
+                 probs: Optional[TensorOrData] = None,
                  dtype: str = T.int32,
                  event_ndims: int = 0,
                  epsilon: float = 1e-7,
@@ -56,20 +57,15 @@ class Bernoulli(Distribution):
                 Defaults to ``settings.validate_tensors``.
         """
         # validate the arguments
-        if (logits is None) == (probs is None):
-            raise ValueError('Either `logits` or `probs` must be specified, '
-                             'but not both.')
-
-        epsilon = float(epsilon)
-
+        (logits, probs), = check_tensor_arg_types([('logits', logits),
+                                                   ('probs', probs)])
         if logits is not None:
             value_shape = T.shape(logits)
-            probs = None
             mutual_params = {'logits': logits}
         else:
             value_shape = T.shape(probs)
-            logits = None
             mutual_params = {'probs': probs}
+        epsilon = float(epsilon)
 
         # construct the object
         super().__init__(

@@ -81,6 +81,16 @@ class UniformTestCase(unittest.TestCase):
             self.assertEqual(uniform.low, -1.)
             self.assertEqual(uniform.high, 2.)
 
+            # specify just one of `low`, `high` as float, another as tensor
+            uniform = Uniform(
+                shape=shape, low=-1., high=T.as_tensor(2., dtype=dtype),
+                event_ndims=event_ndims)
+            self.assertEqual(uniform.value_shape, shape)
+            self.assertEqual(uniform.dtype, dtype)
+            self.assertEqual(uniform.event_ndims, event_ndims)
+            self.assertEqual(uniform.low, -1.)
+            self.assertEqual(uniform.high, 2.)
+
         for event_ndims, dtype, shape in product(range(0, 3), float_dtypes,
                                                  ([], [2, 3])):
             if event_ndims > len(shape) + 2:
@@ -103,8 +113,7 @@ class UniformTestCase(unittest.TestCase):
             _ = Uniform(low=-1.)
 
         with pytest.raises(ValueError,
-                           match='`low.dtype` != `high.dtype`: `low.dtype` == '
-                                 'float32, while `high.dtype` == float64'):
+                           match='`high.dtype` != `low.dtype`: float64 vs float32'):
             _ = Uniform(low=T.full([2, 3], -1., dtype=T.float32),
                         high=T.full([2, 3], 2., dtype=T.float64))
 

@@ -8,6 +8,7 @@ import pytest
 from mock import Mock
 
 from tensorkit import tensor as T
+from tensorkit import *
 from tensorkit.distributions.utils import *
 from tests.helper import float_dtypes
 
@@ -117,6 +118,74 @@ class DistributionUtilsTestCase(unittest.TestCase):
             ret = log_pdf_mask(x_t >= 0., x_t ** 2, T.random.LOG_ZERO_VALUE)
             expected = np.where(x >= 0., x ** 2, T.random.LOG_ZERO_VALUE)
             np.testing.assert_allclose(ret, expected, rtol=1e-4)
+
+    def test_check_tensor_arg_types(self):
+        for dtype in float_dtypes:
+            # check ordinary usage: mixed floats, numbers, mutual groups
+            for specified_dtype in [None, dtype]:
+                e_orig = T.as_tensor([1., 2., 3.], dtype=dtype)
+                f_orig = StochasticTensor(
+                    T.as_tensor([4., 5., 6.], dtype=dtype),
+                    UnitNormal([]), None, 0, True
+                )
+                a, [b, c], [d, e], f = check_tensor_arg_types(
+                    ('a', 1.0),
+                    [('b', 2.0), ('c', None)],
+                    [('d', None), ('e', e_orig)],
+                    ('f', f_orig),
+                    dtype=specified_dtype
+                )
+                for t, v in [(a, 1.0), (b, 2.0), (e, e_orig), (f, f_orig.tensor)]:
+                    self.assertIsInstance(t, T.Tensor)
+                    self.assertEqual(T.get_dtype(t), dtype)
+                    if isinstance(v, float):
+                        np.testing.assert_equal(T.to_numpy(t), v)
+                    else:
+                        self.assertIs(t, v)
+
+            # float dtype determined by `dtype` and `default_dtype`
+            for arg_name in ('dtype', 'default_dtype'):
+                [a] = check_tensor_arg_types(('a', 123.0), **{arg_name: dtype})
+                self.assertIsInstance(a, T.Tensor)
+                self.assertEqual(T.get_dtype(a), dtype)
+                np.testing.assert_equal(T.to_numpy(a), 123.0)
+
+            # tensor dtype will ignore `default_dtype`, but checked against `dtype`.
+            a_orig = T.as_tensor([1., 2., 3.], dtype=dtype)
+            [a] = check_tensor_arg_types(('a', a_orig), default_dtype=T.float32)
+            self.assertIs(a, a_orig)
+
+            if dtype != T.float32:
+                with pytest.raises(ValueError,
+                                   match=f'`a.dtype` != `dtype`: {dtype} vs '
+                                         f'{T.float32}'):
+                    _ = check_tensor_arg_types(('a', a), dtype=T.float32)
+
+            # check multiple tensors type mismatch
+            if dtype != T.float32:
+                a_orig = T.as_tensor([1., 2., 3.], dtype=dtype)
+                b_orig = T.as_tensor([4., 5., 6.], dtype=T.float32)
+
+                with pytest.raises(ValueError,
+                                   match=f'`b.dtype` != `a.dtype`: '
+                                         f'{T.float32} vs {dtype}'):
+                    _ = check_tensor_arg_types(('a', a_orig), ('b', b_orig))
+
+            # check tensor cannot be None
+            with pytest.raises(ValueError,
+                               match='`a` must be specified.'):
+                _ = check_tensor_arg_types(('a', None))
+
+            # check mutual group must specify exactly one tensor
+            for t in [None, T.as_tensor([1., 2., 3.], dtype=dtype)]:
+                with pytest.raises(ValueError,
+                                   match="Either `a` or `b` must be "
+                                         "specified, but not both"):
+                    _ = check_tensor_arg_types([('a', t), ('b', t)])
+                with pytest.raises(ValueError,
+                                   match="One and exactly one of `a`, `b` and "
+                                         "`c` must be specified"):
+                    _ = check_tensor_arg_types([('a', t), ('b', t), ('c', t)])
 
     def test_copy_distribution(self):
         # cached attribute copied

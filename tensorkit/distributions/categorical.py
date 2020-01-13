@@ -2,8 +2,9 @@ from typing import *
 
 from .. import tensor as T
 from ..stochastic import StochasticTensor
+from ..typing_ import *
 from .base import Distribution
-from .utils import copy_distribution
+from .utils import copy_distribution, check_tensor_arg_types
 
 __all__ = ['Categorical', 'OneHotCategorical']
 
@@ -30,26 +31,21 @@ class BaseCategorical(Distribution):
 
     def __init__(self,
                  *,
-                 logits: Optional[T.Tensor],
-                 probs: Optional[T.Tensor],
+                 logits: Optional[TensorOrData],
+                 probs: Optional[TensorOrData],
                  dtype: str,
                  event_ndims: int,
                  epsilon: float = 1e-7,
                  validate_tensors: Optional[bool] = None):
-        if (logits is None) == (probs is None):
-            raise ValueError('Either `logits` or `probs` must be specified, '
-                             'but not both.')
-
-        epsilon = float(epsilon)
-
+        (logits, probs), = check_tensor_arg_types([('logits', logits),
+                                                   ('probs', probs)])
         if logits is not None:
             param_shape = T.shape(logits)
-            probs = None
             mutual_params = {'logits': logits}
         else:
             param_shape = T.shape(probs)
-            logits = None
             mutual_params = {'probs': probs}
+        epsilon = float(epsilon)
 
         if len(param_shape) < 1:
             for param_key in mutual_params:

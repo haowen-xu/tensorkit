@@ -170,10 +170,9 @@ class NormalTestCase(unittest.TestCase):
                     if other_dtype != dtype:
                         other_val = T.cast(val, other_dtype)
                         with pytest.raises(ValueError,
-                                           match=f'The dtype of `mean` does '
-                                                 f'not equal the dtype of '
-                                                 f'`{key}`: {dtype} vs '
-                                                 f'{other_dtype}'):
+                                           match=f'`{key}.dtype` != `mean.'
+                                                 f'dtype`: {other_dtype} vs '
+                                                 f'{dtype}'):
                             _ = _MyBaseNormal(mean=mean_t, **{key: other_val})
 
             # must specify either std or logstd, but not both

@@ -22,7 +22,7 @@ __all__ = [
     'cast', 'cast_like', 'get_dtype', 'is_floating_point',
 
     # tensor constructors
-    'as_tensor_jit', 'as_tensor', 'float_scalar', 'int_scalar',
+    'as_tensor_jit', 'as_tensor', 'from_numpy', 'float_scalar', 'int_scalar',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
     'arange', 'one_hot',
 
@@ -197,6 +197,22 @@ def as_tensor(data,
     if force_copy:
         ret = torch.tensor(ret)
     return ret
+
+
+@jit_ignore
+def from_numpy(data, dtype: Optional[Union[torch.dtype, str]] = None) -> Tensor:
+    """
+    Construct a new tensor from given numpy array `data`.
+
+    Args:
+        data: The numpy array, which will always be copied, even if the backend
+            supports share memory between a numpy array and a tensor.
+        dtype: The expected dtype of the constructed tensor.
+
+    Returns:
+        The constructed tensor.
+    """
+    return as_tensor(data, dtype=dtype, force_copy=True)
 
 
 @jit
