@@ -9,7 +9,7 @@ __all__ = [
 
 @jit
 def sgvb_estimator(values: Tensor,
-                   axes: Optional[List[int]] = None,
+                   axis: Optional[List[int]] = None,
                    keepdims: bool = False,
                    negative: bool = False) -> Tensor:
     """
@@ -24,10 +24,10 @@ def sgvb_estimator(values: Tensor,
     Args:
         values: Values of the target function given `z` and `x`, i.e.,
             :math:`f(\\mathbf{z},\\mathbf{x})`.
-        axes: The sampling axes to be reduced in outputs.
+        axis: The sampling axis to be reduced in outputs.
             If not specified, no axis will be reduced.
-        keepdims: When `axes` is specified, whether or not to keep
-            the reduced axes?  Defaults to :obj:`False`.
+        keepdims: When `axis` is specified, whether or not to keep
+            the reduced axis?  Defaults to :obj:`False`.
         negative: If :obj:`True`, returns negative of the gradient estimator,
             instead of the original gradient estimator derived from `values`.
 
@@ -37,8 +37,8 @@ def sgvb_estimator(values: Tensor,
         effectively maximize/minimize the original target.
     """
     estimator = values
-    if axes is not None:
-        estimator = reduce_mean(estimator, axes=axes, keepdims=keepdims)
+    if axis is not None:
+        estimator = reduce_mean(estimator, axis=axis, keepdims=keepdims)
     if negative:
         estimator = -estimator
     return estimator
@@ -46,7 +46,7 @@ def sgvb_estimator(values: Tensor,
 
 @jit
 def iwae_estimator(log_values: Tensor,
-                   axes: Optional[List[int]] = None,
+                   axis: Optional[List[int]] = None,
                    keepdims: bool = False,
                    negative: bool = False) -> Tensor:
     """
@@ -68,10 +68,10 @@ def iwae_estimator(log_values: Tensor,
     Args:
         log_values: Log values of the target function given `z` and `x`, i.e.,
             :math:`\\log f(\\mathbf{z},\\mathbf{x})`.
-        axes: The sampling axes to be reduced in outputs.
+        axis: The sampling axis to be reduced in outputs.
             If not specified, no axis will be reduced.
-        keepdims: When `axes` is specified, whether or not to keep
-            the reduced axes?  Defaults to :obj:`False`.
+        keepdims: When `axis` is specified, whether or not to keep
+            the reduced axis?  Defaults to :obj:`False`.
         negative: If :obj:`True`, returns negative of the gradient estimator,
             instead of the original gradient estimator derived from `log_values`.
 
@@ -80,12 +80,12 @@ def iwae_estimator(log_values: Tensor,
         Maximizing/minimizing this surrogate via gradient descent will
         effectively maximize/minimize the original target.
     """
-    if axes is None or len(axes) == 0:
+    if axis is None or len(axis) == 0:
         raise ValueError(
             '`iwae_estimator` requires to take multiple samples of the latent '
-            'variables, thus the `axes` argument must be specified'
+            'variables, thus the `axis` argument must be specified'
         )
-    estimator = log_mean_exp(log_values, axes=axes, keepdims=keepdims)
+    estimator = log_mean_exp(log_values, axis=axis, keepdims=keepdims)
     if negative:
         estimator = -estimator
     return estimator

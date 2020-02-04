@@ -17,7 +17,7 @@ __all__ = [
 class VariationalInference(object):
 
     __slots__ = (
-        'latent_log_joint', 'log_joint', 'axes', 'lower_bound',
+        'latent_log_joint', 'log_joint', 'axis', 'lower_bound',
         'training', 'evaluation',
         '__weakref__',  # to support weakref.ref
     )
@@ -28,10 +28,10 @@ class VariationalInference(object):
     latent_log_joint: T.Tensor
     """Joint log-probability or log-density of the latent variables."""
 
-    axes: Optional[List[int]]
+    axis: Optional[List[int]]
     """
-    The axes to be considered as the sampling dimensions of latent variables.
-    The specified axes will be summed up in the variational lower-bounds or
+    The axis to be considered as the sampling dimensions of latent variables.
+    The specified axis will be summed up in the variational lower-bounds or
     training objectives.  If :obj:`None`, no dimensions will be reduced.
     """
 
@@ -47,7 +47,7 @@ class VariationalInference(object):
     def __init__(self,
                  log_joint: T.Tensor,
                  latent_log_joint: T.Tensor,
-                 axes: Optional[List[int]] = None):
+                 axis: Optional[List[int]] = None):
         """
         Construct a new :class:`VariationalInference` instance.
 
@@ -55,16 +55,16 @@ class VariationalInference(object):
             log_joint: The log-joint of model.
             latent_log_joint: The log-joint of latent variables from the
                 variational net.
-            axes: The axes to be considered as the sampling dimensions
-                of latent variables.  The specified axes will be summed up in
+            axis: The axis to be considered as the sampling dimensions
+                of latent variables.  The specified axis will be summed up in
                 the variational lower-bounds or training objectives.
-                Defaults to :obj:`None`, no axes will be reduced.
+                Defaults to :obj:`None`, no axis will be reduced.
         """
-        if axes is not None:
-            axes = list(map(int, axes))
+        if axis is not None:
+            axis = list(map(int, axis))
         self.log_joint = log_joint
         self.latent_log_joint = latent_log_joint
-        self.axes = axes
+        self.axis = axis
         self.lower_bound = VariationalLowerBounds(self)
         self.training = VariationalTrainingObjectives(self)
         self.evaluation = VariationalEvaluation(self)
@@ -94,7 +94,7 @@ class VariationalLowerBounds(object):
         return elbo_objective(
             log_joint=vi.log_joint,
             latent_log_joint=vi.latent_log_joint,
-            axes=vi.axes,
+            axis=vi.axis,
             keepdims=keepdims,
         )
 
@@ -112,7 +112,7 @@ class VariationalLowerBounds(object):
         return monte_carlo_objective(
             log_joint=vi.log_joint,
             latent_log_joint=vi.latent_log_joint,
-            axes=vi.axes,
+            axis=vi.axis,
             keepdims=keepdims,
         )
 
@@ -143,7 +143,7 @@ class VariationalTrainingObjectives(object):
         return sgvb_estimator(
             # -(log p(x,z) - log q(z|x))
             values=vi.latent_log_joint - vi.log_joint,
-            axes=vi.axes,
+            axis=vi.axis,
             keepdims=keepdims,
         )
 
@@ -161,7 +161,7 @@ class VariationalTrainingObjectives(object):
         vi: VariationalInference = self._vi()
         return iwae_estimator(
             log_values=vi.log_joint - vi.latent_log_joint,
-            axes=vi.axes,
+            axis=vi.axis,
             keepdims=keepdims,
             negative=True
         )
@@ -192,7 +192,7 @@ class VariationalEvaluation(object):
         return importance_sampling_log_likelihood(
             log_joint=vi.log_joint,
             latent_log_joint=vi.latent_log_joint,
-            axes=vi.axes,
+            axis=vi.axis,
             keepdims=keepdims,
         )
 

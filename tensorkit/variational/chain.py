@@ -21,7 +21,7 @@ class VariationalChain(object):
         :meth:`tensorkit.bayes.BayesianNet.variational_chain`
     """
 
-    __slots__ = ('p', 'q', 'latent_names', 'latent_axes', '_log_joint',
+    __slots__ = ('p', 'q', 'latent_names', 'latent_axis', '_log_joint',
                  '_latent_log_joint', '_vi')
 
     p: 'BayesianNet'
@@ -33,7 +33,7 @@ class VariationalChain(object):
     latent_names: List[str]
     """The names of the latent variables."""
 
-    latent_axes: Optional[List[int]]
+    latent_axis: Optional[List[int]]
     """The sampling dimensions of the latent variables."""
 
     _log_joint: Optional[T.Tensor]
@@ -44,7 +44,7 @@ class VariationalChain(object):
                  p: 'BayesianNet',
                  q: 'BayesianNet',
                  latent_names: Optional[Sequence[str]] = None,
-                 latent_axes: Optional[List[int]] = None,
+                 latent_axis: Optional[List[int]] = None,
                  log_joint: Optional[T.Tensor] = None,
                  latent_log_joint: Optional[T.Tensor] = None):
         """
@@ -55,10 +55,10 @@ class VariationalChain(object):
             q: The variational net.
             latent_names: Names of the latent variables.  If not specified,
                 all random variables in `q` net will be considered as latent.
-            latent_axes: The axes to be considered as the sampling dimensions
-                of latent variables.  The specified axes will be summed up in
+            latent_axis: The axis to be considered as the sampling dimensions
+                of latent variables.  The specified axis will be summed up in
                 the variational lower-bounds or training objectives.
-                Defaults to :obj:`None`, no axes will be reduced.
+                Defaults to :obj:`None`, no axis will be reduced.
             log_joint: Pre-computed joint log-probability or log-density of
                 the generative net, i.e., ``sum(p.log_probs(list(p)))`.
             latent_log_joint: Pre-computed joint log-probability or log-density of
@@ -67,13 +67,13 @@ class VariationalChain(object):
         """
         latent_names = (list(q) if latent_names is None
                         else list(map(str, latent_names)))
-        if latent_axes is not None:
-            latent_axes = list(map(int, latent_axes))
+        if latent_axis is not None:
+            latent_axis = list(map(int, latent_axis))
 
         self.p = p
         self.q = q
         self.latent_names = latent_names
-        self.latent_axes = latent_axes
+        self.latent_axis = latent_axis
         self._log_joint = log_joint
         self._latent_log_joint = latent_log_joint
         self._vi = None  # constructed on demand later
@@ -101,7 +101,7 @@ class VariationalChain(object):
             self._vi = VariationalInference(
                 log_joint=self.log_joint,
                 latent_log_joint=self.latent_log_joint,
-                axes=self.latent_axes,
+                axis=self.latent_axis,
             )
         return self._vi
 

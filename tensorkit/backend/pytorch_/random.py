@@ -14,6 +14,9 @@ __all__ = [
     # uniform
     'rand', 'uniform',
 
+    # shuffle and random permutation
+    'shuffle', 'random_permutation',
+
     # normal
     'randn', 'randn_log_pdf',
     'normal', 'normal_log_pdf',
@@ -26,6 +29,9 @@ __all__ = [
     'categorical_logits_to_probs', 'categorical_probs_to_logits',
     'categorical', 'categorical_log_prob',
     'one_hot_categorical', 'one_hot_categorical_log_prob',
+
+    # initializers
+    'normal_init', 'uniform_init',
 ]
 
 
@@ -51,6 +57,27 @@ def uniform(shape: List[int], low: float, high: float,
                          format(low, high))
     scale = high - low
     return rand(shape, dtype) * scale + low
+
+
+# ---- shuffle and random permutation ----
+@jit
+def shuffle(input: Tensor, axis: int = 0) -> Tensor:
+    input_shape = input.shape
+    shuffle_size = input_shape[axis]
+    permutation = torch.randperm(shuffle_size, dtype=torch.long)
+    if axis == 0:
+        return input[permutation]
+    else:
+        return index_select(input, permutation, axis=axis)
+
+
+@jit
+def random_permutation(n: int, dtype: str = 'int32') -> Tensor:
+    if dtype == 'int32':
+        int_dtype = torch.int32
+    else:
+        int_dtype = {'int8': torch.int8, 'int16': torch.int16, 'int64': torch.int64}[dtype]
+    return torch.randperm(n, dtype=int_dtype)
 
 
 # ---- normal distribution ----
@@ -292,3 +319,14 @@ def one_hot_categorical_log_prob(given: Tensor,
     else:
         return sparse_cross_entropy_with_logits(
             logits=logits, labels=given, negative=True)
+
+
+# ---- initializers ----
+def normal_init(tensor: Tensor, mean: float, std: float) -> Tensor:
+    torch.nn.init.normal_(tensor, mean, std)
+    return tensor
+
+
+def uniform_init(tensor: Tensor, low: float, high: float) -> Tensor:
+    torch.nn.init.uniform_(tensor, low, high)
+    return tensor

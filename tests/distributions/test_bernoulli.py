@@ -7,8 +7,9 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
 from tensorkit.distributions.utils import copy_distribution
-from tests.helper import float_dtypes, int_dtypes
+from tests.helper import *
 
 
 def sigmoid(x):
@@ -40,9 +41,9 @@ class BernoulliTestCase(unittest.TestCase):
                 self.assertEqual(bernoulli.event_ndims, 1)
                 self.assertEqual(bernoulli.epsilon, 1e-6)
                 self.assertIs(getattr(bernoulli, key), val)
-                np.testing.assert_allclose(
-                    T.to_numpy(getattr(bernoulli, other_key)),
-                    T.to_numpy(mutual_params[other_key]),
+                assert_allclose(
+                    getattr(bernoulli, other_key),
+                    mutual_params[other_key],
                     rtol=1e-4
                 )
                 self.assertEqual(bernoulli._mutual_params, {key: val})
@@ -109,12 +110,10 @@ class BernoulliTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), bernoulli.log_prob(t)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.bernoulli_log_prob(
-                            given=t.tensor, logits=logits_t, group_ndims=1)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    T.random.bernoulli_log_prob(
+                        given=t.tensor, logits=logits_t, group_ndims=1)
                 )
 
             # n_samples == 5
@@ -129,10 +128,8 @@ class BernoulliTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), bernoulli.log_prob(t, -1)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.bernoulli_log_prob(
-                            given=t.tensor, logits=logits_t, group_ndims=0)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    T.random.bernoulli_log_prob(
+                        given=t.tensor, logits=logits_t, group_ndims=0)
                 )

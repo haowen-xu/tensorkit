@@ -1,11 +1,13 @@
 import unittest
+from itertools import product
 
 import numpy as np
 import pytest
 
 from tensorkit import tensor as T
-
-assert_allclose = np.testing.assert_allclose
+from tests import ops
+from tests.helper import *
+from tests.ops import *
 
 
 class TensorNNTestCase(unittest.TestCase):
@@ -17,27 +19,32 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertTrue(np.any(x < 0))
         self.assertTrue(np.any(x > 0))
         self.assertTrue(np.any(x == 0))
+        x_t = T.as_tensor_backend(x)
 
         # test relu
-        np.testing.assert_allclose(
-            T.to_numpy(T.nn.relu(T.as_tensor_jit(x))),
-            x * (x >= 0)
-        )
+        assert_allclose(T.nn.relu(x_t), x * (x >= 0))
 
         # test leaky_relu
-        np.testing.assert_allclose(
-            T.to_numpy(T.nn.leaky_relu(T.as_tensor_jit(x))),
-            x * (x >= 0) + (0.01 * x * (x < 0))
+        self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
+        assert_allclose(
+            T.nn.leaky_relu(x_t),
+            x * (x >= 0) + (T.nn.LEAKY_RELU_DEFAULT_SLOPE * x * (x < 0))
         )
-        np.testing.assert_allclose(
-            T.to_numpy(T.nn.leaky_relu(T.as_tensor_jit(x), a=0.02)),
-            x * (x >= 0) + (0.02 * x * (x < 0))
+        assert_allclose(
+            T.nn.leaky_relu(x_t, negative_slope=0.2),
+            x * (x >= 0) + (0.2 * x * (x < 0))
         )
 
         # test sigmoid
-        np.testing.assert_allclose(
-            T.to_numpy(T.nn.sigmoid(T.as_tensor_jit(x))),
+        assert_allclose(
+            T.nn.sigmoid(x_t),
             np.where(x >= 0, 1. / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
+        )
+
+        # test log_sigmoid
+        assert_allclose(
+            T.nn.log_sigmoid(x_t),
+            np.where(x >= 0, - np.log1p(np.exp(-x)), x - np.log1p(np.exp(x)))
         )
 
         # test softmax
@@ -47,10 +54,7 @@ class TensorNNTestCase(unittest.TestCase):
             return x_exp / np.sum(x_exp, axis=axis, keepdims=True)
 
         for axis in [-3, -2, -1, 0, 1, 2]:
-            np.testing.assert_allclose(
-                T.to_numpy(T.nn.softmax(T.as_tensor_jit(x), axis=axis)),
-                softmax(x, axis=axis)
-            )
+            assert_allclose(T.nn.softmax(x_t, axis=axis), softmax(x, axis=axis))
 
         # test log_softmax
         def log_softmax(x, axis):
@@ -60,10 +64,13 @@ class TensorNNTestCase(unittest.TestCase):
                 np.sum(np.exp(x_diff), axis=axis, keepdims=True))
 
         for axis in [-3, -2, -1, 0, 1, 2]:
-            np.testing.assert_allclose(
-                T.to_numpy(T.nn.log_softmax(T.as_tensor_jit(x), axis=axis)),
+            assert_allclose(
+                T.nn.log_softmax(x_t, axis=axis),
                 log_softmax(x, axis=axis)
             )
+
+        # test softplus
+        assert_allclose(T.nn.softplus(x_t), np.log1p(np.exp(x)))
 
     def test_binary_cross_entropy(self):
         def sigmoid(x):
@@ -115,7 +122,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1})
 
-        _f = T.as_tensor_jit
+        _f = T.as_tensor_backend
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -123,14 +130,14 @@ class TensorNNTestCase(unittest.TestCase):
                 ans = binary_cross_entropy(logits, labels, reduction, negative)
                 out = T.nn.binary_cross_entropy_with_logits(
                     _f(logits), _f(labels), reduction, negative)
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
                 # test sparse labels (floating point labels)
                 ans = binary_cross_entropy(
                     logits, sparse_labels, reduction, negative)
                 out = T.nn.binary_cross_entropy_with_logits(
                     _f(logits), _f(sparse_labels), reduction, negative)
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
         # invalid `reduction` argument should raise error
         with pytest.raises(Exception):
@@ -182,7 +189,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4, 5))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1, 2, 3, 4, 5})
 
-        _f = T.as_tensor_jit
+        _f = T.as_tensor_backend
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -190,21 +197,21 @@ class TensorNNTestCase(unittest.TestCase):
                 ans = cross_entropy(logits, labels, reduction, negative)
                 out = T.nn.cross_entropy_with_logits(
                     _f(logits), _f(labels), reduction, negative)
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
                 # test cross_entropy on 2d
                 ans = cross_entropy(
                     logits[0, 0, 0], labels[0, 0], reduction, negative)
                 out = T.nn.cross_entropy_with_logits(
                     _f(logits[0, 0, 0]), _f(labels[0, 0]), reduction, negative)
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
                 # test sparse_cross_entropy
                 ans = sparse_cross_entropy(
                     logits, sparse_labels, reduction, negative)
                 out = T.nn.sparse_cross_entropy_with_logits(
                     _f(logits), _f(sparse_labels), reduction, negative)
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
                 # test sparse_cross_entropy on 2d
                 ans = sparse_cross_entropy(
@@ -213,7 +220,7 @@ class TensorNNTestCase(unittest.TestCase):
                     _f(logits[0, 0, 0]), _f(sparse_labels[0, 0]),
                     reduction, negative
                 )
-                np.testing.assert_allclose(ans, T.to_numpy(out))
+                assert_allclose(ans, out)
 
         # invalid `reduction` argument should raise error
         with pytest.raises(Exception):
@@ -225,16 +232,217 @@ class TensorNNTestCase(unittest.TestCase):
                 _f(logits), _f(labels), 'invalid')
 
         # validation for the shape of logits and labels
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match='cannot broadcast'):
             # logits and labels shape mismatch
-            _ = T.nn.cross_entropy_with_logits(_f(logits), _f(labels[:-1]))
+            _ = T.nn.cross_entropy_with_logits(_f(logits), _f(labels[..., :-1]))
 
-        with pytest.raises(Exception):
-            # logits rank too low
+        with pytest.raises(Exception, match='must be at least 2d'):
+            # logits and labels rank too low
+            _ = T.nn.cross_entropy_with_logits(_f(logits[0, 0, 0, 0]),
+                                               _f(labels[0, 0, 0]))
+
+        with pytest.raises(Exception, match='cannot broadcast'):
+            # logits and labels shape mismatch
+            _ = T.nn.sparse_cross_entropy_with_logits(_f(logits[..., :-1]),
+                                                      _f(sparse_labels))
+
+        with pytest.raises(Exception, match='must be at least 2d'):
+            # logits and labels rank too low
             _ = T.nn.sparse_cross_entropy_with_logits(_f(logits[0, 0, 0, 0]),
-                                                      _f(labels))
+                                                      _f(sparse_labels[0, 0, 0, 0]))
 
-        with pytest.raises(Exception):
-            # logits and labels shape mismatch
-            _ = T.nn.sparse_cross_entropy_with_logits(
-                _f(logits), _f(labels[:-1]))
+    def test_conv_shape_utils(self):
+        # channels_to_last
+        for spatial_ndims in (1, 2, 3):
+            T_fn_name = f'channel_first_to_last{spatial_ndims}d'
+            T_fn = getattr(T.nn, T_fn_name)
+            for ndims in range(spatial_ndims + 1, spatial_ndims + 2):
+                x = np.random.randn(*range(3, 3 + ndims))
+                T_ret = T_fn(T.as_tensor(x))
+                assert_equal(
+                    T_ret,
+                    channel_to_last_nd(x, spatial_ndims),
+                    err_msg=f'{T_fn_name}: {x.shape} -> {T_ret.shape}'
+                )
+            with pytest.raises(Exception,
+                               match='`input` must be at-least .*d'):
+                _ = T_fn(T.as_tensor(np.zeros([1] * spatial_ndims)))
+
+        x = np.random.randn(2, 3, 4, 5)
+        assert_equal(
+            T.nn.channel_first_to_last2d(T.as_tensor(x)),
+            np.transpose(x, [0, 2, 3, 1]),
+        )
+
+        # channels_to_first
+        for spatial_ndims in (1, 2, 3):
+            T_fn_name = f'channel_last_to_first{spatial_ndims}d'
+            T_fn = getattr(T.nn, T_fn_name)
+            for ndims in range(spatial_ndims + 1, spatial_ndims + 2):
+                x = np.random.randn(*range(3, 3 + ndims))
+                T_ret = T_fn(T.as_tensor(x))
+                assert_equal(
+                    T_ret,
+                    channel_to_first_nd(x, spatial_ndims),
+                    err_msg=f'{T_fn_name}: {x.shape} -> {T_ret.shape}'
+                )
+            with pytest.raises(Exception,
+                               match='`input` must be at-least .*d'):
+                _ = T_fn(T.as_tensor(np.zeros([1] * spatial_ndims)))
+
+        x = np.random.randn(2, 3, 4, 5)
+        assert_equal(
+            T.nn.channel_last_to_first2d(T.as_tensor(x)),
+            np.transpose(x, [0, 3, 1, 2]),
+        )
+
+        # space_to_depth and depth_to_space
+        channel_size = 4
+        for batch_shape in [[3], [2, 3]]:
+            for spatial_shape in [[6], [6, 7], [6, 7, 8]]:
+                spatial_ndims = len(spatial_shape)
+
+                for block_size in [1, 2, 3]:
+                    x = np.random.randn(
+                        *make_conv_shape(
+                            batch_shape, channel_size,
+                            [a * block_size for a in spatial_shape]
+                        )
+                    )
+                    T_fn1 = getattr(T.nn, f'space_to_depth{spatial_ndims}d')
+                    T_fn2 = getattr(T.nn, f'depth_to_space{spatial_ndims}d')
+
+                    # test space_to_depth
+                    fn1_out = T_fn1(T.as_tensor(x), block_size=block_size)
+                    assert_equal(
+                        fn1_out,
+                        space_to_depth_nd(x, block_size, spatial_ndims)
+                    )
+
+                    with pytest.raises(Exception,
+                                       match='`input` must be at-least .*d'):
+                        in_shape = make_conv_shape(
+                            [], channel_size, [a * block_size for a in spatial_shape])
+                        _ = T_fn1(
+                            T.as_tensor(np.random.randn(*in_shape)),
+                            block_size
+                        )
+
+                    if block_size > 1:
+                        with pytest.raises(Exception,
+                                           match='multiples of'):
+                            for i in range(spatial_ndims):
+                                in_shape = make_conv_shape(
+                                    batch_shape, channel_size,
+                                    [a * block_size + int(i == j)
+                                     for j, a in enumerate(spatial_shape)]
+                                )
+                                _ = T_fn1(
+                                    T.as_tensor(np.random.randn(*in_shape)),
+                                    block_size
+                                )
+
+                    # test depth_to_space
+                    fn2_out = T_fn2(fn1_out, block_size=block_size)
+                    assert_equal(fn2_out, x)
+
+                    with pytest.raises(Exception,
+                                       match='`input` must be at-least .*d'):
+                        in_shape = make_conv_shape(
+                            [],
+                            channel_size * block_size ** spatial_ndims,
+                            [a for a in spatial_shape]
+                        )
+                        _ = T_fn2(
+                            T.as_tensor(np.random.randn(*in_shape)),
+                            block_size
+                        )
+
+                    if block_size > 1:
+                        with pytest.raises(Exception,
+                                           match='multiples of'):
+                            in_shape = make_conv_shape(
+                                batch_shape,
+                                channel_size * block_size ** spatial_ndims + 1,
+                                [a for a in spatial_shape]
+                            )
+                            for i in range(spatial_ndims):
+                                _ = T_fn2(
+                                    T.as_tensor(np.random.randn(*in_shape)),
+                                    block_size
+                                )
+
+    def test_avg_pool(self):
+        def is_valid_padding(spatial_ndims, padding, kernel_size):
+            if not hasattr(padding, '__iter__'):
+                padding = [int(padding)] * spatial_ndims
+            if not hasattr(kernel_size, '__iter__'):
+                kernel_size = [int(kernel_size)] * spatial_ndims
+            for p, k in zip(padding, kernel_size):
+                if p >= k / 2.0:
+                    return False
+            return True
+
+        def do_check(pool_type, spatial_ndims, x, kernel_size, stride, padding,
+                     count_padded_zeros):
+            kwargs = dict(
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+            )
+            if pool_type == 'avg':
+                kwargs['count_padded_zeros'] = count_padded_zeros
+            elif not count_padded_zeros:
+                return
+
+            assert_allclose(
+                getattr(T.nn, f'{pool_type}_pool{spatial_ndims}d')(
+                    T.as_tensor(x), **kwargs),
+                getattr(ops, f'{pool_type}_pool_nd')(spatial_ndims, x, **kwargs),
+                atol=1e-6, rtol=1e-4,
+                err_msg=f'pool_type={pool_type}, '
+                        f'spatial_ndims={spatial_ndims}, '
+                        f'kernel_size={kernel_size}, '
+                        f'stride={stride}, '
+                        f'padding={padding}, '
+                        f'count_padded_zeros={count_padded_zeros}'
+            )
+
+        np.random.seed(1234)
+        spatial_shape = [12, 13, 14]
+        for spatial_ndims in (1, 2):
+            x = np.random.uniform(
+                size=make_conv_shape([3], 5, spatial_shape[: spatial_ndims]))
+            for pool_type, kernel_size, stride, padding, count_padded_zeros in \
+                    product(
+                        ('avg', 'max'),
+                        (1, 2, [5, 3, 1][:spatial_ndims]),
+                        (1, 2, [3, 2, 1][:spatial_ndims]),
+                        (0, 1, [2, 1, 0][:spatial_ndims]),
+                        (True, False),
+                    ):
+                if not is_valid_padding(spatial_ndims, padding, kernel_size):
+                    continue
+                do_check(
+                    pool_type=pool_type,
+                    spatial_ndims=spatial_ndims,
+                    x=x,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                    count_padded_zeros=count_padded_zeros
+                )
+
+        # 3d is too slow, just check one situation
+        for pool_type in ('avg', 'max'):
+            x = np.random.uniform(
+                size=make_conv_shape([3], 5, spatial_shape))
+            do_check(
+                pool_type=pool_type,
+                spatial_ndims=3,
+                x=x,
+                kernel_size=[5, 3, 1],
+                stride=[3, 2, 1],
+                padding=[2, 1, 0],
+                count_padded_zeros=True
+            )

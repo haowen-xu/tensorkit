@@ -7,6 +7,8 @@ from mock import Mock
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
+from tests.helper import *
 
 
 class BaseDistributionTestCase(unittest.TestCase):
@@ -19,16 +21,17 @@ class BaseDistributionTestCase(unittest.TestCase):
                 validate_tensors=True,
             )
             self.assertEqual(d.dtype, T.int32)
-            self.assertEqual(d.value_shape, [2, 3, 4])
             self.assertEqual(d.continuous, True)
             self.assertEqual(d.reparameterized, False)
+            self.assertEqual(d.value_shape, [2, 3, 4])
+            self.assertEqual(d.value_ndims, 3)
+            self.assertEqual(d.event_shape, [3, 4])
             self.assertEqual(d.event_ndims, 2)
+            self.assertEqual(d.batch_shape, [2])
+            self.assertEqual(d.batch_ndims, 1)
             self.assertEqual(d.min_event_ndims, 1)
             self.assertEqual(d.validate_tensors, True)
             self.assertIs(d.base_distribution, d)
-
-            self.assertEqual(d.batch_shape, [2])
-            self.assertEqual(d.event_shape, [3, 4])
 
         # all specified by constructor is okay
         check_all_specified_by_constructor(Distribution)
@@ -42,6 +45,11 @@ class BaseDistributionTestCase(unittest.TestCase):
         d = MyDistribution(dtype=T.int64, value_shape=[2, 3, 4])
         self.assertEqual(d.dtype, T.int64)
         self.assertEqual(d.value_shape, [2, 3, 4])
+        self.assertEqual(d.value_ndims, 3)
+        self.assertEqual(d.event_shape, [4])
+        self.assertEqual(d.event_ndims, 1)
+        self.assertEqual(d.batch_shape, [2, 3])
+        self.assertEqual(d.batch_ndims, 2)
         self.assertEqual(d.continuous, True)
         self.assertEqual(d.reparameterized, True)
         self.assertEqual(d.min_event_ndims, 1)
@@ -59,6 +67,32 @@ class BaseDistributionTestCase(unittest.TestCase):
             self.assertEqual(MyDistribution(T.int64, [2]).validate_tensors, True)
         finally:
             settings.validate_tensors = old_validate_tensors
+
+        # check `value_shape` against `batch_shape` + event_ndims
+        d = MyDistribution(dtype=T.int64, batch_shape=[2, 3], event_ndims=3)
+        self.assertEqual(d.batch_shape, [2, 3])
+        self.assertEqual(d.batch_ndims, 2)
+        self.assertEqual(d.event_ndims, 3)
+        self.assertEqual(d.value_ndims, 5)
+        self.assertIsNone(d.event_shape)
+        self.assertIsNone(d.value_shape)
+
+        with pytest.raises(ValueError,
+                           match='Either `value_shape` or `batch_shape` '
+                                 'should be specified'):
+            _ = MyDistribution(dtype=T.int64)
+
+        with pytest.raises(ValueError,
+                           match='The arguments `value_shape`, `batch_shape` '
+                                 'and `event_ndims` are not coherent'):
+            _ = MyDistribution(dtype=T.int64, value_shape=[2, 3, 4],
+                               batch_shape=[2])
+
+        with pytest.raises(ValueError,
+                           match='The arguments `value_shape`, `batch_shape` '
+                                 'and `event_ndims` are not coherent'):
+            _ = MyDistribution(dtype=T.int64, value_shape=[2, 3, 4],
+                               batch_shape=[2, 4], event_ndims=2)
 
         # overrided arguments conflict with class attributes
         class MyDistribution(Distribution):
@@ -216,4 +250,4 @@ class BaseDistributionTestCase(unittest.TestCase):
         given = T.random.randn([5, 2, 3])
         ret = d.prob(given, group_ndims=1)
         self.assertEqual(d.log_prob.call_args, ((given, 1), {}))
-        np.testing.assert_allclose(T.to_numpy(ret), np.exp(t00))
+        assert_allclose(ret, np.exp(t00))

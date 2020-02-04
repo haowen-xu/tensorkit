@@ -1,10 +1,12 @@
 import unittest
+from functools import partial
 
 import numpy as np
 import pytest
 
 from tensorkit import tensor as T
-from tensorkit import *
+from tensorkit.variational import *
+from tests.helper import *
 
 
 def prepare_test_payload():
@@ -14,8 +16,7 @@ def prepare_test_payload():
     return log_p, log_q
 
 
-def assert_allclose(a, b):
-    np.testing.assert_allclose(a, b, atol=1e-4)
+assert_allclose_ = partial(assert_allclose, atol=1e-4)
 
 
 class ImportanceSamplingLogLikelihoodTestCase(unittest.TestCase):
@@ -25,26 +26,23 @@ class ImportanceSamplingLogLikelihoodTestCase(unittest.TestCase):
         with pytest.raises(Exception,
                            match='`importance_sampling_log_likelihood` requires '
                                  'to take[^@]*multiple samples'):
-            _ = importance_sampling_log_likelihood(log_p, log_q, axes=None)
+            _ = importance_sampling_log_likelihood(log_p, log_q, axis=None)
         with pytest.raises(Exception,
                            match='`importance_sampling_log_likelihood` requires '
                                  'to take[^@]*multiple samples'):
-            _ = importance_sampling_log_likelihood(log_p, log_q, axes=[])
+            _ = importance_sampling_log_likelihood(log_p, log_q, axis=[])
 
     def test_monto_carlo_objective(self):
         log_p, log_q = prepare_test_payload()
 
-        ll = importance_sampling_log_likelihood(log_p, log_q, axes=[0])
+        ll = importance_sampling_log_likelihood(log_p, log_q, axis=[0])
         ll_shape = T.shape(ll)
-        assert_allclose(
-            T.to_numpy(ll),
-            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0]))
-        )
+        assert_allclose_(ll, T.log_mean_exp(log_p - log_q, axis=[0]))
 
         ll_k = importance_sampling_log_likelihood(
-            log_p, log_q, axes=[0], keepdims=True)
+            log_p, log_q, axis=[0], keepdims=True)
         self.assertListEqual([1] + ll_shape, T.shape(ll_k))
-        assert_allclose(
-            T.to_numpy(ll_k),
-            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0], keepdims=True))
+        assert_allclose_(
+            ll_k,
+            T.log_mean_exp(log_p - log_q, axis=[0], keepdims=True)
         )

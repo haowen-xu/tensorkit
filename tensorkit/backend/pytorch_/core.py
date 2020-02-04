@@ -9,44 +9,58 @@ import torch.nn.functional
 from ...settings_ import settings
 
 __all__ = [
-    # typing
-    'Tensor', 'Variable',
+    # constants
+    'IS_CHANNEL_LAST',
 
+    # typing
+    'Tensor', 'Variable', 'Module',
+
+    # ordinary module base classes
     # jit
-    'jit', 'jit_ignore',
+    'jit', 'jit_ignore', 'jit_method', 'jit_compile', 'is_jit_layer',
 
     # utilities
-    'int_range',
+    'int_range', 'identity',
 
     # dtypes
     'cast', 'cast_like', 'get_dtype', 'is_floating_point',
+    'is_floating_point_dtype',
 
     # tensor constructors
-    'as_tensor_jit', 'as_tensor', 'from_numpy', 'float_scalar', 'int_scalar',
+    'as_tensor_backend', 'as_tensor', 'from_numpy', 'float_scalar', 'int_scalar',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
     'arange', 'one_hot',
 
-    # read / assign
+    # to_numpy
     'to_numpy',
+
+    # variable and initialize
+    'variable',
+
+    # assignment to variable
+    'fill', 'fill_zeros', 'assign', 'assign_data',
 
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
+    'swap_axes', 'transpose', 'pad',
     'broadcast_shape', 'broadcast_to', 'explicit_broadcast', 'flatten_to_ndims',
-    'unflatten_from_ndims',
+    'unflatten_from_ndims', 'reshape_tail',
 
-    # split / join / indexing / gathering
-    'index_select', 'concat',
+    # split / join / indexing / gathering ...
+    'index_select', 'concat', 'split', 'stack', 'unstack',
 
     # math operators
-    'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin', 'cos',
+    'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin', 'cos', 'tan',
+    'tanh',
     'erf', 'erfc', 'erfinv',
-    'add', 'sub', 'mul', 'div', 'mod', 'pow', 'truediv', 'floordiv',
+    'add', 'sub', 'mul', 'div', 'mod', 'pow', 'sqrt', 'truediv', 'floordiv',
     'add_n',
 
     # reduce operators
     'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
     'log_sum_exp', 'log_mean_exp',
     # 'all', 'any',
+    'calculate_mean_and_var', 'norm_except_axis',
 
     # logical operators
     'logical_not', 'logical_and', 'logical_or', 'logical_xor', 'multiply_mask',
@@ -56,17 +70,29 @@ __all__ = [
     'equal', 'not_equal', 'less', 'less_equal', 'greater', 'greater_equal',
     'minimum', 'maximum', 'clip',
 
+    # sort operators
+    'sort', 'argsort',
+
+    # matrix operators
+    'matmul', 'matrix_inverse',
+
     # gradient utilities
-    'grad', 'is_null_grad', 'requires_grad', 'stop_grad',
+    'grad', 'is_null_grad', 'requires_grad', 'stop_grad', 'no_grad',
 
     # debug utilities
     'is_all', 'is_finite', 'assert_finite',
 ]
 
 
+# ---- constants ----
+IS_CHANNEL_LAST = False
+"""Whether or not the channel axis is the last axis for convolutional operations?"""
+
+
 # ---- typing ----
 Tensor = torch.Tensor
 Variable = torch.Tensor
+Module = torch.nn.Module
 
 
 # ---- jit ----
@@ -76,10 +102,30 @@ def jit(fn):
     return fn
 
 
-def jit_ignore(obj):
+def jit_ignore(fn):
     if not settings.disable_jit:
-        obj = torch.jit.ignore(obj)
-    return obj
+        fn = torch.jit.ignore(fn)
+    return fn
+
+
+def jit_method(fn):
+    if not settings.disable_jit:
+        fn = torch.jit.export(fn)
+    return fn
+
+
+def jit_compile(m):
+    if isinstance(m, Module):
+        if not settings.disable_jit:
+            m = torch.jit.script(m)
+    else:
+        raise TypeError(f'Not supported by `jit_compile`: {m!r}')
+    return m
+
+
+def is_jit_layer(layer: Module) -> bool:
+    """Check whether or not `layer` is a JIT compiled layer."""
+    return isinstance(layer, torch.jit.ScriptModule)
 
 
 # ---- utilities ----
@@ -97,42 +143,53 @@ else:
 
 # ---- dtypes ----
 @jit
-def cast(x: Tensor, dtype: str) -> Tensor:
+def cast(input: Tensor, dtype: str) -> Tensor:
     if dtype == 'float32':
         target_dtype = torch.float32
     elif dtype == 'int32':
         target_dtype = torch.int32
     else:
         target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    if target_dtype != x.dtype:
-        x = x.to(dtype=target_dtype)
-    return x
+    if target_dtype != input.dtype:
+        input = input.to(dtype=target_dtype)
+    return input
 
 
 @jit
-def cast_like(x: Tensor, dtype_as: Tensor) -> Tensor:
-    if dtype_as.dtype != x.dtype:
-        x = x.to(dtype=dtype_as.dtype)
-    return x
+def cast_like(input: Tensor, dtype_as: Tensor) -> Tensor:
+    if dtype_as.dtype != input.dtype:
+        input = input.to(dtype=dtype_as.dtype)
+    return input
 
 
 @jit
-def get_dtype(x: Tensor) -> str:
-    if x.dtype == torch.float32:
+def get_dtype(input: Tensor) -> str:
+    if input.dtype == torch.float32:
         return 'float32'
-    elif x.dtype == torch.int32:
+    elif input.dtype == torch.int32:
         return 'int32'
     else:
-        return {torch.int8: 'int8', torch.uint8: 'uint8', torch.int16: 'int16', torch.int64: 'int64', torch.float16: 'float16', torch.float64: 'float64', torch.bool: 'bool'}[x.dtype]
+        return {torch.int8: 'int8', torch.uint8: 'uint8', torch.int16: 'int16', torch.int64: 'int64', torch.float16: 'float16', torch.float64: 'float64', torch.bool: 'bool'}[input.dtype]
 
 
 @jit
-def is_floating_point(x: Tensor) -> bool:
-    return x.is_floating_point()
+def is_floating_point(input: Tensor) -> bool:
+    return input.is_floating_point()
+
+
+def is_floating_point_dtype(dtype: str) -> bool:
+    try:
+        if dtype == 'float32':
+            real_dtype = torch.float32
+        else:
+            real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
+        return True
+    except KeyError:
+        return False
 
 
 # ---- tensor constructors ----
-as_tensor_jit = torch.as_tensor
+as_tensor_backend = torch.as_tensor
 """
 ``T.as_tensor`` with JIT support.
 
@@ -157,6 +214,9 @@ def as_tensor(data,
             else that the backend supports.
         dtype: The expected dtype of the constructed tensor.
         force_copy: Force to copy `data` even if it is not necessary.
+            The gradient propagation will not be stopped from the copied tensor
+            to the original tensor.  The caller may need to use `T.stop_grad()`
+            if necessary.
 
             It should not be necessary to copy the given `data`, if `data`
             is already another tensor with `dtype`; or if `data` is a NumPy
@@ -177,8 +237,7 @@ def as_tensor(data,
             elif dtype == 'int32':
                 target_dtype = torch.int32
             else:
-                target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64,
-                                'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+                target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
 
     # if `data` is already a tensor
     if isinstance(data, StochasticTensor):
@@ -189,13 +248,13 @@ def as_tensor(data,
         if data.dtype != target_dtype:
             data = data.to(target_dtype)
         if force_copy:
-            data = torch.tensor(data)
+            data = data.clone()
         return data
 
     # or if `data` is other types
     ret = torch.as_tensor(data, dtype=target_dtype)
     if force_copy:
-        ret = torch.tensor(ret)
+        ret = ret.clone()
     return ret
 
 
@@ -245,7 +304,7 @@ def zeros(shape: List[int], dtype: str = settings.float_x) -> Tensor:
 
 
 @jit
-def zeros_like(x: Tensor,
+def zeros_like(input: Tensor,
                dtype: Optional[str] = None,
                shape: Optional[List[int]] = None) -> Tensor:
     if dtype is not None:
@@ -256,9 +315,9 @@ def zeros_like(x: Tensor,
         else:
             target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
     else:
-        target_dtype = x.dtype
+        target_dtype = input.dtype
     if shape is None:
-        shape = list(x.shape)
+        shape = list(input.shape)
     return torch.zeros(shape, dtype=target_dtype)
 
 
@@ -274,7 +333,7 @@ def ones(shape: List[int], dtype: str = settings.float_x) -> Tensor:
 
 
 @jit
-def ones_like(x: Tensor,
+def ones_like(input: Tensor,
               dtype: Optional[str] = None,
               shape: Optional[List[int]] = None) -> Tensor:
     if dtype is not None:
@@ -285,9 +344,9 @@ def ones_like(x: Tensor,
         else:
             target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
     else:
-        target_dtype = x.dtype
+        target_dtype = input.dtype
     if shape is None:
-        shape = list(x.shape)
+        shape = list(input.shape)
     return torch.ones(shape, dtype=target_dtype)
 
 
@@ -305,7 +364,7 @@ def full(shape: List[int],
 
 
 @jit
-def full_like(x: Tensor,
+def full_like(input: Tensor,
               fill_value: float,
               dtype: Optional[str] = None,
               shape: Optional[List[int]] = None) -> Tensor:
@@ -317,9 +376,9 @@ def full_like(x: Tensor,
         else:
             target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
     else:
-        target_dtype = x.dtype
+        target_dtype = input.dtype
     if shape is None:
-        shape = list(x.shape)
+        shape = list(input.shape)
     return torch.full(shape, fill_value, dtype=target_dtype)
 
 
@@ -335,41 +394,155 @@ def arange(start: int, end: int, step: int = 1, dtype: str = 'int32') -> Tensor:
 
 
 @jit
-def one_hot(x: Tensor,
+def one_hot(input: Tensor,
             n_classes: int,
-            dtype: str = 'int32') -> Tensor:
-    ret = torch.nn.functional.one_hot(x, n_classes)
+            dtype: str = 'int32',
+            axis: int = -1) -> Tensor:
+    r = input.dim()
+    if axis < -(r + 1) or axis > r:
+        raise ValueError('`axis` out of range: the minimum allowed axis is {}, '
+                         'while the maximum allowed axis is {}.'.
+                         format(-(r + 1), r))
+
+    ret = torch.nn.functional.one_hot(input, n_classes)
+    if axis != -1 and axis != r:
+        if axis < 0:
+            axis = axis + ret.dim()
+        new_axis: List[int] = int_range(0, r)
+        new_axis.insert(axis, r)
+        ret = ret.permute(new_axis)
     ret = cast(ret, dtype)
     return ret
 
 
-# ---- read / assign ----
+# ---- to_numpy ----
 @jit_ignore
-def to_numpy(x: Tensor) -> np.ndarray:
-    if not isinstance(x, Tensor):
-        raise TypeError(f'Not a Tensor: got {x!r}')
-    return x.detach().cpu().numpy()
+def to_numpy(input: Tensor) -> np.ndarray:
+    if not isinstance(input, Tensor):
+        raise TypeError(f'Not a Tensor: got {input!r}')
+    return input.detach().cpu().numpy()
+
+
+# ---- variable and initializer ----
+def variable(shape: List[int],
+             dtype: Union[str, torch.dtype] = settings.float_x,
+             initializer: Optional[
+                 Union[
+                     int, float, np.ndarray, Tensor,
+                     Callable[[Variable], None]
+                 ]
+             ] = None,
+             requires_grad: bool = True,
+             force_copy: bool = True) -> Variable:
+    """
+    Create a new variable.
+
+    Args:
+        shape: Shape of the variable.
+        dtype: Dtype of the variable.
+        initializer: The variable initializer.  It may be a scalar (which
+            will be filled into the new variable), an array or another
+            `Tensor` with the same shape as specified `shape`, or a callable
+            function that can be used to initialize the variable.
+        requires_grad: Whether or not that the variable requires gradient
+            during back-propagation?  Defaults to :obj:`True`.
+        force_copy: Whether or not to force copy the data from `initializer`,
+            even if the backend supports sharing memory?
+            Defaults to :obj:`True`.
+
+    Returns:
+        The created variable.
+    """
+    if isinstance(dtype, str):
+        if dtype == 'float32':
+            target_dtype = torch.float32
+        elif dtype == 'int32':
+            target_dtype = torch.int32
+        else:
+            target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+    else:
+        target_dtype = dtype
+
+    if isinstance(initializer, (int, float)):
+        ret = torch.full(shape, float(initializer), dtype=target_dtype,
+                         requires_grad=requires_grad)
+    elif isinstance(initializer, np.ndarray) and initializer.shape == ():
+        ret = torch.full(shape, initializer.tolist(), dtype=target_dtype,
+                         requires_grad=requires_grad)
+    elif isinstance(initializer, (np.ndarray, Tensor)):
+        if list(initializer.shape) != shape:
+            raise ValueError(f'`initializer.shape` != `shape`: '
+                             f'{list(initializer.shape)} vs {shape}')
+        ret = as_tensor(initializer, dtype=target_dtype,
+                        force_copy=force_copy)
+        if requires_grad:
+            ret.requires_grad_(True)
+    elif isinstance(initializer, Callable):
+        ret = zeros(shape, dtype=dtype)
+        with torch.no_grad():
+            initializer(ret)
+        if requires_grad:
+            ret.requires_grad_(True)
+    elif initializer is None:
+        ret = torch.zeros(shape, dtype=target_dtype,
+                          requires_grad=requires_grad)
+    else:
+        raise TypeError(f'Unsupported initializer: {initializer!r}')
+
+    return ret
+
+
+# ---- assignment ----
+@jit
+def fill(dst: Tensor, fill_value: float) -> Tensor:
+    dst.fill_(fill_value)
+    return dst
+
+
+@jit
+def fill_zeros(dst: Tensor) -> Tensor:
+    dst.zero_()
+    return dst
+
+
+@jit
+def assign(dst: Tensor, src: Tensor) -> Tensor:
+    if src.shape != dst.shape:
+        raise ValueError('`dst.shape` != `src.shape`: {} vs {}'.
+                         format(shape(dst), shape(src)))
+    dst.copy_(src.detach())
+    return dst
+
+
+@jit_ignore
+def assign_data(dst: Tensor, src) -> Tensor:
+    src = as_tensor(src, force_copy=True).detach()
+    if src.shape != dst.shape:
+        raise ValueError('`dst.shape` != `src.shape`: {} vs {}'.
+                         format(shape(dst), shape(src)))
+    dst.data = src
+    return dst
 
 
 # ---- shape utils ----
 @jit
-def shape(x: Tensor) -> List[int]:
-    return list(x.shape)
+def shape(input: Tensor) -> List[int]:
+    return list(input.shape)
 
 
 @jit
-def rank(x: Tensor) -> int:
-    return len(x.shape)
+def rank(input: Tensor) -> int:
+    return input.dim()
 
 
 @jit
-def reshape(x: Tensor, shape: List[int]) -> Tensor:
-    return x.reshape(shape)
+def reshape(input: Tensor, shape: List[int]) -> Tensor:
+    return input.reshape(shape)
 
 
 @jit
-def repeat(x: Tensor, repeats: List[int]) -> Tensor:
-    x_shape = x.shape
+def repeat(input: Tensor, repeats: List[int]) -> Tensor:
+    x_shape = input.shape
     x_rank = len(x_shape)
     repeats_len = len(repeats)
     extra_len = repeats_len - x_rank
@@ -395,29 +568,29 @@ def repeat(x: Tensor, repeats: List[int]) -> Tensor:
 
     # do repeat the tensor according to different mode
     if mode == 0:
-        return x
+        return input
     elif mode == 1:
         expands = repeats[:extra_len] + \
             list([-1 if a == 1 else a for a in repeats[extra_len:]])
-        return x.expand(expands)
+        return input.expand(expands)
     else:
-        return x.repeat(repeats)
+        return input.repeat(repeats)
 
 
 @jit
-def expand(x: Tensor, desired_shape: List[int]) -> Tensor:
-    return x.expand(desired_shape)
+def expand(input: Tensor, desired_shape: List[int]) -> Tensor:
+    return input.expand(desired_shape)
 
 
 @jit
-def squeeze(x: Tensor, axes: Optional[List[int]] = None) -> Tensor:
-    if axes is not None:
-        if len(axes) == 1:
-            return torch.squeeze(x, axes[0])
+def squeeze(input: Tensor, axis: Optional[List[int]] = None) -> Tensor:
+    if axis is not None:
+        if len(axis) == 1:
+            return torch.squeeze(input, axis[0])
         else:
-            old_shape = x.shape
+            old_shape = input.shape
             new_shape_mask = [True] * len(old_shape)
-            for a in axes:
+            for a in axis:
                 if old_shape[a] == 1:
                     new_shape_mask[a] = False
                 else:
@@ -427,14 +600,40 @@ def squeeze(x: Tensor, axes: Optional[List[int]] = None) -> Tensor:
             for i in range(len(old_shape)):
                 if new_shape_mask[i]:
                     new_shape.append(old_shape[i])
-            return x.reshape(new_shape)
+            return input.reshape(new_shape)
     else:
-        return torch.squeeze(x)
+        return torch.squeeze(input)
 
 
 @jit
-def expand_dim(x: Tensor, axis: int) -> Tensor:
-    return x.unsqueeze(axis)
+def expand_dim(input: Tensor, axis: int) -> Tensor:
+    return input.unsqueeze(axis)
+
+
+@jit
+def swap_axes(input: Tensor, axis1: int, axis2: int) -> Tensor:
+    return input.transpose(axis1, axis2)
+
+
+@jit
+def transpose(input: Tensor, axis: List[int]) -> Tensor:
+    return input.permute(axis)
+
+
+@jit
+def pad(input: Tensor,
+        padding: List[Tuple[int, int]],
+        value: float = 0.) -> Tensor:
+    if len(padding) > input.dim():
+        raise ValueError(
+            'The length of `padding` must not be larger than `rank(input)`: '
+            '`padding` is {}, while `shape(input)` is {}'.
+            format(padding, shape(input))
+        )
+    pad: List[int] = []
+    for i in range(len(padding) - 1, -1, -1):
+        pad.extend(padding[i])
+    return torch.nn.functional.pad(input, pad=pad, value=value)
 
 
 @jit
@@ -489,8 +688,8 @@ def _broadcast_to_sub(t: Tensor,
 
 
 @jit
-def broadcast_to(x: Tensor, new_shape: List[int]) -> Tensor:
-    x_shape = list(x.shape)
+def broadcast_to(input: Tensor, new_shape: List[int]) -> Tensor:
+    x_shape = list(input.shape)
     x_rank = len(x_shape)
     new_rank = len(new_shape)
 
@@ -506,7 +705,7 @@ def broadcast_to(x: Tensor, new_shape: List[int]) -> Tensor:
                              'shape(x) {} vs new_shape {}'.
                              format(x_shape, new_shape))
 
-    return _broadcast_to_sub(x, x_shape, new_shape)
+    return _broadcast_to_sub(input, x_shape, new_shape)
 
 
 @jit
@@ -520,62 +719,76 @@ def explicit_broadcast(x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
 
 
 @jit
-def flatten_to_ndims(x: Tensor, ndims: int
+def flatten_to_ndims(input: Tensor, ndims: int
                      ) -> Tuple[Tensor, Optional[List[int]]]:
     if ndims < 1:
         raise ValueError('`ndims` must be at least 1`: got ndims {}'.
                          format(ndims))
-    if len(x.shape) < ndims:
+    if len(input.shape) < ndims:
         raise ValueError('rank(x) < ndims: x.shape is {}, while '
-                         'ndims is {}'.format(x.shape, ndims))
+                         'ndims is {}'.format(input.shape, ndims))
 
-    if ndims == len(x.shape):
-        return x, None  # `None` to indicate x is not changed
+    if ndims == len(input.shape):
+        return input, None  # `None` to indicate x is not changed
     elif ndims == 1:
-        front_shape = list(x.shape)
-        return x.reshape((-1,)), front_shape
+        front_shape = list(input.shape)
+        return input.reshape((-1,)), front_shape
     else:
-        x_shape = list(x.shape)
+        x_shape = list(input.shape)
         offset = ndims - 1
         front_shape, back_shape = x_shape[: -offset], x_shape[-offset:]
-        return x.reshape([-1] + back_shape), front_shape
+        return input.reshape([-1] + back_shape), front_shape
 
 
 @jit
-def unflatten_from_ndims(x: Tensor, front_shape: Optional[List[int]]
+def unflatten_from_ndims(input: Tensor, front_shape: Optional[List[int]]
                          ) -> Tensor:
-    x_shape = list(x.shape)
+    x_shape = list(input.shape)
     if front_shape is None:
-        return x
+        return input
     else:
         x_rank = len(x_shape)
         if x_rank < 1:
             raise ValueError(
                 'Invalid input: rank(x) < 1, but front_shape is not None.')
-        return x.reshape(list(front_shape) + x_shape[1:])
+        return input.reshape(list(front_shape) + x_shape[1:])
+
+
+@jit
+def reshape_tail(input: Tensor, ndims: int, shape: List[int]) -> Tensor:
+    input_shape = list(input.shape)
+    input_rank = len(input_shape)
+    if input_rank < ndims:
+        raise ValueError(
+            '`input` must be at least `ndims`-dimensional: '
+            '`shape(input)` is {}, while `ndims` is {}'.
+            format(input_shape, ndims)
+        )
+    left_shape = input_shape[: input_rank - ndims]
+    return input.reshape(left_shape + shape)
 
 
 # ---- split / join / indexing / gathering ----
 @jit
-def index_select(x: Tensor, indices: Tensor, axis: int) -> Tensor:
-    x_shape = x.shape
+def index_select(input: Tensor, indices: Tensor, axis: int) -> Tensor:
+    x_shape = input.shape
     i_shape = indices.shape
 
     if axis < 0:
         axis += len(x_shape)
     if axis < 0 or axis >= len(x_shape):
         raise ValueError('`axis` out of range: x.shape {} vs axis {}'.
-                         format(x.shape, axis))
+                         format(input.shape, axis))
 
     if len(i_shape) == 0:
-        y = torch.index_select(x, dim=axis, index=indices.reshape([1]))
+        y = torch.index_select(input, dim=axis, index=indices.reshape([1]))
         y = y.reshape(x_shape[:axis] + x_shape[axis + 1:])
 
     elif len(i_shape) == 1:
-        y = torch.index_select(x, dim=axis, index=indices)
+        y = torch.index_select(input, dim=axis, index=indices)
 
     else:
-        y = torch.index_select(x, dim=axis, index=indices.flatten())
+        y = torch.index_select(input, dim=axis, index=indices.flatten())
         y = y.reshape(x_shape[:axis] + i_shape + x_shape[axis + 1:])
 
     return y
@@ -586,7 +799,31 @@ def concat(tensors: List[Tensor], axis: int) -> Tensor:
     return torch.cat(tensors, dim=axis)
 
 
+@jit
+def split(input: Tensor, sections: List[int], axis: int) -> List[Tensor]:
+    return torch.split(input, sections, axis)
+
+
+@jit
+def stack(input: List[Tensor], axis: int) -> Tensor:
+    return torch.stack(input, axis)
+
+
+@jit
+def unstack(input: Tensor, axis: int) -> List[Tensor]:
+    size = input.shape[axis]
+    outputs: List[Tensor] = list(torch.split(input, [1] * size, dim=axis))
+    for i in range(len(outputs)):
+        outputs[i] = torch.squeeze(outputs[i], dim=axis)
+    return outputs
+
+
 # ---- univariate element-wise math operations ----
+@jit
+def identity(input: Tensor) -> Tensor:
+    return input
+
+
 abs = torch.abs
 neg = torch.neg
 
@@ -602,6 +839,9 @@ log1p = torch.log1p
 
 sin = torch.sin
 cos = torch.cos
+tan = torch.tan
+
+tanh = torch.tanh
 
 erf = torch.erf
 erfc = torch.erfc
@@ -615,6 +855,7 @@ mul = torch.mul
 div = torch.div
 mod = torch.fmod
 pow = torch.pow
+sqrt = torch.sqrt
 
 
 @jit
@@ -656,97 +897,194 @@ def add_n(tensors: List[Tensor]) -> Tensor:
 
 # ---- reduction operations ----
 @jit
-def reduce_sum(x: Tensor,
-               axes: Optional[List[int]] = None,
+def reduce_sum(input: Tensor,
+               axis: Optional[List[int]] = None,
                keepdims: bool = False) -> Tensor:
-    if axes is None:
+    if axis is None:
         if keepdims:
-            return torch.sum(x).reshape([1] * len(x.shape))
+            return torch.sum(input).reshape([1] * len(input.shape))
         else:
-            return torch.sum(x)
+            return torch.sum(input)
     else:
-        return torch.sum(x, dim=axes, keepdim=keepdims)
+        if len(axis) == 0:
+            return input
+        else:
+            return torch.sum(input, dim=axis, keepdim=keepdims)
 
 
 @jit
-def reduce_mean(x: Tensor,
-                axes: Optional[List[int]] = None,
+def reduce_mean(input: Tensor,
+                axis: Optional[List[int]] = None,
                 keepdims: bool = False) -> Tensor:
-    if axes is None:
+    if axis is None:
         if keepdims:
-            return torch.mean(x).reshape([1] * len(x.shape))
+            return torch.mean(input).reshape([1] * len(input.shape))
         else:
-            return torch.mean(x)
+            return torch.mean(input)
     else:
-        return torch.mean(x, dim=axes, keepdim=keepdims)
+        if len(axis) == 0:
+            return input
+        else:
+            return torch.mean(input, dim=axis, keepdim=keepdims)
 
 
 @jit
-def reduce_max(x: Tensor,
-               axes: Optional[List[int]] = None,
+def reduce_max(input: Tensor,
+               axis: Optional[List[int]] = None,
                keepdims: bool = False) -> Tensor:
-    if axes is None:
+    if axis is None:
         if keepdims:
-            return torch.max(x).reshape([1] * len(x.shape))
+            return torch.max(input).reshape([1] * len(input.shape))
         else:
-            return torch.max(x)
+            return torch.max(input)
     else:
-        if len(axes) == 1:
-            return torch.max(x, dim=axes[0], keepdim=keepdims)[0]
+        if len(axis) == 0:
+            return input
+        elif len(axis) == 1:
+            return torch.max(input, dim=axis[0], keepdim=keepdims)[0]
         else:
-            for a in axes:
-                x = torch.max(x, dim=a, keepdim=True)[0]
+            for a in axis:
+                input = torch.max(input, dim=a, keepdim=True)[0]
             if not keepdims:
-                x = squeeze(x, axes)
-            return x
+                input = squeeze(input, axis)
+            return input
 
 
 @jit
-def reduce_min(x: Tensor,
-               axes: Optional[List[int]] = None,
+def reduce_min(input: Tensor,
+               axis: Optional[List[int]] = None,
                keepdims: bool = False) -> Tensor:
-    if axes is None:
+    if axis is None:
         if keepdims:
-            return torch.min(x).reshape([1] * len(x.shape))
+            return torch.min(input).reshape([1] * len(input.shape))
         else:
-            return torch.min(x)
+            return torch.min(input)
     else:
-        if len(axes) == 1:
-            return torch.min(x, dim=axes[0], keepdim=keepdims)[0]
+        if len(axis) == 0:
+            return input
+        elif len(axis) == 1:
+            return torch.min(input, dim=axis[0], keepdim=keepdims)[0]
         else:
-            for a in axes:
-                x = torch.min(x, dim=a, keepdim=True)[0]
+            for a in axis:
+                input = torch.min(input, dim=a, keepdim=True)[0]
             if not keepdims:
-                x = squeeze(x, axes)
-            return x
+                input = squeeze(input, axis)
+            return input
 
 
 @jit
-def log_sum_exp(x: Tensor,
-                axes: Optional[List[int]] = None,
+def log_sum_exp(input: Tensor,
+                axis: Optional[List[int]] = None,
                 keepdims: bool = False) -> Tensor:
-    if axes is None:
-        axes = int_range(0, len(x.shape))
+    if axis is None:
+        axis = int_range(0, len(input.shape))
         if keepdims:
-            return torch.logsumexp(x, dim=axes, keepdim=True)
+            return torch.logsumexp(input, dim=axis, keepdim=True)
         else:
-            return torch.logsumexp(x, dim=axes, keepdim=False)
+            return torch.logsumexp(input, dim=axis, keepdim=False)
     else:
-        return torch.logsumexp(x, dim=axes, keepdim=keepdims)
+        if len(axis) == 0:
+            raise ValueError('`axis` must not be an empty list.')
+        return torch.logsumexp(input, dim=axis, keepdim=keepdims)
 
 
 @jit
-def log_mean_exp(x: Tensor,
-                 axes: Optional[List[int]] = None,
+def log_mean_exp(input: Tensor,
+                 axis: Optional[List[int]] = None,
                  keepdims: bool = False) -> Tensor:
-    x_max_keepdims = reduce_max(x, axes=axes, keepdims=True)
+    if axis is not None:
+        if len(axis) == 0:
+            raise ValueError('`axis` must not be an empty list.')
+    x_max_keepdims = reduce_max(input, axis=axis, keepdims=True)
     if not keepdims:
-        x_max = squeeze(x_max_keepdims, axes=axes)
+        x_max = squeeze(x_max_keepdims, axis=axis)
     else:
         x_max = x_max_keepdims
     mean_exp = reduce_mean(
-        torch.exp(x - x_max_keepdims), axes=axes, keepdims=keepdims)
+        torch.exp(input - x_max_keepdims), axis=axis, keepdims=keepdims)
     return x_max + torch.log(mean_exp)
+
+
+@jit
+def calculate_mean_and_var(input: Tensor,
+                           axis: Optional[List[int]] = None,
+                           keepdims: bool = False,
+                           unbiased: bool = True) -> Tuple[Tensor, Tensor]:
+    # compute mean & var
+    mean = reduce_mean(input, axis=axis, keepdims=True)
+    var = reduce_mean((input - mean) ** 2, axis=axis, keepdims=keepdims)
+    if not keepdims:
+        mean = mean.reshape(var.shape)
+
+    reduce_size = input.numel() // mean.numel()
+    if reduce_size < 2:
+        raise RuntimeError(
+            'Variance can only be calculated with at least 2 samples.')
+
+    # obtain unbiased estimator from the biased estimator by multiply n / (n-1)
+    if unbiased:
+        var = var * (reduce_size / (reduce_size - 1.))
+
+    return mean, var
+
+
+@jit
+def norm_except_axis(input: Tensor,
+                     axis: Optional[List[int]],
+                     p: float = 2,
+                     keepdims: bool = False) -> Tensor:
+    """
+    Calculate the Lp-norm of a tensor except for specified axis.
+
+    Args:
+        input: The input tensor.
+        axis: The axis to keep for computing Lp-norm.
+            All other axis will be reduced.  Defaults to :obj:`None`,
+            where no axis will be kept.
+        p: The `p` of the `Lp` norm.  Defaults to 2.
+        keepdims: Whether or not to keep the reduced dimensions?
+            Defaults to :obj:`False`.
+
+    Returns:
+        The Lp-norm of the tensor.
+    """
+    r = rank(input)
+    if axis is None:
+        axis_reduce = None
+    elif len(axis) == 1:
+        # compute the axis to reduce in a fast manner
+        a = axis[0]
+        if a < -r or a >= r:
+            raise ValueError(
+                f'`axis` out of range: `axis` is {axis}, '
+                f'while the shape of `input` is {shape(input)}.')
+        if a < 0:
+            a = a + r
+        axis_reduce = int_range(0, a) + int_range(a + 1, r)
+    else:
+        # compute the axis to reduce in a slow manner
+        axis_mask: List[bool] = [True] * r
+        for a in axis:
+            if a < -r or a >= r:
+                raise ValueError(
+                    f'`axis` out of range: `axis` is {axis}, '
+                    f'while the shape of `input` is {shape(input)}.')
+            axis_mask[a] = False
+        axis_reduce: List[int] = []
+        for i in range(r):
+            if axis_mask[i]:
+                axis_reduce.append(i)
+
+    if p == 2:
+        return sqrt(reduce_sum(input ** 2, axis=axis_reduce, keepdims=keepdims))
+    elif p == 1:
+        return reduce_sum(abs(input), axis=axis_reduce, keepdims=keepdims)
+    else:
+        p_inv = 1. / p
+        return pow(
+            reduce_sum(pow(abs(input), p), axis=axis_reduce, keepdims=keepdims),
+            p_inv
+        )
 
 
 # ---- logical operations ----
@@ -795,17 +1133,13 @@ def logical_xor(x: Tensor, y: Tensor) -> Tensor:
 
 
 @jit
-def multiply_mask(x: Tensor, mask: Tensor) -> Tensor:
-    if mask.dtype != x.dtype:
-        mask = mask.to(x.dtype)
-    return x * mask
+def multiply_mask(input: Tensor, mask: Tensor) -> Tensor:
+    if mask.dtype != input.dtype:
+        mask = mask.to(input.dtype)
+    return input * mask
 
 
 where = torch.where
-
-# @jit
-# def where(condition: Tensor, x: Tensor, y: Tensor) -> Tensor:
-#     return torch.where(condition, x, y)
 
 
 # ---- comparison operators ----
@@ -852,6 +1186,30 @@ def maximum(x: Tensor, y: Tensor) -> Tensor:
 @jit
 def clip(x: Tensor, x_min: float, x_max: float) -> Tensor:
     return torch.clamp(x, x_min, x_max)
+
+
+# ---- sort operators ----
+@jit
+def sort(input: Tensor, axis: int = -1, descending: bool = False) -> Tensor:
+    output, indices = torch.sort(input, dim=axis, descending=descending)
+    return output
+
+
+@jit
+def argsort(input: Tensor, axis: int = -1, descending: bool = False) -> Tensor:
+    indices = torch.argsort(input, dim=axis, descending=descending)
+    return indices
+
+
+# ---- matrix operators ----
+@jit
+def matmul(x: Tensor, y: Tensor) -> Tensor:
+    return torch.matmul(x, y)
+
+
+@jit
+def matrix_inverse(matrix: Tensor) -> Tensor:
+    return torch.inverse(matrix)
 
 
 # ---- gradient utilities ----
@@ -918,27 +1276,30 @@ else:
                 gradient == 0.)
 
 
-def requires_grad(t: Tensor,
+def requires_grad(input: Tensor,
                   requires: bool = True,
                   copy: bool = False) -> Tensor:
     if copy:
-        return t.clone().requires_grad_(requires)
+        return input.clone().requires_grad_(requires)
     else:
-        t.requires_grad_(requires)
-        return t
+        input.requires_grad_(requires)
+        return input
 
 
 @jit
-def stop_grad(x: Tensor) -> Tensor:
-    return x.detach()
+def stop_grad(input: Tensor) -> Tensor:
+    return input.detach()
+
+
+no_grad = torch.no_grad
 
 
 # ---- assertion utilities ----
 @jit
-def is_finite(x: Tensor) -> Tensor:
-    if not x.is_floating_point():
-        return torch.ones_like(x).to(torch.bool)
-    return (x == x) & (x.abs() != math.inf)
+def is_finite(input: Tensor) -> Tensor:
+    if not input.is_floating_point():
+        return torch.ones_like(input).to(torch.bool)
+    return (input == input) & (input.abs() != math.inf)
 
 
 @jit
@@ -947,8 +1308,8 @@ def is_all(condition: Tensor) -> bool:
 
 
 @jit
-def assert_finite(x: Tensor, message: str) -> Tensor:
-    if not is_all(is_finite(x)):
+def assert_finite(input: Tensor, message: str) -> Tensor:
+    if not is_all(is_finite(input)):
         raise ValueError('Infinity or NaN value encountered: {}'.
                          format(message))
-    return x
+    return input

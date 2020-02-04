@@ -1,7 +1,9 @@
 import copy
 from typing import *
 
-from ..tensor import (jit, Tensor, where, as_tensor_jit, as_tensor, get_dtype,
+import numpy as np
+
+from ..tensor import (jit, Tensor, where, as_tensor_backend, as_tensor, get_dtype,
                       float_x)
 
 __all__ = [
@@ -82,7 +84,7 @@ def log_pdf_mask(condition: Tensor,
     out remaining positions (i.e., set log-pdf of these locations to
     `log_zero`).
     """
-    return where(condition, log_pdf, as_tensor_jit(log_zero, dtype=log_pdf.dtype))
+    return where(condition, log_pdf, as_tensor_backend(log_zero, dtype=log_pdf.dtype))
 
 
 def check_tensor_arg_types(*args,
@@ -115,6 +117,8 @@ def check_tensor_arg_types(*args,
     from ..stochastic import StochasticTensor
 
     def check_dtype(name, data):
+        if isinstance(data, np.ndarray):
+            data = as_tensor(np.array([], dtype=data.dtype))
         if isinstance(data, StochasticTensor):
             data = data.tensor
         if isinstance(data, Tensor):

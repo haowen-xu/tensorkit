@@ -9,8 +9,9 @@ from mock import Mock
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
 from tensorkit.distributions.utils import *
-from tests.helper import float_dtypes
+from tests.helper import *
 
 
 class BaseSink(object):
@@ -117,7 +118,7 @@ class DistributionUtilsTestCase(unittest.TestCase):
             x_t = T.as_tensor(x, dtype=dtype)
             ret = log_pdf_mask(x_t >= 0., x_t ** 2, T.random.LOG_ZERO_VALUE)
             expected = np.where(x >= 0., x ** 2, T.random.LOG_ZERO_VALUE)
-            np.testing.assert_allclose(ret, expected, rtol=1e-4)
+            assert_allclose(ret, expected, rtol=1e-4)
 
     def test_check_tensor_arg_types(self):
         for dtype in float_dtypes:
@@ -139,7 +140,7 @@ class DistributionUtilsTestCase(unittest.TestCase):
                     self.assertIsInstance(t, T.Tensor)
                     self.assertEqual(T.get_dtype(t), dtype)
                     if isinstance(v, float):
-                        np.testing.assert_equal(T.to_numpy(t), v)
+                        assert_equal(t, v)
                     else:
                         self.assertIs(t, v)
 
@@ -148,7 +149,7 @@ class DistributionUtilsTestCase(unittest.TestCase):
                 [a] = check_tensor_arg_types(('a', 123.0), **{arg_name: dtype})
                 self.assertIsInstance(a, T.Tensor)
                 self.assertEqual(T.get_dtype(a), dtype)
-                np.testing.assert_equal(T.to_numpy(a), 123.0)
+                assert_equal(a, 123.0)
 
             # tensor dtype will ignore `default_dtype`, but checked against `dtype`.
             a_orig = T.as_tensor([1., 2., 3.], dtype=dtype)

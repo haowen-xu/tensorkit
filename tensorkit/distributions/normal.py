@@ -16,9 +16,9 @@ class UnitNormal(Distribution):
     """
     Unit normal distribution, i.e., :math:`\\mathcal{N}(0, 1)`.
 
-    Use ``UnitNormal(shape)`` is mostly equivalent to using
-    ``Normal(zeros(shape), ones(shape))``, except that the distribution
-    derived from this class should run a little faster.
+    Using ``UnitNormal(shape)`` is mostly equivalent to using
+    ``Normal(T.zeros(shape), T.ones(shape))``, except that this class should
+    be a little faster.
     """
 
     continuous = True
@@ -141,7 +141,7 @@ class BaseNormal(Distribution):
     """Dict that stores the original `std` or `logstd` constructor argument."""
 
     def __init__(self,
-                 mean: T.Tensor,
+                 mean: TensorOrData,
                  std: Optional[TensorOrData] = None,
                  *,
                  logstd: Optional[TensorOrData] = None,
@@ -221,7 +221,7 @@ class Normal(BaseNormal):
     """Univariate normal distribution."""
 
     def __init__(self,
-                 mean: T.Tensor,
+                 mean: TensorOrData,
                  std: Optional[TensorOrData] = None,
                  *,
                  logstd: Optional[TensorOrData] = None,
@@ -294,7 +294,7 @@ class TruncatedNormal(BaseNormal):
     _extra_args = ('low', 'high', 'epsilon', 'log_zero')
 
     def __init__(self,
-                 mean: T.Tensor,
+                 mean: TensorOrData,
                  std: Optional[TensorOrData] = None,
                  *,
                  logstd: Optional[TensorOrData] = None,

@@ -8,9 +8,10 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
 from tensorkit.distributions.normal import BaseNormal
 from tensorkit.distributions.utils import copy_distribution
-from tests.helper import float_dtypes
+from tests.helper import *
 
 
 class UnitNormalTestCase(unittest.TestCase):
@@ -28,9 +29,9 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(normal.dtype, dtype)
             self.assertEqual(normal.event_ndims, event_ndims)
 
-            np.testing.assert_equal(T.to_numpy(normal.mean), np.zeros(shape))
-            np.testing.assert_equal(T.to_numpy(normal.std), np.ones(shape))
-            np.testing.assert_equal(T.to_numpy(normal.logstd), np.zeros(shape))
+            assert_equal(normal.mean, np.zeros(shape))
+            assert_equal(normal.std, np.ones(shape))
+            assert_equal(normal.logstd, np.zeros(shape))
 
     def test_copy(self):
         np.random.seed(1234)
@@ -38,9 +39,9 @@ class UnitNormalTestCase(unittest.TestCase):
         normal = UnitNormal(shape=[2, 3], event_ndims=1, dtype=T.float32)
 
         # read out mean, std and logstd, to ensure these cached attrs are generated
-        np.testing.assert_equal(T.to_numpy(normal.mean), np.zeros(shape))
-        np.testing.assert_equal(T.to_numpy(normal.std), np.ones(shape))
-        np.testing.assert_equal(T.to_numpy(normal.logstd), np.zeros(shape))
+        assert_equal(normal.mean, np.zeros(shape))
+        assert_equal(normal.std, np.ones(shape))
+        assert_equal(normal.logstd, np.zeros(shape))
 
         # same dtype and shape, the cached attrs are copied
         normal2 = normal.copy(event_ndims=2)
@@ -87,11 +88,9 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), normal.log_prob(t)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.randn_log_pdf(given=t.tensor, group_ndims=1)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    T.random.randn_log_pdf(given=t.tensor, group_ndims=1)
                 )
 
             # sample(n_samples=5)
@@ -106,11 +105,9 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.randn_log_pdf(given=t.tensor, group_ndims=0)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    T.random.randn_log_pdf(given=t.tensor, group_ndims=0)
                 )
 
 
@@ -158,9 +155,9 @@ class NormalTestCase(unittest.TestCase):
                 self.assertEqual(normal.event_ndims, 1)
                 self.assertIs(normal.mean, mean_t)
                 self.assertIs(getattr(normal, key), val)
-                np.testing.assert_allclose(
-                    T.to_numpy(getattr(normal, other_key)),
-                    T.to_numpy(mutual_params[other_key]),
+                assert_allclose(
+                    getattr(normal, other_key),
+                    mutual_params[other_key],
                     rtol=1e-4
                 )
                 self.assertEqual(normal._mutual_params, {key: val})
@@ -259,12 +256,10 @@ class NormalTestCase(unittest.TestCase):
         self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
         for log_pdf in [t.log_prob(), normal.log_prob(t)]:
-            np.testing.assert_allclose(
-                T.to_numpy(log_pdf),
-                T.to_numpy(
-                    T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
-                                            logstd=logstd_t, group_ndims=1)
-                )
+            assert_allclose(
+                log_pdf,
+                T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
+                                        logstd=logstd_t, group_ndims=1)
             )
 
         # sample(n_samples=5)
@@ -278,12 +273,10 @@ class NormalTestCase(unittest.TestCase):
         self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
         for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
-            np.testing.assert_allclose(
-                T.to_numpy(log_pdf),
-                T.to_numpy(
-                    T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
-                                            logstd=logstd_t, group_ndims=0)
-                )
+            assert_allclose(
+                log_pdf,
+                T.random.normal_log_pdf(given=t.tensor, mean=mean_t,
+                                        logstd=logstd_t, group_ndims=0)
             )
 
     def test_TruncatedNormal(self):
@@ -329,13 +322,11 @@ class NormalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [2, 3, 4])
 
             for log_pdf in [t.log_prob(), normal.log_prob(t)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.truncated_normal_log_pdf(
-                            given=t.tensor, mean=mean_t, std=std_t,
-                            logstd=logstd_t, group_ndims=1, low=low, high=high,
-                        )
+                assert_allclose(
+                    log_pdf,
+                    T.random.truncated_normal_log_pdf(
+                        given=t.tensor, mean=mean_t, std=std_t,
+                        logstd=logstd_t, group_ndims=1, low=low, high=high,
                     )
                 )
 
@@ -350,12 +341,10 @@ class NormalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [5, 2, 3, 4])
 
             for log_pdf in [t.log_prob(-1), normal.log_prob(t, -1)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        T.random.truncated_normal_log_pdf(
-                            given=t.tensor, mean=mean_t, std=std_t,
-                            logstd=logstd_t, group_ndims=0, low=low, high=high,
-                        )
+                assert_allclose(
+                    log_pdf,
+                    T.random.truncated_normal_log_pdf(
+                        given=t.tensor, mean=mean_t, std=std_t,
+                        logstd=logstd_t, group_ndims=0, low=low, high=high,
                     )
                 )

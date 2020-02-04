@@ -17,7 +17,7 @@ def auto_choose_backend() -> Optional[str]:
     have been imported, then the backend will be chosen according to the
     following priority order:
 
-        pytorch, tensorflow
+        PyTorch, TensorFlow
 
     Returns:
         The backend name, or `None` if no backend can be automatically chosen.

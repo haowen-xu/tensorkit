@@ -1,7 +1,7 @@
 __all__ = [
     'int8', 'uint8', 'int16', 'int32', 'int64', 'float16', 'float32',
     'float64', 'boolean',
-    'categorical_dtype',
+    'categorical_dtype', 'index_dtype',
 ]
 
 int8 = 'int8'
@@ -15,3 +15,4 @@ float64 = 'float64'
 boolean = 'bool'
 
 categorical_dtype = 'int64'
+index_dtype = 'int64'

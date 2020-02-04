@@ -1,4 +1,3 @@
-import math
 from typing import *
 
 from .. import tensor as T
@@ -82,14 +81,7 @@ class Uniform(Distribution):
             low, high = check_tensor_arg_types(
                 ('low', low), ('high', high), default_dtype=dtype)
 
-            low_dtype = T.get_dtype(low)
-            high_dtype = T.get_dtype(high)
-            if low_dtype != high_dtype:
-                raise ValueError(f'`low.dtype` != `high.dtype`: '
-                                 f'`low.dtype` == {low_dtype}, while '
-                                 f'`high.dtype` == {high_dtype}')
-
-            dtype = low_dtype
+            dtype = T.get_dtype(low)
             value_shape = (value_shape +
                            T.broadcast_shape(T.shape(low), T.shape(high)))
 
@@ -156,7 +148,7 @@ class Uniform(Distribution):
         )
         log_pdf = T.broadcast_to(log_pdf, b_shape)
         if reduce_ndims > 0:
-            log_pdf = T.reduce_sum(log_pdf, axes=list(range(-reduce_ndims, 0)))
+            log_pdf = T.reduce_sum(log_pdf, axis=list(range(-reduce_ndims, 0)))
         return log_pdf
 
     def copy(self, **overrided_params):

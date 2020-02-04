@@ -4,6 +4,8 @@ import numpy as np
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
+from tests.helper import *
 
 
 class StochasticTensorTestCase(unittest.TestCase):
@@ -14,7 +16,7 @@ class StochasticTensorTestCase(unittest.TestCase):
         samples_0 = samples.tensor[0]
         samples_no_grad = T.stop_grad(samples.tensor)
         log_prob = normal.log_prob(samples.tensor, group_ndims=0)
-        log_prob_reduce_1 = T.reduce_sum(log_prob, axes=[-1])
+        log_prob_reduce_1 = T.reduce_sum(log_prob, axis=[-1])
 
         ##
         t = StochasticTensor(
@@ -51,34 +53,22 @@ class StochasticTensorTestCase(unittest.TestCase):
         self.assertIs(t._cached_log_prob, this_log_prob)
         self.assertIs(t.log_prob(), t._cached_log_prob)
         self.assertIs(t.log_prob(group_ndims=0), t._cached_log_prob)
-        np.testing.assert_allclose(
-            T.to_numpy(this_log_prob), T.to_numpy(log_prob),
-            rtol=1e-4
-        )
+        assert_allclose(this_log_prob, log_prob, rtol=1e-4)
 
         this_log_prob = t.log_prob(group_ndims=1)
         self.assertIsNot(this_log_prob, t._cached_log_prob)
-        np.testing.assert_allclose(
-            T.to_numpy(this_log_prob), T.to_numpy(log_prob_reduce_1),
-            rtol=1e-4
-        )
+        assert_allclose(this_log_prob, log_prob_reduce_1, rtol=1e-4)
 
         # prob()
         this_prob = t.prob()
         self.assertIs(t._cached_prob, this_prob)
         self.assertIs(t.prob(), t._cached_prob)
         self.assertIs(t.prob(group_ndims=0), t._cached_prob)
-        np.testing.assert_allclose(
-            T.to_numpy(this_prob), np.exp(T.to_numpy(log_prob)),
-            rtol=1e-4
-        )
+        assert_allclose(this_prob, np.exp(T.to_numpy(log_prob)), rtol=1e-4)
 
         this_prob = t.prob(group_ndims=1)
         self.assertIsNot(this_prob, t._cached_prob)
-        np.testing.assert_allclose(
-            T.to_numpy(this_log_prob), T.to_numpy(log_prob_reduce_1),
-            rtol=1e-4
-        )
+        assert_allclose(this_prob, np.exp(T.to_numpy(log_prob_reduce_1)), rtol=1e-4)
 
         ##
         normal.continuous = False

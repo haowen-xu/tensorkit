@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from tensorkit import tensor as T
-from tensorkit import *
+from tensorkit.variational import *
+from tests.helper import assert_allclose
 
 
 def prepare_test_payload(reparameterized):
@@ -25,42 +26,36 @@ def prepare_test_payload(reparameterized):
 class SGVBEstimatorTestCase(unittest.TestCase):
 
     def test_sgvb(self):
-        assert_allclose = functools.partial(
-            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
+        assert_allclose_ = functools.partial(assert_allclose, rtol=1e-5, atol=1e-6)
 
         # default
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
         cost = sgvb_estimator(f)
-        np.testing.assert_allclose(
-            T.to_numpy(-cost),
-            T.to_numpy(sgvb_estimator(f, negative=True)))
+        assert_allclose_(-cost, sgvb_estimator(f, negative=True))
         cost_shape = T.shape(cost)
-        assert_allclose(
-            T.to_numpy(T.grad([T.reduce_sum(cost)], [y])[0]),
-            T.to_numpy(T.reduce_sum(2 * x * y * f, axes=[0]))
+        assert_allclose_(
+            T.grad([T.reduce_sum(cost)], [y])[0],
+            T.reduce_sum(2 * x * y * f, axis=[0])
         )
 
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
-        cost_r = sgvb_estimator(f, axes=[0])
-        np.testing.assert_allclose(
-            T.to_numpy(-cost_r),
-            T.to_numpy(sgvb_estimator(f, axes=[0], negative=True)))
+        cost_r = sgvb_estimator(f, axis=[0])
+        assert_allclose_(-cost_r, sgvb_estimator(f, axis=[0], negative=True))
         self.assertListEqual(cost_shape[1:], T.shape(cost_r))
-        assert_allclose(
-            T.to_numpy(T.grad([T.reduce_sum(cost_r)], [y])[0]),
-            T.to_numpy(T.reduce_sum(2 * x * y * f, axes=[0]) / 7)
+        assert_allclose_(
+            T.grad([T.reduce_sum(cost_r)], [y])[0],
+            T.reduce_sum(2 * x * y * f, axis=[0]) / 7
         )
 
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
-        cost_rk = sgvb_estimator(f, axes=[0], keepdims=True)
-        np.testing.assert_allclose(
-            T.to_numpy(-cost_rk),
-            T.to_numpy(sgvb_estimator(f, axes=[0], keepdims=True,
-                                      negative=True)))
+        cost_rk = sgvb_estimator(f, axis=[0], keepdims=True)
+        assert_allclose_(
+            -cost_rk,
+            sgvb_estimator(f, axis=[0], keepdims=True, negative=True))
         self.assertListEqual([1] + cost_shape[1:], T.shape(cost_rk))
-        assert_allclose(
-            T.to_numpy(T.grad([T.reduce_sum(cost_rk)], [y])[0]),
-            T.to_numpy(T.reduce_sum(2 * x * y * f, axes=[0]) / 7)
+        assert_allclose_(
+            T.grad([T.reduce_sum(cost_rk)], [y])[0],
+            T.reduce_sum(2 * x * y * f, axis=[0]) / 7
         )
 
 
@@ -71,38 +66,35 @@ class IWAEEstimatorTestCase(unittest.TestCase):
         with pytest.raises(Exception,
                            match='`iwae_estimator` requires to take multiple '
                                  'samples'):
-            _ = iwae_estimator(log_f, axes=None)
+            _ = iwae_estimator(log_f, axis=None)
         with pytest.raises(Exception,
                            match='`iwae_estimator` requires to take multiple '
                                  'samples'):
-            _ = iwae_estimator(log_f, axes=[])
+            _ = iwae_estimator(log_f, axis=[])
 
     def test_iwae(self):
-        assert_allclose = functools.partial(
-            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
+        assert_allclose_ = functools.partial(assert_allclose, rtol=1e-5, atol=1e-6)
 
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
-        wk_hat = f / T.reduce_sum(f, axes=[0], keepdims=True)
-        cost = iwae_estimator(log_f, axes=[0])
-        np.testing.assert_allclose(
-            T.to_numpy(-cost),
-            T.to_numpy(iwae_estimator(log_f, axes=[0], negative=True)))
+        wk_hat = f / T.reduce_sum(f, axis=[0], keepdims=True)
+        cost = iwae_estimator(log_f, axis=[0])
+        assert_allclose_(-cost, iwae_estimator(log_f, axis=[0], negative=True))
         cost_shape = T.shape(cost)
-        assert_allclose(
-            T.to_numpy(T.grad([T.reduce_sum(cost)], [y])[0]),
-            T.to_numpy(T.reduce_sum(wk_hat * (2 * x * y), axes=[0]))
+        assert_allclose_(
+            T.grad([T.reduce_sum(cost)], [y])[0],
+            T.reduce_sum(wk_hat * (2 * x * y), axis=[0])
         )
 
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
-        wk_hat = f / T.reduce_sum(f, axes=[0], keepdims=True)
-        cost_k = iwae_estimator(log_f, axes=[0], keepdims=True)
-        np.testing.assert_allclose(
-            T.to_numpy(-cost_k),
-            T.to_numpy(iwae_estimator(log_f, axes=[0], keepdims=True,
+        wk_hat = f / T.reduce_sum(f, axis=[0], keepdims=True)
+        cost_k = iwae_estimator(log_f, axis=[0], keepdims=True)
+        assert_allclose_(
+            -cost_k,
+            T.to_numpy(iwae_estimator(log_f, axis=[0], keepdims=True,
                                       negative=True)))
         self.assertListEqual([1] + cost_shape, T.shape(cost_k))
-        assert_allclose(
-            T.to_numpy(T.grad([T.reduce_sum(cost_k)], [y])[0]),
-            T.to_numpy(T.reduce_sum(wk_hat * (2 * x * y), axes=[0]))
+        assert_allclose_(
+            T.grad([T.reduce_sum(cost_k)], [y])[0],
+            T.reduce_sum(wk_hat * (2 * x * y), axis=[0])
         )
 

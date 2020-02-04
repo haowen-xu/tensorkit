@@ -128,7 +128,10 @@ class StochasticTensor(object):
         """
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._cached_prob is None:
-                self._cached_prob = T.exp(self.log_prob())
+                log_prob = self.log_prob()
+                self._cached_prob = T.exp(log_prob)
+                if hasattr(log_prob, 'transform_origin'):
+                    self._cached_prob.transform_origin = log_prob.transform_origin
             return self._cached_prob
         else:
             return self.distribution.prob(

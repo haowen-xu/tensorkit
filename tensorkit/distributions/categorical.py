@@ -6,7 +6,7 @@ from ..typing_ import *
 from .base import Distribution
 from .utils import copy_distribution, check_tensor_arg_types
 
-__all__ = ['Categorical', 'OneHotCategorical']
+__all__ = ['BaseCategorical', 'Categorical', 'OneHotCategorical']
 
 
 class BaseCategorical(Distribution):
@@ -138,8 +138,8 @@ class Categorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[T.Tensor] = None,
-                 probs: Optional[T.Tensor] = None,
+                 logits: Optional[TensorOrData] = None,
+                 probs: Optional[TensorOrData] = None,
                  dtype: str = T.categorical_dtype,
                  event_ndims: int = 0,
                  epsilon: float = 1e-7,
@@ -218,8 +218,8 @@ class OneHotCategorical(BaseCategorical):
 
     def __init__(self,
                  *,
-                 logits: Optional[T.Tensor] = None,
-                 probs: Optional[T.Tensor] = None,
+                 logits: Optional[TensorOrData] = None,
+                 probs: Optional[TensorOrData] = None,
                  dtype: str = T.int32,
                  event_ndims: int = 1,
                  epsilon: float = 1e-7,

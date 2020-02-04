@@ -6,6 +6,8 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
+from tests.helper import *
 
 
 class BayesianNetTestCase(unittest.TestCase):
@@ -100,14 +102,14 @@ class BayesianNetTestCase(unittest.TestCase):
         net = BayesianNet({'x': x})
         t = net.add('x', normal, n_samples=5)
         self.assertEqual(t.reparameterized, x.reparameterized)
-        np.testing.assert_allclose(T.to_numpy(x.tensor), T.to_numpy(t.tensor))
+        assert_allclose(x.tensor, t.tensor)
 
         x = normal.sample(5, reparameterized=False)
         self.assertFalse(x.reparameterized)
         net = BayesianNet({'x': x})
         t = net.add('x', normal, n_samples=5)
         self.assertEqual(t.reparameterized, x.reparameterized)
-        np.testing.assert_allclose(T.to_numpy(x.tensor), T.to_numpy(t.tensor))
+        assert_allclose(x.tensor, t.tensor)
 
         # test override reparameterized: True -> False
         with mock.patch('tensorkit.tensor.stop_grad',
@@ -142,7 +144,7 @@ class BayesianNetTestCase(unittest.TestCase):
         x_out = net.output('x')
         self.assertIs(x_out, x.tensor)
         self.assertIsInstance(x_out, T.Tensor)
-        np.testing.assert_equal(T.to_numpy(x_out), T.to_numpy(x_observed))
+        assert_equal(x_out, x_observed)
 
         # test multiple query
         x_out, y_out = net.outputs(iter(['x', 'y']))
@@ -150,7 +152,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertIs(y_out, y.tensor)
         self.assertIsInstance(x_out, T.Tensor)
         self.assertIsInstance(y_out, T.Tensor)
-        np.testing.assert_equal(T.to_numpy(x_out), T.to_numpy(x_observed))
+        assert_equal(x_out, x_observed)
 
     def test_log_prob(self):
         x_observed = T.as_tensor(
@@ -163,23 +165,15 @@ class BayesianNetTestCase(unittest.TestCase):
         # test single query
         x_log_prob = net.log_prob('x')
         self.assertIsInstance(x_log_prob, T.Tensor)
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x_observed)))
+        assert_allclose(x_log_prob, normal.log_prob(x_observed))
 
         # test multiple query
         x_log_prob, y_log_prob = net.log_probs(iter(['x', 'y']))
         self.assertIsInstance(x_log_prob, T.Tensor)
         self.assertIsInstance(y_log_prob, T.Tensor)
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x_observed)))
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x.tensor)))
-        np.testing.assert_allclose(
-            T.to_numpy(y_log_prob),
-            T.to_numpy(normal.log_prob(y.tensor)))
+        assert_allclose(x_log_prob, normal.log_prob(x_observed))
+        assert_allclose(x_log_prob, normal.log_prob(x.tensor))
+        assert_allclose(y_log_prob, normal.log_prob(y.tensor))
 
     def test_query_pair(self):
         x_observed = T.as_tensor(
@@ -194,9 +188,7 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertIsInstance(x_out, T.Tensor)
         self.assertIsInstance(x_log_prob, T.Tensor)
         self.assertIs(x_out, x.tensor)
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x_observed)))
+        assert_allclose(x_log_prob, normal.log_prob(x_observed))
 
         # test multiple query
         [(x_out, x_log_prob), (y_out, y_log_prob)] = \
@@ -205,15 +197,9 @@ class BayesianNetTestCase(unittest.TestCase):
             self.assertIsInstance(o, T.Tensor)
         self.assertIs(x_out, x.tensor)
         self.assertIs(y_out, y.tensor)
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x_observed)))
-        np.testing.assert_allclose(
-            T.to_numpy(x_log_prob),
-            T.to_numpy(normal.log_prob(x.tensor)))
-        np.testing.assert_allclose(
-            T.to_numpy(y_log_prob),
-            T.to_numpy(normal.log_prob(y.tensor)))
+        assert_allclose(x_log_prob, normal.log_prob(x_observed))
+        assert_allclose(x_log_prob, normal.log_prob(x.tensor))
+        assert_allclose(y_log_prob, normal.log_prob(y.tensor))
 
     def test_chain(self):
         q_net = BayesianNet({'x': T.ones([1])})
@@ -236,7 +222,7 @@ class BayesianNetTestCase(unittest.TestCase):
             (({'y': q_net['y'], 'z': q_net['z']},),)
         )
         self.assertEqual(chain.latent_names, ['z', 'y'])
-        self.assertIsNone(chain.latent_axes)
+        self.assertIsNone(chain.latent_axis)
 
         # test chain with latent_names
         chain = q_net.chain(net_builder, latent_names=['y'])
@@ -247,11 +233,11 @@ class BayesianNetTestCase(unittest.TestCase):
         self.assertEqual(chain.latent_names, ['y'])
 
         # test chain with latent_axis
-        chain = q_net.chain(net_builder, latent_axes=-1)
-        self.assertEqual(chain.latent_axes, [-1])
+        chain = q_net.chain(net_builder, latent_axis=-1)
+        self.assertEqual(chain.latent_axis, [-1])
 
-        chain = q_net.chain(net_builder, latent_axes=[-1, 2])
-        self.assertEqual(chain.latent_axes, [-1, 2])
+        chain = q_net.chain(net_builder, latent_axis=[-1, 2])
+        self.assertEqual(chain.latent_axis, [-1, 2])
 
         # test chain with observed
         chain = q_net.chain(net_builder, observed=q_net.observed)

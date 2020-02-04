@@ -7,9 +7,10 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
 from tensorkit.distributions.categorical import BaseCategorical
 from tensorkit.distributions.utils import copy_distribution
-from tests.helper import float_dtypes, number_dtypes
+from tests.helper import *
 
 
 def log_softmax(x, axis=-1):
@@ -56,9 +57,9 @@ class CategoricalTestCase(unittest.TestCase):
                 self.assertEqual(cat.event_ndims, 1)
                 self.assertEqual(cat.epsilon, 1e-6)
                 self.assertIs(getattr(cat, key), val)
-                np.testing.assert_allclose(
-                    T.to_numpy(getattr(cat, other_key)),
-                    T.to_numpy(mutual_params[other_key]),
+                assert_allclose(
+                    getattr(cat, other_key),
+                    mutual_params[other_key],
                     rtol=1e-4
                 )
                 self.assertEqual(cat._mutual_params, {key: val})
@@ -126,8 +127,7 @@ class CategoricalTestCase(unittest.TestCase):
         np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
 
-        for dtype, float_dtype, is_one_hot in \
-                product(number_dtypes, float_dtypes, [False, True]):
+        def do_test(dtype, float_dtype, is_one_hot):
             logits_t = T.as_tensor(logits, dtype=float_dtype)
             if is_one_hot:
                 cls, other_cls = OneHotCategorical, Categorical
@@ -190,12 +190,9 @@ class CategoricalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), sample_shape)
 
             for log_pdf in [t.log_prob(), cat.log_prob(t)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        Z_log_prob_fn(
-                            given=t.tensor, logits=logits_t, group_ndims=1)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    Z_log_prob_fn(given=t.tensor, logits=logits_t, group_ndims=1)
                 )
 
             # sample(n_samples=5)
@@ -210,10 +207,11 @@ class CategoricalTestCase(unittest.TestCase):
             self.assertEqual(T.shape(t.tensor), [5] + sample_shape)
 
             for log_pdf in [t.log_prob(-1), cat.log_prob(t, -1)]:
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf),
-                    T.to_numpy(
-                        Z_log_prob_fn(
-                            given=t.tensor, logits=logits_t, group_ndims=0)
-                    )
+                assert_allclose(
+                    log_pdf,
+                    Z_log_prob_fn(given=t.tensor, logits=logits_t, group_ndims=0)
                 )
+
+        for is_one_hot in [True, False]:
+            do_test(T.int32, T.float32, is_one_hot)
+            do_test(T.int64, T.float64, is_one_hot)

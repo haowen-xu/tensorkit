@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from tensorkit import tensor as T
-from tensorkit import *
+from tensorkit.variational import *
+from tests.helper import *
 
 
 def prepare_test_payload():
@@ -14,10 +15,6 @@ def prepare_test_payload():
     return log_p, log_q
 
 
-def assert_allclose(a, b):
-    np.testing.assert_allclose(a, b, atol=1e-4)
-
-
 class ELBOObjectiveTestCase(unittest.TestCase):
 
     def test_elbo(self):
@@ -25,20 +22,17 @@ class ELBOObjectiveTestCase(unittest.TestCase):
 
         obj = elbo_objective(log_p, log_q)
         obj_shape = T.shape(obj)
-        assert_allclose(T.to_numpy(obj), T.to_numpy(log_p - log_q))
+        assert_allclose(obj, log_p - log_q)
 
-        obj_r = elbo_objective(log_p, log_q, axes=[0])
+        obj_r = elbo_objective(log_p, log_q, axis=[0])
         self.assertListEqual(obj_shape[1:], T.shape(obj_r))
-        assert_allclose(
-            T.to_numpy(obj_r),
-            T.to_numpy(T.reduce_mean(log_p - log_q, axes=[0]))
-        )
+        assert_allclose(obj_r, T.reduce_mean(log_p - log_q, axis=[0]))
 
-        obj_rk = elbo_objective(log_p, log_q, axes=[0], keepdims=True)
+        obj_rk = elbo_objective(log_p, log_q, axis=[0], keepdims=True)
         self.assertListEqual([1] + obj_shape[1:], T.shape(obj_rk))
         assert_allclose(
-            T.to_numpy(obj_rk),
-            T.to_numpy(T.reduce_mean(log_p - log_q, axes=[0], keepdims=True))
+            obj_rk,
+            T.reduce_mean(log_p - log_q, axis=[0], keepdims=True)
         )
 
 
@@ -49,25 +43,22 @@ class MonteCarloObjectiveTestCase(unittest.TestCase):
         with pytest.raises(Exception,
                            match='`monte_carlo_objective` requires to take '
                                  'multiple samples'):
-            _ = monte_carlo_objective(log_p, log_q, axes=None)
+            _ = monte_carlo_objective(log_p, log_q, axis=None)
         with pytest.raises(Exception,
                            match='`monte_carlo_objective` requires to take '
                                  'multiple samples'):
-            _ = monte_carlo_objective(log_p, log_q, axes=[])
+            _ = monte_carlo_objective(log_p, log_q, axis=[])
 
     def test_monto_carlo_objective(self):
         log_p, log_q = prepare_test_payload()
 
-        obj = monte_carlo_objective(log_p, log_q, axes=[0])
+        obj = monte_carlo_objective(log_p, log_q, axis=[0])
         obj_shape = T.shape(obj)
-        assert_allclose(
-            T.to_numpy(obj),
-            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0]))
-        )
+        assert_allclose(obj, T.log_mean_exp(log_p - log_q, axis=[0]))
 
-        obj_k = monte_carlo_objective(log_p, log_q, axes=[0], keepdims=True)
+        obj_k = monte_carlo_objective(log_p, log_q, axis=[0], keepdims=True)
         self.assertListEqual([1] + obj_shape, T.shape(obj_k))
         assert_allclose(
-            T.to_numpy(obj_k),
-            T.to_numpy(T.log_mean_exp(log_p - log_q, axes=[0], keepdims=True))
+            obj_k,
+            T.log_mean_exp(log_p - log_q, axis=[0], keepdims=True)
         )

@@ -2,5 +2,6 @@
 
 coverage >= 4.3.4
 mock >= 2.0.0
+numba
 pytest >= 3.0
 pytest-doctest-import >= 0.1.1

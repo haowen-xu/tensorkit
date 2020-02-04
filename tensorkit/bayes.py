@@ -260,7 +260,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
     def chain(self,
               net_builder: ModelBuilderFunctionType,
               latent_names: Optional[Iterable[str]] = None,
-              latent_axes: Optional[Union[int, List[int]]] = None,
+              latent_axis: Optional[Union[int, List[int]]] = None,
               observed: Mapping[str, T.Tensor] = None,
               **kwargs
               ) -> 'VariationalChain':
@@ -281,10 +281,10 @@ class BayesianNet(Mapping[str, StochasticTensor]):
                 variables will be fed into `model_builder` as observed
                 variables, overriding the observations in `observed`.
                 (default all the variables in this :class:`BayesianNet`)
-            latent_axes: The axis or axes to be considered as the sampling
-                dimensions of the latent variables.  The specified axes will
+            latent_axis: The axis or axis to be considered as the sampling
+                dimensions of the latent variables.  The specified axis will
                 be summed up in the variational lower-bounds or training
-                objectives.  Defaults to :obj:`None`, no axes will be reduced.
+                objectives.  Defaults to :obj:`None`, no axis will be reduced.
             observed: The observation dict fed into `net_builder`, as
                 the first positional argument.  Defaults to :obj:`None`.
             \\**kwargs: Additional named arguments passed to `net_builder`.
@@ -299,8 +299,8 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         See Also:
             :class:`tensorkit.variational.VariationalChain`
         """
-        if latent_axes is not None and not hasattr(latent_axes, '__iter__'):
-            latent_axes = [latent_axes]
+        if latent_axis is not None and not hasattr(latent_axis, '__iter__'):
+            latent_axis = [latent_axis]
 
         # build the observed dict: observed + latent samples
         merged_obs = {}
@@ -329,7 +329,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
             p=model,
             q=self,
             latent_names=latent_names,
-            latent_axes=latent_axes,
+            latent_axis=latent_axis,
         )
 
 

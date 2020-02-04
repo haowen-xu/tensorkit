@@ -7,8 +7,9 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit import *
+from tensorkit.distributions import *
 from tensorkit.distributions.utils import copy_distribution
-from tests.helper import float_dtypes
+from tests.helper import *
 
 
 class UniformTestCase(unittest.TestCase):
@@ -54,10 +55,8 @@ class UniformTestCase(unittest.TestCase):
                 self.assertEqual(T.get_dtype(uniform.low), dtype)
                 self.assertEqual(T.get_dtype(uniform.high), dtype)
                 self.assertEqual(uniform.event_ndims, 2)
-                np.testing.assert_equal(
-                    T.to_numpy(uniform.low), T.to_numpy(low_t))
-                np.testing.assert_equal(
-                    T.to_numpy(uniform.high), T.to_numpy(high_t))
+                assert_equal(uniform.low, low_t)
+                assert_equal(uniform.high, high_t)
 
         for event_ndims, dtype, shape in product(range(0, 3), float_dtypes,
                                                  ([], [2, 3])):
@@ -222,13 +221,12 @@ class UniformTestCase(unittest.TestCase):
 
             for log_pdf in [t.log_prob(), uniform.log_prob(t)]:
                 self.assertEqual(T.get_dtype(log_pdf), dtype)
-                np.testing.assert_allclose(
-                    T.to_numpy(log_pdf), log_prob(x, low, high, event_ndims),
-                    rtol=1e-4
-                )
+                assert_allclose(log_pdf, log_prob(x, low, high, event_ndims),
+                                rtol=1e-4)
+
             # test log-prob on out-of-range values
-            np.testing.assert_allclose(
-                T.to_numpy(uniform.log_prob(t.tensor * 10.)),
+            assert_allclose(
+                uniform.log_prob(t.tensor * 10.),
                 log_prob(x * 10., low, high, event_ndims),
                 rtol=1e-4,
             )
@@ -252,8 +250,8 @@ class UniformTestCase(unittest.TestCase):
                 for log_pdf in [t.log_prob(),
                                 uniform.log_prob(t, group_ndims=-1)]:
                     self.assertEqual(T.get_dtype(log_pdf), dtype)
-                    np.testing.assert_allclose(
-                        T.to_numpy(log_pdf),
+                    assert_allclose(
+                        log_pdf,
                         log_prob(x, low, high, reduce_ndims),
                         rtol=1e-4
                     )
@@ -267,10 +265,8 @@ class UniformTestCase(unittest.TestCase):
         self.assertTrue(t.reparameterized)
         u = (T.to_numpy(t.tensor) - array_low) / (array_high - array_low)
         [low_grad, high_grad] = T.grad([T.reduce_sum(t.tensor)], [low_t, high_t])
-        np.testing.assert_allclose(
-            T.to_numpy(low_grad), np.sum(1. - u, axis=-1, keepdims=True), rtol=1e-4)
-        np.testing.assert_allclose(
-            T.to_numpy(high_grad), np.sum(u, axis=0, keepdims=True), rtol=1e-4)
+        assert_allclose(low_grad, np.sum(1. - u, axis=-1, keepdims=True), rtol=1e-4)
+        assert_allclose(high_grad, np.sum(u, axis=0, keepdims=True), rtol=1e-4)
 
         t = uniform.sample(reparameterized=False)
         w_t = T.requires_grad(T.as_tensor(np.random.randn(2, 3)))
