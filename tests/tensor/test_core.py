@@ -801,10 +801,18 @@ class TensorCoreTestCase(unittest.TestCase):
         x = np.random.randn(2, 3)
         x_t = T.as_tensor(x)
         assert_equal(T.pad(x_t, []), x)
-        assert_equal(T.pad(x_t, [(1, 2)]), np.pad(x, [[0, 0], [1, 2]]))
-        assert_equal(T.pad(x_t, [(3, 4), (1, 2)]), np.pad(x, [[3, 4], [1, 2]]))
-        assert_equal(T.pad(x_t, [(1, 2)], value=1.),
-                     np.pad(x, [[0, 0], [1, 2]], constant_values=1.))
+        assert_equal(
+            T.pad(x_t, [(1, 2)]),
+            np.pad(x, [[0, 0], [1, 2]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.pad(x_t, [(3, 4), (1, 2)]),
+            np.pad(x, [[3, 4], [1, 2]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.pad(x_t, [(1, 2)], value=1.),
+            np.pad(x, [[0, 0], [1, 2]], mode='constant', constant_values=1.)
+        )
         with pytest.raises(Exception):
             T.pad(x_t, [(1, 2), 3])
         with pytest.raises(Exception):

@@ -250,7 +250,7 @@ def _conv_nd(input: np.ndarray,
         pad = [(0, 0)] + [(p, p) for p in padding] + [(0, 0)]
     else:
         pad = [(0, 0), (0, 0)] + [(p, p) for p in padding]
-    input = np.pad(input, pad)
+    input = np.pad(input, pad, mode='constant', constant_values=0.)
 
     for i in range(len(output)):
         for out_pos in iter_spatial_pos(output_spatial_shape, spatial_ndims):
@@ -296,7 +296,7 @@ def _conv_transpose_nd(input: np.ndarray,
         pad = [(0, 0)] + [(p, p) for p in padding] + [(0, 0)]
     else:
         pad = [(0, 0), (0, 0)] + [(p, p) for p in padding]
-    output = np.pad(output, pad)
+    output = np.pad(output, pad, mode='constant', constant_values=0.)
 
     for i in range(len(output)):
         for in_pos in iter_spatial_pos(input_spatial_shape, spatial_ndims):
@@ -531,8 +531,8 @@ def _pool_nd(spatial_ndims: int,
         pad = [(0, 0), (0, 0)] + [(p, p) for p in padding]
 
     mark = np.ones_like(input)
-    input = np.pad(input, pad)
-    mark = np.pad(mark, pad)
+    input = np.pad(input, pad, mode='constant', constant_values=0.)
+    mark = np.pad(mark, pad, mode='constant', constant_values=0.)
 
     for i in range(len(output)):
         for out_pos in iter_spatial_pos(output_spatial_shape, spatial_ndims):
@@ -612,7 +612,7 @@ def pad_constant(input: np.ndarray,
         pad = [(0, 0)] * (len(input.shape) - len(pad)) + pad
     elif len(pad) > len(input.shape):
         raise ValueError()
-    return np.pad(input, pad, constant_values=value)
+    return np.pad(input, pad, mode='constant', constant_values=value)
 
 
 def norm_except_axis(input: np.ndarray,

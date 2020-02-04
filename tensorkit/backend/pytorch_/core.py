@@ -1023,7 +1023,7 @@ def calculate_mean_and_var(input: Tensor,
 
     # obtain unbiased estimator from the biased estimator by multiply n / (n-1)
     if unbiased:
-        var = var * (reduce_size / (reduce_size - 1.))
+        var = var * (float(reduce_size) / (reduce_size - 1.))
 
     return mean, var
 
@@ -1220,13 +1220,15 @@ if settings.disable_jit:
              keep_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Optional[Tensor]]:
-        return torch.autograd.grad(
-            outputs=outputs,
-            inputs=inputs,
-            grad_outputs=grad_outputs,
-            retain_graph=keep_graph,
-            create_graph=create_graph,
-            allow_unused=allow_unused,
+        return list(
+            torch.autograd.grad(
+                outputs=outputs,
+                inputs=inputs,
+                grad_outputs=grad_outputs,
+                retain_graph=keep_graph,
+                create_graph=create_graph,
+                allow_unused=allow_unused,
+            )
         )
 
 
@@ -1240,13 +1242,15 @@ else:
              keep_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Tensor]:
-        grad_outs = torch.autograd.grad(
-            outputs=outputs,
-            inputs=inputs,
-            grad_outputs=grad_outputs,
-            keep_graph=keep_graph,
-            create_graph=create_graph,
-            allow_unused=allow_unused,
+        grad_outs = list(
+            torch.autograd.grad(
+                outputs=outputs,
+                inputs=inputs,
+                grad_outputs=grad_outputs,
+                keep_graph=keep_graph,
+                create_graph=create_graph,
+                allow_unused=allow_unused,
+            )
         )
 
         if allow_unused:
