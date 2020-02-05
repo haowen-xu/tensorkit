@@ -1,10 +1,13 @@
 import unittest
+from itertools import product
 
 import pytest
 
 import tensorkit as tk
 from tensorkit import tensor as T
+from tensorkit.arg_check import *
 from tests.helper import *
+from tests.ops import *
 
 
 class UtilsTestCase(unittest.TestCase):
@@ -58,3 +61,88 @@ class UtilsTestCase(unittest.TestCase):
         # unsupported activation
         with pytest.raises(ValueError, match='Unsupported activation: invalid'):
             _ = tk.layers.get_activation_class('invalid')
+
+    def test_deconv_output_padding(self):
+        def f(input_size, output_size, kernel_size, stride, padding, dilation):
+            output_padding = tk.layers.get_deconv_output_padding(
+                input_size=input_size, output_size=output_size,
+                kernel_size=kernel_size, stride=stride, padding=padding,
+                dilation=dilation,
+            )
+            spatial_ndims = len(input_size)
+            kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
+            stride = validate_conv_size('stride', stride, spatial_ndims)
+            dilation = validate_conv_size('dilation', dilation, spatial_ndims)
+            padding = validate_padding(padding, kernel_size, dilation, spatial_ndims)
+
+            layer_cls = getattr(tk.layers, f'LinearConvTranspose{spatial_ndims}d')
+            layer = layer_cls(
+                in_channels=1, out_channels=1, kernel_size=kernel_size,
+                stride=stride, padding=padding, dilation=dilation,
+                output_padding=output_padding,
+            )
+            x = T.random.randn(make_conv_shape([1], 1, input_size))
+            y = layer(x)
+            y_shape = T.shape(y)
+            true_output_size = [y_shape[a] for a in get_spatial_axis(spatial_ndims)]
+
+            self.assertEqual(true_output_size, output_size)
+
+        def g(output_size, kernel_size, stride, padding, dilation):
+            # use conv to generate the `input_size`
+            spatial_ndims = len(output_size)
+            layer_cls = getattr(tk.layers, f'LinearConv{spatial_ndims}d')
+            layer = layer_cls(
+                in_channels=1, out_channels=1, kernel_size=kernel_size,
+                stride=stride, padding=padding, dilation=dilation,
+            )
+            x = T.random.randn(make_conv_shape([1], 1, output_size))
+            y = layer(x)
+            y_shape = T.shape(y)
+            input_size = [y_shape[a] for a in get_spatial_axis(spatial_ndims)]
+
+            # do check
+            f(input_size, output_size, kernel_size, stride, padding, dilation)
+
+        g([1], 1, 1, 0, 1)
+        g([2], 2, 1, 0, 1)
+
+        for output_size, kernel_size, stride, padding, dilation in product(
+                    ([8, 9, 10], [16, 21, 32], [30, 31, 32]),
+                    (1, 2, 3, [1, 2, 3]),
+                    (1, 2, 3, [1, 2, 3]),
+                    ('none', 'half', 'full', 0, 1, [1, 2, 3]),
+                    (1, 2, [1, 2, 3]),
+                ):
+            try:
+                _ = validate_padding(
+                    padding,
+                    validate_conv_size('kernel_size', kernel_size, 3),
+                    validate_conv_size('dilation', dilation, 3),
+                    3,
+                )
+            except Exception:
+                continue
+            else:
+                g(output_size, kernel_size, stride, padding, dilation)
+
+        # test error
+        with pytest.raises(ValueError,
+                           match='The length of `input_size` != the length of '
+                                 '`output_size`'):
+            _ = tk.layers.get_deconv_output_padding([1], [2, 3])
+
+        with pytest.raises(ValueError,
+                           match='Only 1d, 2d, or 3d `input_size` and '
+                                 '`output_size` is supported'):
+            _ = tk.layers.get_deconv_output_padding([], [])
+
+        with pytest.raises(ValueError,
+                           match='Only 1d, 2d, or 3d `input_size` and '
+                                 '`output_size` is supported'):
+            _ = tk.layers.get_deconv_output_padding([1, 1, 1, 1], [1, 1, 1, 1])
+
+        with pytest.raises(ValueError,
+                           match='No `output_padding` can satisfy the '
+                                 'deconvolution task'):
+            _ = tk.layers.get_deconv_output_padding([2], [1])
