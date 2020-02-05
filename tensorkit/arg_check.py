@@ -97,10 +97,10 @@ def validate_padding(padding: 'PaddingArgType',
         else:
             ret = [int(padding)] * spatial_ndims
 
-        if len(ret) != spatial_ndims or not all(p > 0 for p in ret):
+        if len(ret) != spatial_ndims or not all(p >= 0 for p in ret):
             raise ValueError(
-                f'`padding` must be a positive integer, a sequence of '
-                f'positive integers of length `{spatial_ndims}`, "none", '
+                f'`padding` must be a non-negative integer, a sequence of '
+                f'non-negative integers of length `{spatial_ndims}`, "none", '
                 f'"half" or "full": got {padding}.'
             )
         return ret

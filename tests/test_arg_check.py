@@ -114,12 +114,12 @@ class ArgCheckTestCase(unittest.TestCase):
             )
             self.assertEqual(
                 validate_padding(
-                    4,
+                    0,
                     kernel_size=[5, 6, 7][:spatial_ndims],
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [4] * spatial_ndims
+                [0] * spatial_ndims
             )
             self.assertEqual(
                 validate_padding(
@@ -148,13 +148,13 @@ class ArgCheckTestCase(unittest.TestCase):
             _ = validate_padding('half', [4, 5, 6], [1, 2, 3], 3)
 
         msg_prefix = (
-            r'`padding` must be a positive integer, a '
-            r'sequence of positive integers of length '
+            r'`padding` must be a non-negative integer, a '
+            r'sequence of non-negative integers of length '
             r'`3`, "none", "half" or "full": got '
         )
 
-        with pytest.raises(ValueError, match=msg_prefix + r'0'):
-            _ = validate_padding(0, [1] * 3, [1] * 3, 3)
+        with pytest.raises(ValueError, match=msg_prefix + r'-1'):
+            _ = validate_padding(-1, [1] * 3, [1] * 3, 3)
 
         with pytest.raises(ValueError, match=msg_prefix + r'\[1, 2\]'):
             _ = validate_padding([1, 2], [1] * 3, [1] * 3, 3)
