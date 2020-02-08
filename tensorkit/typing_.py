@@ -73,7 +73,8 @@ DataInitArgType = Union[
     Type['DataDependentInitializer'], 'DataDependentInitializer',
     Callable[..., 'DataDependentInitializer'],
 ]
-PaddingArgType = Union[int, Sequence[int], str, PaddingMode]
+PaddingArgType = Union[Sequence[Union[Tuple[int, int], int]], int, str,
+                       PaddingMode]
 
 
 # import these types for type annotation

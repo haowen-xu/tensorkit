@@ -387,21 +387,11 @@ class CoreLinearTestCase(unittest.TestCase):
     def test_conv_nd(self):
         np.random.seed(1234)
 
-        def is_valid_for_half_padding(spatial_ndims, kernel_size, dilation):
-            if not hasattr(kernel_size, '__iter__'):
-                kernel_size = [kernel_size] * spatial_ndims
-            if not hasattr(dilation, '__iter__'):
-                dilation = [dilation] * spatial_ndims
-            for k, d in zip(kernel_size, dilation):
-                if (k - 1) * d % 2 != 0:
-                    return False
-            return True
-
         def do_check(spatial_ndims, kernel_size, stride,
                      dilation, padding):
             cls_name = f'LinearConv{spatial_ndims}d'
             layer_factory = getattr(tk.layers, cls_name)
-            fn = lambda: check_core_linear(
+            check_core_linear(
                 self,
                 np.random.randn(
                     *make_conv_shape(
@@ -420,20 +410,12 @@ class CoreLinearTestCase(unittest.TestCase):
                 )),
             )
 
-            if padding == 'half' and \
-                    not is_valid_for_half_padding(
-                        spatial_ndims, kernel_size, dilation):
-                with pytest.raises(Exception, match='required to be even'):
-                    fn()
-            else:
-                fn()
-
         for spatial_ndims in (1, 2):
             for kernel_size, stride, padding, dilation in product(
                         (1, (3, 2, 1)[: spatial_ndims]),
                         (1, (3, 2, 1)[: spatial_ndims]),
-                        (0, 1, (4, 3, 2)[: spatial_ndims], PaddingMode.FULL,
-                         PaddingMode.HALF, PaddingMode.NONE),
+                        (0, 1, ((4, 3), 3, (2, 1))[: spatial_ndims],
+                         PaddingMode.FULL, PaddingMode.HALF, PaddingMode.NONE),
                         (1, (3, 2, 1)[: spatial_ndims]),
                     ):
                 do_check(spatial_ndims, kernel_size, stride, dilation, padding)
@@ -444,16 +426,6 @@ class CoreLinearTestCase(unittest.TestCase):
     @slow_test
     def test_conv_transpose_nd(self):
         np.random.seed(1234)
-
-        def is_valid_for_half_padding(spatial_ndims, kernel_size, dilation):
-            if not hasattr(kernel_size, '__iter__'):
-                kernel_size = [kernel_size] * spatial_ndims
-            if not hasattr(dilation, '__iter__'):
-                dilation = [dilation] * spatial_ndims
-            for k, d in zip(kernel_size, dilation):
-                if (k - 1) * d % 2 != 0:
-                    return False
-            return True
 
         def is_valid_output_padding(spatial_ndims, output_padding, stride, dilation):
             if not hasattr(output_padding, '__iter__'):
@@ -492,12 +464,7 @@ class CoreLinearTestCase(unittest.TestCase):
                 )),
             )
 
-            if padding == 'half' and \
-                    not is_valid_for_half_padding(
-                        spatial_ndims, kernel_size, dilation):
-                with pytest.raises(Exception, match='required to be even'):
-                    fn()
-            elif not is_valid_output_padding(
+            if not is_valid_output_padding(
                     spatial_ndims, output_padding, stride, dilation):
                 with pytest.raises(Exception, match='`output_padding`'):
                     fn()
@@ -508,8 +475,8 @@ class CoreLinearTestCase(unittest.TestCase):
             for kernel_size, stride, padding, output_padding, dilation in product(
                         (1, (3, 2, 1)[: spatial_ndims]),
                         (1, (3, 2, 1)[: spatial_ndims]),
-                        (0, 1, (4, 3, 2)[: spatial_ndims], PaddingMode.FULL,
-                         PaddingMode.HALF, PaddingMode.NONE),
+                        (0, 1, ((4, 3), 3, (2, 1))[: spatial_ndims],
+                         PaddingMode.FULL, PaddingMode.HALF, PaddingMode.NONE),
                         (0, 1, (3, 2, 1)[: spatial_ndims]),
                         (1, (3, 2, 1)[: spatial_ndims]),
                     ):

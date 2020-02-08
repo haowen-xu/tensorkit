@@ -117,7 +117,7 @@ def get_deconv_output_padding(input_size: List[int],
 
     def f(i, o, k, s, d, p):
         # o = op + (i - 1) * s - p * 2 + (k - 1) * d + 1
-        op = o - ((i - 1) * s - p * 2 + (k - 1) * d + 1)
+        op = o - ((i - 1) * s - (p[0] + p[1]) + (k - 1) * d + 1)
         if op < 0 or op >= max(s, d):
             raise ValueError(
                 f'No `output_padding` can satisfy the deconvolution task: '

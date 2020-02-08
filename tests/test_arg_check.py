@@ -92,7 +92,7 @@ class ArgCheckTestCase(unittest.TestCase):
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [0] * spatial_ndims
+                [(0, 0)] * spatial_ndims
             )
             self.assertEqual(
                 validate_padding(
@@ -101,16 +101,16 @@ class ArgCheckTestCase(unittest.TestCase):
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [4, 10, 18][:spatial_ndims]
+                [(4, 4), (10, 10), (18, 18)][:spatial_ndims]
             )
             self.assertEqual(
                 validate_padding(
                     'half',
-                    kernel_size=[5, 6, 7][:spatial_ndims],
+                    kernel_size=[4, 5, 6][:spatial_ndims],
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [2, 5, 9][:spatial_ndims]
+                [(1, 2), (4, 4), (7, 8)][:spatial_ndims]
             )
             self.assertEqual(
                 validate_padding(
@@ -119,16 +119,16 @@ class ArgCheckTestCase(unittest.TestCase):
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [0] * spatial_ndims
+                [(0, 0)] * spatial_ndims
             )
             self.assertEqual(
                 validate_padding(
-                    [3, 4, 5][:spatial_ndims],
+                    [(3, 4), 4, (4, 5)][:spatial_ndims],
                     kernel_size=[5, 6, 7][:spatial_ndims],
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [3, 4, 5][:spatial_ndims]
+                [(3, 4), (4, 4), (4, 5)][:spatial_ndims]
             )
             self.assertEqual(
                 validate_padding(
@@ -137,15 +137,8 @@ class ArgCheckTestCase(unittest.TestCase):
                     dilation=[1, 2, 3][:spatial_ndims],
                     spatial_ndims=spatial_ndims,
                 ),
-                [3, 4, 5][:spatial_ndims]
+                [(3, 3), (4, 4), (5, 5)][:spatial_ndims]
             )
-
-        with pytest.raises(ValueError,
-                           match=r'`\(kernel_size - 1\) \* dilation` is '
-                                 r'required to be even for `padding` == "half":'
-                                 r' got `kernel_size` \[4, 5, 6\], and '
-                                 r'`dilation` \[1, 2, 3\]'):
-            _ = validate_padding('half', [4, 5, 6], [1, 2, 3], 3)
 
         msg_prefix = (
             r'`padding` must be a non-negative integer, a '
