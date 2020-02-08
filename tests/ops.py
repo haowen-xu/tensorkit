@@ -212,12 +212,18 @@ def space_to_depth_nd(x, block_size: int, spatial_ndims: int):
 
 
 def get_conv_output_size(input_size, kernel_size, stride, padding, dilation):
-    return 1 + (input_size + padding * 2 - (kernel_size - 1) * dilation - 1) // stride
+    return 1 + (input_size +
+                (padding[0] + padding[1]) -
+                (kernel_size - 1) * dilation - 1) // stride
 
 
 def get_deconv_output_size(input_size, kernel_size, stride, padding, output_padding, dilation):
     return output_padding + (
-        (input_size - 1) * stride - padding * 2 + (kernel_size - 1) * dilation + 1)
+        (input_size - 1) * stride -
+        (padding[0] + padding[1]) +
+        (kernel_size - 1) * dilation +
+        1
+    )
 
 
 # ---- core linear op ----
@@ -238,7 +244,7 @@ def _conv_nd(input: np.ndarray,
              spatial_ndims: int,
              kernel_size: List[int],
              stride: List[int],
-             padding: List[int],
+             padding: List[Tuple[int, int]],
              dilation: List[int],
              output_spatial_shape: List[int],
              output_shape: List[int],
@@ -247,9 +253,9 @@ def _conv_nd(input: np.ndarray,
     output = np.zeros(output_shape, dtype=input.dtype)
 
     if T.IS_CHANNEL_LAST:
-        pad = [(0, 0)] + [(p, p) for p in padding] + [(0, 0)]
+        pad = [(0, 0)] + padding + [(0, 0)]
     else:
-        pad = [(0, 0), (0, 0)] + [(p, p) for p in padding]
+        pad = [(0, 0), (0, 0)] + padding
     input = np.pad(input, pad, mode='constant', constant_values=0.)
 
     for i in range(len(output)):
@@ -284,7 +290,7 @@ def _conv_transpose_nd(input: np.ndarray,
                        spatial_ndims: int,
                        kernel_size: List[int],
                        stride: List[int],
-                       padding: List[int],
+                       padding: List[Tuple[int, int]],
                        output_padding: List[int],
                        dilation: List[int],
                        output_spatial_shape: List[int],
@@ -293,9 +299,9 @@ def _conv_transpose_nd(input: np.ndarray,
                        bias: Optional[np.ndarray]):
     output = np.zeros(output_shape, dtype=input.dtype)
     if T.IS_CHANNEL_LAST:
-        pad = [(0, 0)] + [(p, p) for p in padding] + [(0, 0)]
+        pad = [(0, 0)] + padding + [(0, 0)]
     else:
-        pad = [(0, 0), (0, 0)] + [(p, p) for p in padding]
+        pad = [(0, 0), (0, 0)] + padding
     output = np.pad(output, pad, mode='constant', constant_values=0.)
 
     for i in range(len(output)):
@@ -344,7 +350,7 @@ def conv_nd(input: np.ndarray,
             kernel: np.ndarray,
             bias: Optional[np.ndarray],
             stride: Union[int, List[int]],
-            padding: Union[str, int, List[int]],
+            padding: Union[str, int, List[Union[int, Tuple[int, int]]]],
             dilation: Union[int, List[int]],
             ):
     # validate the arguments
@@ -364,21 +370,38 @@ def conv_nd(input: np.ndarray,
         else:
             return [int(t)] * spatial_ndims
 
+    def validate_size_tuple(t):
+        if hasattr(t, '__iter__'):
+            r = []
+            for w in t:
+                if isinstance(w, int):
+                    p1, p2 = w, w
+                else:
+                    p1, p2 = w
+                r.append((int(p1), int(p2)))
+            assert(len(r) == spatial_ndims)
+            return r
+        else:
+            return [(int(t), int(t))] * spatial_ndims
+
     stride = validate_size(stride)
     dilation = validate_size(dilation)
 
     if isinstance(padding, str):
         assert(padding in ('full', 'half', 'none'))
         if padding == 'full':
-            padding = [(k - 1) * d for k, d in zip(kernel_size, dilation)]
+            padding = [((k - 1) * d, (k - 1) * d)
+                       for k, d in zip(kernel_size, dilation)]
         elif padding == 'half':
-            for in_channel, d in zip(kernel_size, dilation):
-                assert((in_channel - 1) * d % 2 == 0)
-            padding = [(k - 1) * d // 2 for k, d in zip(kernel_size, dilation)]
+            padding = []
+            for k, d in zip(kernel_size, dilation):
+                p1 = (k - 1) * d // 2
+                p2 = (k - 1) * d - p1
+                padding.append((p1, p2))
         else:
-            padding = [0] * spatial_ndims
+            padding = [(0, 0)] * spatial_ndims
     else:
-        padding = validate_size(padding)
+        padding = validate_size_tuple(padding)
 
     # do the convolution
     input_spatial_shape = [input.shape[a] for a in spatial_axis[spatial_ndims]]
@@ -414,7 +437,7 @@ def conv_transpose_nd(input: np.ndarray,
                       kernel: np.ndarray,
                       bias: Optional[np.ndarray],
                       stride: Union[int, List[int]],
-                      padding: Union[str, int, List[int]],
+                      padding: Union[str, int, List[Union[int, Tuple[int, int]]]],
                       output_padding: Union[int, List[int]],
                       dilation: Union[int, List[int]],
                       ):
@@ -435,21 +458,38 @@ def conv_transpose_nd(input: np.ndarray,
         else:
             return [int(t)] * spatial_ndims
 
+    def validate_size_tuple(t):
+        if hasattr(t, '__iter__'):
+            r = []
+            for w in t:
+                if isinstance(w, int):
+                    p1, p2 = w, w
+                else:
+                    p1, p2 = w
+                r.append((int(p1), int(p2)))
+            assert(len(r) == spatial_ndims)
+            return r
+        else:
+            return [(int(t), int(t))] * spatial_ndims
+
     stride = validate_size(stride)
     dilation = validate_size(dilation)
 
     if isinstance(padding, str):
-        assert(padding in ('full', 'half', 'none'))
+        assert (padding in ('full', 'half', 'none'))
         if padding == 'full':
-            padding = [(k - 1) * d for k, d in zip(kernel_size, dilation)]
+            padding = [((k - 1) * d, (k - 1) * d)
+                       for k, d in zip(kernel_size, dilation)]
         elif padding == 'half':
-            for in_channel, d in zip(kernel_size, dilation):
-                assert((in_channel - 1) * d % 2 == 0)
-            padding = [(k - 1) * d // 2 for k, d in zip(kernel_size, dilation)]
+            padding = []
+            for k, d in zip(kernel_size, dilation):
+                p1 = (k - 1) * d // 2
+                p2 = (k - 1) * d - p1
+                padding.append((p1, p2))
         else:
-            padding = [0] * spatial_ndims
+            padding = [(0, 0)] * spatial_ndims
     else:
-        padding = validate_size(padding)
+        padding = validate_size_tuple(padding)
 
     if not hasattr(output_padding, '__iter__'):
         output_padding = [int(output_padding)] * spatial_ndims
@@ -515,7 +555,7 @@ def _pool_nd(spatial_ndims: int,
 
     ##
     output_spatial_shape = [
-        get_conv_output_size(a, k, s, p, d)
+        get_conv_output_size(a, k, s, (p, p), d)
         for a, k, s, p, d in zip(
             [input.shape[k] for k in spatial_axis[spatial_ndims]],
             kernel_size, stride, padding, dilation

@@ -30,7 +30,7 @@ def check_resblock(ctx,
     ctx.assertIsNotNone(layer.conv0.bias_store)
     ctx.assertEqual(layer.conv0.kernel_size, [1] * spatial_ndims)
     ctx.assertEqual(layer.conv0.stride, [1] * spatial_ndims)
-    ctx.assertEqual(layer.conv0.padding, [0] * spatial_ndims)
+    ctx.assertEqual(layer.conv0.padding, [(0, 0)] * spatial_ndims)
     ctx.assertEqual(layer.conv0.dilation, [1] * spatial_ndims)
     ctx.assertEqual(layer.conv0.out_channels, 5)
     ctx.assertIsInstance(layer.pre_conv1, tk.layers.Identity)
@@ -40,7 +40,7 @@ def check_resblock(ctx,
     ctx.assertIsNotNone(layer.conv1.bias_store)
     ctx.assertEqual(layer.conv1.kernel_size, [1] * spatial_ndims)
     ctx.assertEqual(layer.conv1.stride, [1] * spatial_ndims)
-    ctx.assertEqual(layer.conv1.padding, [0] * spatial_ndims)
+    ctx.assertEqual(layer.conv1.padding, [(0, 0)] * spatial_ndims)
     ctx.assertEqual(layer.conv1.dilation, [1] * spatial_ndims)
     ctx.assertEqual(layer.conv1.out_channels, 5)
     ctx.assertIsInstance(layer.post_conv1, tk.layers.Identity)
@@ -66,7 +66,7 @@ def check_resblock(ctx,
     ctx.assertIsNone(layer.shortcut.bias_store)
     ctx.assertEqual(layer.shortcut.kernel_size, [1] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.stride, [1] * spatial_ndims)
-    ctx.assertEqual(layer.shortcut.padding, [0] * spatial_ndims)
+    ctx.assertEqual(layer.shortcut.padding, [(0, 0)] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.dilation, [1] * spatial_ndims)
     ctx.assertIsNotNone(layer.conv0.bias_store)
     ctx.assertIsNotNone(layer.conv1.bias_store)
@@ -89,9 +89,12 @@ def check_resblock(ctx,
     # test conv parameters & resize_at_exit = False
     kernel_size = [5, 3, 2][: spatial_ndims]
     stride = [3, 2, 1][: spatial_ndims]
-    padding = [2, 3, 4][: spatial_ndims]
+    padding = [(2, 3), (3, 4), (4, 5)][: spatial_ndims]
     dilation = [1, 3, 4][: spatial_ndims]
-    half_padding = [(k - 1) * d // 2 for k, d in zip(kernel_size, dilation)]
+    half_padding = [
+        ((k - 1) * d // 2, (k - 1) * d - (k - 1) * d // 2)
+        for k, d in zip(kernel_size, dilation)
+    ]
     layer = resblock_cls(
         in_channels=5, out_channels=4, kernel_size=kernel_size,
         stride=stride, padding=padding, dilation=dilation,

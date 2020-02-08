@@ -212,7 +212,7 @@ class InverseFlow(BaseFlow):
     def __init__(self, flow: Module):
         if (not isinstance(flow, BaseFlow) and not is_jit_layer(flow)) or \
                 not flow.explicitly_invertible:
-            raise ValueError(
+            raise TypeError(
                 f'`flow` must be an explicitly invertible flow: '
                 f'got {flow!r}'
             )

@@ -162,7 +162,7 @@ class FeatureMappingFlowTestCase(unittest.TestCase):
 class InverseFlowTestCase(unittest.TestCase):
 
     def test_InverseFlow(self):
-        original_flow = _MyFlow()
+        original_flow = T.jit_compile(_MyFlow())
         flow = InverseFlow(original_flow)
         self.assertIs(flow.original_flow, original_flow)
         self.assertIs(flow.invert(), original_flow)
@@ -179,6 +179,16 @@ class InverseFlowTestCase(unittest.TestCase):
 
         flow_standard_check(self, flow, x, expected_y, expected_log_det,
                             input_log_det)
+
+        with pytest.raises(TypeError,
+                           match='`flow` must be an explicitly invertible flow'):
+            _ = InverseFlow(tk.layers.Linear(5, 3))
+
+        base_flow = _MyFlow()
+        base_flow.explicitly_invertible = False
+        with pytest.raises(TypeError,
+                           match='`flow` must be an explicitly invertible flow'):
+            _ = InverseFlow(T.jit_compile(base_flow))
 
 
 class _MyFlow1(BaseFlow):

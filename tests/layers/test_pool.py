@@ -17,20 +17,29 @@ class PoolTestCase(unittest.TestCase):
 
         def is_valid_padding(padding, kernel_size):
             for p, k in zip(padding, kernel_size):
-                if p >= k / 2.:
+                if isinstance(p, int):
+                    p = (p,)
+                if all(t >= k / 2. for t in p):
                     return False
             return True
 
         for pool_type, spatial_ndims in product(('avg', 'max'), (1, 2, 3)):
             x = T.random.randn(make_conv_shape([3], 4, [15, 14, 13][: spatial_ndims]))
+            cls_name = f'{pool_type.capitalize()}Pool{spatial_ndims}d'
+            layer_factory = getattr(tk.layers, cls_name)
+
+            with pytest.raises(ValueError,
+                               match='Asymmetric padding is not supported'):
+                _ = layer_factory(
+                    kernel_size=1,
+                    padding=[(3, 2), (2, 1), (1, 0)][:spatial_ndims])
+
             for kernel_size, stride, padding, count_padded_zeros in product(
                         (1, [3, 2, 1][:spatial_ndims]),
                         (None, 1, [3, 2, 1][:spatial_ndims]),
-                        (0, 1, [3, 2, 1][:spatial_ndims], 'none'),
+                        (0, 1, [(3, 3), 2, (1, 1)][:spatial_ndims], 'none'),
                         (True, False)
                     ):
-                cls_name = f'{pool_type.capitalize()}Pool{spatial_ndims}d'
-                layer_factory = getattr(tk.layers, cls_name)
                 fn = getattr(T.nn, f'{pool_type}_pool{spatial_ndims}d')
 
                 if pool_type == 'avg':

@@ -6,7 +6,8 @@ __all__ = [
 
     # layer argument validators
     'validate_layer', 'validate_layer_factory', 'get_layer_from_layer_or_factory',
-    'validate_conv_size', 'validate_padding', 'validate_output_padding',
+    'validate_conv_size', 'validate_padding', 'maybe_as_symmetric_padding',
+    'validate_output_padding',
 ]
 
 
@@ -73,37 +74,50 @@ def validate_padding(padding: 'PaddingArgType',
                      kernel_size: List[int],
                      dilation: List[int],
                      spatial_ndims: int
-                     ) -> List[int]:
+                     ) -> List[Tuple[int, int]]:
     if padding == 'none':
-        return [0] * spatial_ndims
+        return [(0, 0)] * spatial_ndims
     elif padding == 'full':
-        return [(kernel_size[i] - 1) * dilation[i]
-                for i in range(spatial_ndims)]
+        ret = []
+        for i in range(spatial_ndims):
+            p = (kernel_size[i] - 1) * dilation[i]
+            ret.append((p, p))
+        return ret
     elif padding == 'half':
         padding = []
         for i in range(spatial_ndims):
             val = (kernel_size[i] - 1) * dilation[i]
-            if val % 2 != 0:
-                raise ValueError(
-                    f'`(kernel_size - 1) * dilation` is required to be even '
-                    f'for `padding` == "half": got `kernel_size` '
-                    f'{kernel_size}, and `dilation` {dilation}.'
-                )
-            padding.append(val // 2)
+            p1 = int(val // 2)
+            p2 = val - p1
+            padding.append((p1, p2))
         return padding
     else:
         if hasattr(padding, '__iter__'):
-            ret = list(map(int, padding))
+            ret = list(padding)
         else:
-            ret = [int(padding)] * spatial_ndims
+            ret = [padding] * spatial_ndims
 
-        if len(ret) != spatial_ndims or not all(p >= 0 for p in ret):
+        if len(ret) == spatial_ndims:
+            for i in range(len(ret)):
+                if isinstance(ret[i], tuple):
+                    p1, p2 = ret[i]
+                    ret[i] = (int(p1), int(p2))
+                else:
+                    ret[i] = (int(ret[i]),) * 2
+        if len(ret) != spatial_ndims or \
+                not all(p1 >= 0 and p2 >= 0 for p1, p2 in ret):
             raise ValueError(
                 f'`padding` must be a non-negative integer, a sequence of '
                 f'non-negative integers of length `{spatial_ndims}`, "none", '
                 f'"half" or "full": got {padding}.'
             )
         return ret
+
+
+def maybe_as_symmetric_padding(padding: List[Tuple[int, int]]
+                               ) -> Optional[List[int]]:
+    if all(p1 == p2 for p1, p2 in padding):
+        return [p1 for p1, _ in padding]
 
 
 def validate_output_padding(output_padding: Union[int, Sequence[int]],

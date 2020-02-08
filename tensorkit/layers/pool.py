@@ -43,6 +43,9 @@ class AvgPoolNd(BaseSingleVariateLayer):
         kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
         padding = validate_padding(
             padding, kernel_size, [1] * spatial_ndims, spatial_ndims)
+        _symmetric_padding = maybe_as_symmetric_padding(padding)
+        if _symmetric_padding is None:
+            raise ValueError('Asymmetric padding is not supported.')
 
         if stride is not None:
             stride = validate_conv_size('stride', stride, spatial_ndims)
@@ -52,7 +55,7 @@ class AvgPoolNd(BaseSingleVariateLayer):
         super().__init__()
         self.kernel_size = kernel_size
         self.stride = stride
-        self.padding = padding
+        self.padding = _symmetric_padding
         self.count_padded_zeros = count_padded_zeros
 
     def _get_spatial_ndims(self) -> int:
@@ -120,6 +123,9 @@ class MaxPoolNd(BaseSingleVariateLayer):
         kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
         padding = validate_padding(
             padding, kernel_size, [1] * spatial_ndims, spatial_ndims)
+        _symmetric_padding = maybe_as_symmetric_padding(padding)
+        if _symmetric_padding is None:
+            raise ValueError('Asymmetric padding is not supported.')
 
         if stride is not None:
             stride = validate_conv_size('stride', stride, spatial_ndims)
@@ -129,7 +135,7 @@ class MaxPoolNd(BaseSingleVariateLayer):
         super().__init__()
         self.kernel_size = kernel_size
         self.stride = stride
-        self.padding = padding
+        self.padding = _symmetric_padding
 
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
