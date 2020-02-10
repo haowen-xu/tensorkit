@@ -5,12 +5,17 @@ import numpy as np
 import pytest
 
 from tensorkit import tensor as T
+from tensorkit.arg_check import *
 from tests import ops
 from tests.helper import *
 from tests.ops import *
 
 
 class TensorNNTestCase(unittest.TestCase):
+
+    def test_constants(self):
+        self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
+        self.assertFalse(T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS)
 
     def test_activation_functions(self):
         np.random.seed(1234)
@@ -25,7 +30,6 @@ class TensorNNTestCase(unittest.TestCase):
         assert_allclose(T.nn.relu(x_t), x * (x >= 0))
 
         # test leaky_relu
-        self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
         assert_allclose(
             T.nn.leaky_relu(x_t),
             x * (x >= 0) + (T.nn.LEAKY_RELU_DEFAULT_SLOPE * x * (x < 0))
@@ -385,11 +389,11 @@ class TensorNNTestCase(unittest.TestCase):
 
         def do_check(pool_type, spatial_ndims, x, kernel_size, stride, padding,
                      count_padded_zeros):
-            kwargs = dict(
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
-            )
+            kwargs = {}
+            kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
+            stride = validate_conv_size('stride', stride, spatial_ndims)
+            padding = validate_padding(padding, kernel_size, [1] * spatial_ndims, spatial_ndims)
+            padding = [p[0] for p in padding]
             if pool_type == 'avg':
                 kwargs['count_padded_zeros'] = count_padded_zeros
             elif not count_padded_zeros:
@@ -397,8 +401,19 @@ class TensorNNTestCase(unittest.TestCase):
 
             assert_allclose(
                 getattr(T.nn, f'{pool_type}_pool{spatial_ndims}d')(
-                    T.as_tensor(x), **kwargs),
-                getattr(ops, f'{pool_type}_pool_nd')(spatial_ndims, x, **kwargs),
+                    T.as_tensor(x),
+                    padding=padding,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    **kwargs
+                ),
+                getattr(ops, f'{pool_type}_pool_nd')(
+                    spatial_ndims, x,
+                    padding=padding,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    **kwargs,
+                ),
                 atol=1e-6, rtol=1e-4,
                 err_msg=f'pool_type={pool_type}, '
                         f'spatial_ndims={spatial_ndims}, '

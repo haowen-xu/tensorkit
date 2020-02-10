@@ -76,15 +76,15 @@ class ResBlockNd(BaseContextualLayer):
             )
         residual = normalizer0(residual)
         residual = activation0(residual)
+        residual = conv0_layer(residual)
         if merge_context0 is not None:
             residual = merge_context0(residual, context)
-        residual = conv0_layer(residual)
         residual = dropout(residual)
         residual = normalizer1(residual)
         residual = activation1(residual)
+        residual = conv1_layer(residual)
         if merge_context1 is not None:
             residual = merge_context1(residual, context)
-        residual = conv1_layer(residual)
 
         output = shortcut + residual
     """
@@ -152,10 +152,10 @@ class ResBlockNd(BaseContextualLayer):
             shortcut: The "shortcut" layer, or the factory to construct the layer.
             conv0: The "conv0" layer, or the factory to construct the layer.
             conv1: The "conv1" layer, or the factory to construct the layer.
-            merge_context0: Layer before "conv0" to merge the `context`
-                argument with the output from previous layers.  (See above)
-            merge_context1: Layer before "conv1" to merge the `context`
-                argument with the output from previous layers.  (See above)
+            merge_context0: Layer after "conv0" to merge the `context`
+                argument with the output of "conv0".  (See above)
+            merge_context1: Layer after "conv1" to merge the `context`
+                argument with the output of "conv1".  (See above)
             activation: The factory of the activation layers.
                 It should expect no argument.
             normalizer: The factory of the normalizer layers.  It should accept
@@ -226,6 +226,7 @@ class ResBlockNd(BaseContextualLayer):
         if conv1 is None:
             conv1 = self._default_conv_factory()
 
+        orig_merge_context0 = merge_context0
         if merge_context0 is None:
             merge_context0 = IgnoreContext()
         else:
@@ -328,7 +329,8 @@ class ResBlockNd(BaseContextualLayer):
                 padding=conv0_padding,
                 dilation=dilation,
                 use_bias=use_bias_or_else(normalizer_factory is None or
-                                          dropout is not None),
+                                          dropout is not None or
+                                          orig_merge_context0 is not None),
                 weight_norm=conv0_weight_norm,
                 **conv0_kwargs,
             )
@@ -390,7 +392,7 @@ class ResBlockNd(BaseContextualLayer):
         return kwargs
 
     @jit_method
-    def _call(self, input: Tensor, context: Optional[Tensor]) -> Tensor:
+    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
         # feed the input into both the shortcut and the residual path
         residual = shortcut = input
 
@@ -399,11 +401,11 @@ class ResBlockNd(BaseContextualLayer):
 
         # compute the residual path
         residual = self.pre_conv0(residual)
-        residual = self.merge_context0(residual, context)
         residual = self.conv0(residual)
+        residual = self.merge_context0(residual, context)
         residual = self.pre_conv1(residual)
-        residual = self.merge_context1(residual, context)
         residual = self.conv1(residual)
+        residual = self.merge_context1(residual, context)
         residual = self.post_conv1(residual)
 
         # sum up the shortcut path and the residual path

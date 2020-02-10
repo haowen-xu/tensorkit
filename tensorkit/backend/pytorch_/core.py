@@ -42,12 +42,13 @@ __all__ = [
 
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
-    'swap_axes', 'transpose', 'pad',
+    'swap_axes', 'transpose',
     'broadcast_shape', 'broadcast_to', 'explicit_broadcast', 'flatten_to_ndims',
     'unflatten_from_ndims', 'reshape_tail',
 
     # split / join / indexing / gathering ...
-    'index_select', 'concat', 'split', 'stack', 'unstack',
+    'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
+    'pad', 'pad_axis', 'shift', 'shift_axis',
 
     # math operators
     'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin', 'cos', 'tan',
@@ -621,22 +622,6 @@ def transpose(input: Tensor, axis: List[int]) -> Tensor:
 
 
 @jit
-def pad(input: Tensor,
-        padding: List[Tuple[int, int]],
-        value: float = 0.) -> Tensor:
-    if len(padding) > input.dim():
-        raise ValueError(
-            'The length of `padding` must not be larger than `rank(input)`: '
-            '`padding` is {}, while `shape(input)` is {}'.
-            format(padding, shape(input))
-        )
-    pad: List[int] = []
-    for i in range(len(padding) - 1, -1, -1):
-        pad.extend(padding[i])
-    return torch.nn.functional.pad(input, pad=pad, value=value)
-
-
-@jit
 def broadcast_shape(x: List[int], y: List[int]) -> List[int]:
     common_len = min(len(x), len(y))
 
@@ -816,6 +801,152 @@ def unstack(input: Tensor, axis: int) -> List[Tensor]:
     for i in range(len(outputs)):
         outputs[i] = torch.squeeze(outputs[i], dim=axis)
     return outputs
+
+
+@jit
+def slice_axis(input: Tensor,
+               axis: int,
+               start: int,
+               length: Optional[int] = None) -> Tensor:
+    if length is None:
+        if start < 0:
+            length = -start
+        else:
+            length = input.shape[axis] - start
+    return torch.narrow(input, axis, start, length)
+
+
+@jit
+def slice(input: Tensor,
+          slice_start: List[int],
+          slice_length: Optional[List[Optional[int]]] = None
+          ) -> Tensor:
+    slice_count = len(slice_start)
+    if slice_count > input.dim():
+        raise ValueError(
+            '`len(slice_start)` must be less or equal to `rank(input)`: '
+            'got input shape {}, slice_start {}, slice_length {}.'.
+            format(shape(input), slice_start, slice_length)
+        )
+    if slice_length is None:
+        output = input
+        for i in range(-1, -(slice_count + 1), -1):
+            output = slice_axis(output, i, slice_start[i])
+    else:
+        if slice_count != len(slice_length):
+            raise ValueError('`len(slice_start)` != `len(slice_length)`: '
+                             'got slice_start {}, slice_length {}.'.
+                             format(slice_start, slice_length))
+        output = input
+        for i in range(-1, -(slice_count + 1), -1):
+            output = slice_axis(output, i, slice_start[i], slice_length[i])
+    return output
+
+
+@jit
+def pad_axis(input: Tensor,
+             axis: int,
+             padding: Tuple[int, int],
+             value: float = 0.) -> Tensor:
+    r = input.dim()
+    if axis < -r or axis >= r:
+        raise ValueError('`axis` out of range: expected to be >= {} and '
+                         '< {}, got {}.'.format(-r, r, axis))
+    if axis < 0:
+        axis = axis + r
+    pad: List[int] = []
+    for i in range(r - 1, axis, -1):
+        pad.extend((0, 0))
+    pad.extend(padding)
+    return torch.nn.functional.pad(input, pad=pad, value=value)
+
+
+@jit
+def pad(input: Tensor,
+        padding: List[Tuple[int, int]],
+        value: float = 0.) -> Tensor:
+    if len(padding) > input.dim():
+        raise ValueError(
+            'The length of `padding` must not be larger than `rank(input)`: '
+            '`padding` is {}, while `shape(input)` is {}'.
+            format(padding, shape(input))
+        )
+    pad: List[int] = []
+    for i in range(len(padding) - 1, -1, -1):
+        pad.extend(padding[i])
+    return torch.nn.functional.pad(input, pad=pad, value=value)
+
+
+@jit
+def shift_axis(input: Tensor,
+               axis: int,
+               shift: int,
+               fill_value: float = 0.) -> Tensor:
+    size = input.shape[axis]
+    if shift < -size or shift > size:
+        raise ValueError('`shift` out of range: expected to be >= {} '
+                         'and <= {}.'.format(-size, size))
+    if shift < 0:
+        output = pad_axis(
+            torch.narrow(input, axis, -shift, size + shift),
+            axis,
+            (0, -shift),
+            fill_value
+        )
+    elif shift > 0:
+        output = pad_axis(
+            torch.narrow(input, axis, 0, size - shift),
+            axis,
+            (shift, 0),
+            fill_value
+        )
+    else:
+        output = input
+    return output
+
+
+@jit
+def shift(input: Tensor,
+          shift: List[int],
+          fill_value: float = 0.) -> Tensor:
+    shift_length = len(shift)
+    if shift_length > input.dim():
+        raise ValueError('`len(shift) <= rank(input)` does not hold: '
+                         'got `shift` {}, and `shape(input)` {}.'.
+                         format(shift, shape(input)))
+
+    padding: List[int] = []
+    output = input
+    need_pad: bool = False
+
+    for axis in range(-1, -(shift_length + 1), -1):
+        s = shift[axis]
+        size = input.shape[axis]
+        if s < -size or s > size:
+            raise ValueError(
+                '`shift` out of range at axis {}: expected to be >= {} '
+                'and <= {}.'.format(axis, -size, size)
+            )
+        if s < 0:
+            padding.append(0)
+            padding.append(-s)
+            output = torch.narrow(output, axis, -s, size + s)
+            need_pad = True
+        elif s > 0:
+            padding.append(s)
+            padding.append(0)
+            output = torch.narrow(output, axis, 0, size - s)
+            need_pad = True
+        else:
+            padding.append(0)
+            padding.append(0)
+        axis -= 1
+
+    if need_pad:
+        output = torch.nn.functional.pad(
+            output, padding, mode='constant', value=fill_value)
+
+    return output
 
 
 # ---- univariate element-wise math operations ----

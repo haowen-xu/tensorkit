@@ -28,7 +28,7 @@ class AvgPoolNd(BaseSingleVariateLayer):
                  kernel_size: Union[int, Sequence[int]],
                  stride: Optional[Union[int, Sequence[int]]] = None,
                  padding: PaddingArgType = PaddingMode.DEFAULT,
-                 count_padded_zeros: bool = False):
+                 count_padded_zeros: bool = T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS):
         """
         Construct the average pooling layer.
 

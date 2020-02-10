@@ -73,13 +73,13 @@ class ArgCheckTestCase(unittest.TestCase):
 
         with pytest.raises(ValueError,
                            match=r'`v` must be either a positive integer, or '
-                                 r'a sequence of positive integers with length '
+                                 r'a sequence of positive integers of length '
                                  r'`3`: got \[1, 2\]'):
             _ = validate_conv_size('v', [1, 2], 3),
 
         with pytest.raises(ValueError,
                            match=r'`v` must be either a positive integer, or '
-                                 r'a sequence of positive integers with length '
+                                 r'a sequence of positive integers of length '
                                  r'`3`: got \[1, 2, 0\]'):
             _ = validate_conv_size('v', [1, 2, 0], 3)
 

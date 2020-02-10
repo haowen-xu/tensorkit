@@ -30,7 +30,7 @@ __all__ = [
     'BaseLayer', 'BaseSingleVariateLayer', 'BaseMultiVariateLayer',
     'BaseSplitLayer', 'BaseMergeLayer',
     'ModuleList', 'Sequential',
-    'BaseContextualLayer',
+    'BaseContextualLayer', 'BaseMultiVariateContextualLayer',
 
     # linear layers
     'CoreLinear', 'Linear',
@@ -378,15 +378,36 @@ class BaseMergeLayer(BaseLayer):
 
 class BaseContextualLayer(BaseLayer):
     """
-    Base class layers that produces the output according to  the input tensor
-    and potentially a contextual tensor.
+    Base class layers that produces the output according to the input tensor
+    and contextual tensors.
     """
 
-    def _call(self, input: Tensor, context: Optional[Tensor]) -> Tensor:
+    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
         raise NotImplementedError()
 
-    def forward(self, input: Tensor, context: Optional[Tensor] = None) -> Tensor:
+    def forward(self,
+                input: Tensor,
+                context: Optional[List[Tensor]] = None) -> Tensor:
+        if context is None:
+            context = []
         return self._call(input, context)
+
+
+class BaseMultiVariateContextualLayer(BaseLayer):
+    """
+    Base class layers that produces the output tensors according to the
+    input tensors and contextual tensors.
+    """
+
+    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+        raise NotImplementedError()
+
+    def forward(self,
+                inputs: List[Tensor],
+                context: Optional[List[Tensor]] = None) -> List[Tensor]:
+        if context is None:
+            context = []
+        return self._call(inputs, context)
 
 
 class Sequential(torch_nn.Sequential):
