@@ -13,6 +13,8 @@ __all__ = [
     'PixelCNNInput1d', 'PixelCNNInput2d', 'PixelCNNInput3d',
     'PixelCNNOutput1d', 'PixelCNNOutput2d', 'PixelCNNOutput3d',
     'PixelCNNResBlock1d', 'PixelCNNResBlock2d', 'PixelCNNResBlock3d',
+    'PixelCNNConv1d', 'PixelCNNConv2d', 'PixelCNNConv3d',
+    'PixelCNNConvTranspose1d', 'PixelCNNConvTranspose2d', 'PixelCNNConvTranspose3d',
     'PixelCNN1d', 'PixelCNN2d', 'PixelCNN3d',
 ]
 
@@ -41,6 +43,33 @@ def shifted_conv(conv_cls,
 
     return conv_cls(in_channels, out_channels, kernel_size=kernel_size,
                     dilation=dilation, padding=padding, **kwargs)
+
+
+def shifted_deconv(deconv_cls,
+                   in_channels: int,
+                   out_channels: int,
+                   spatial_shift: Sequence[bool],
+                   kernel_size: Union[int, Sequence[int]],
+                   dilation: Union[int, Sequence[int]] = 1,
+                   **kwargs):
+    kwargs.pop('padding', None)  # NOTE: here ignore any given padding
+
+    spatial_shift = list(spatial_shift)
+    spatial_ndims = len(spatial_shift)
+    kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
+    dilation = validate_conv_size('dilation', dilation, spatial_ndims)
+
+    padding = []
+    for shift, k, d in zip(spatial_shift, kernel_size, dilation):
+        # a total inverse of the `shifted_conv` method
+        t = (k - 1) * d
+        if shift:
+            padding.append((0, t))
+        else:
+            padding.append((t - t // 2, t // 2))
+
+    return deconv_cls(in_channels, out_channels, kernel_size=kernel_size,
+                      dilation=dilation, padding=padding, **kwargs)
 
 
 class SpatialShift(BaseSingleVariateLayer):
@@ -176,6 +205,24 @@ def get_stack_conv_shifts(spatial_ndims: int) -> List[List[bool]]:
     for i in range(spatial_ndims):
         ret.append([True] * (i + 1) + [False] * (spatial_ndims - i - 1))
     return ret
+
+
+def validate_pixelcnn_kernel_size(kernel_size, spatial_ndims: int) -> List[int]:
+    kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
+
+    for k in kernel_size:
+        if k < 3:
+            raise ValueError(
+                f'`kernel_size` is required to be at least 3: got '
+                f'kernel_size {kernel_size}.'
+            )
+        if k % 2 != 1:
+            raise ValueError(
+                f'`kernel_size` is required to be odd: got kernel_size '
+                f'{kernel_size}.'
+            )
+
+    return kernel_size
 
 
 # ---- pixelcnn input layer, which constructs the multiple pixelcnn stacks ----
@@ -379,9 +426,7 @@ class PixelCNNOutput3d(PixelCNNOutputNd):
 # ---- pixelcnn layers ----
 class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
 
-    __constants__ = ('_spatial_ndims', 'resnet_layers',)
-
-    _spatial_ndims: int
+    __constants__ = ('resnet_layers',)
 
     resnet_layers: ModuleList
     """The resnet layers for each PixelCNN stack."""
@@ -441,20 +486,7 @@ class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
         spatial_ndims = self._get_spatial_ndims()
 
         # validate the arguments
-        kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
-
-        for k in kernel_size:
-            if k < 3:
-                raise ValueError(
-                    f'`kernel_size` is required to be at least 3: got '
-                    f'kernel_size {kernel_size}.'
-                )
-            if k % 2 != 1:
-                raise ValueError(
-                    f'`kernel_size` is required to be odd: got kernel_size '
-                    f'{kernel_size}.'
-                )
-
+        kernel_size = validate_pixelcnn_kernel_size(kernel_size, spatial_ndims)
         if merge_context1 is not None:
             merge_context1 = validate_layer_factory('merge_context1', merge_context1)
         if activation is not None:
@@ -515,8 +547,6 @@ class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
             )
 
         super().__init__()
-
-        self._spatial_ndims = spatial_ndims
         self.resnet_layers = ModuleList(resnet_layers)
 
     def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
@@ -554,7 +584,247 @@ class PixelCNNResBlock3d(PixelCNNResBlockNd):
         return 3
 
 
-# ---- pixelcnn composite blocks ----
+# ---- pixelcnn down-sampling conv layers and up-sampling deconv layers ----
+class PixelCNNConvNd(BaseMultiVariateContextualLayer):
+
+    __constants__ = ('conv_layers',)
+
+    conv_layers: ModuleList
+    """The conv layers for each PixelCNN stack."""
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_size: Union[int, Sequence[int]],
+                 stride: Union[int, Sequence[int]] = 1,
+                 use_bias: Optional[bool] = None,
+                 activation: Optional[LayerOrLayerFactory] = None,
+                 normalizer: Optional[NormalizerOrNormalizerFactory] = None,
+                 weight_norm: WeightNormArgType = False,
+                 gated: bool = False,
+                 gate_bias: float = DEFAULT_GATE_BIAS,
+                 weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
+                 bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
+                 data_init: Optional[DataInitArgType] = None):
+        spatial_ndims = self._get_spatial_ndims()
+
+        # validate the arguments
+        kernel_size = validate_pixelcnn_kernel_size(kernel_size, spatial_ndims)
+        stride = validate_conv_size('stride', stride, spatial_ndims)
+        dilation = [1] * spatial_ndims
+
+        if activation is not None:
+            activation = validate_layer_factory('activation', activation)
+        if normalizer is not None:
+            normalizer = validate_layer_factory('normalizer', normalizer)
+
+        # construct the conv layer stacks
+        conv_layers = []
+        stack_kernel_sizes = get_stack_kernel_sizes(kernel_size)
+        stack_conv_shifts = get_stack_conv_shifts(spatial_ndims)
+
+        for i in range(spatial_ndims):
+            conv_factory = partial(
+                shifted_conv,
+                getattr(composed, f'Conv{spatial_ndims}d'),
+                spatial_shift=stack_conv_shifts[i],
+            )
+            conv_layers.append(
+                conv_factory(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=stack_kernel_sizes[i],
+                    stride=stride,
+                    dilation=dilation,
+                    use_bias=use_bias,
+                    activation=activation,
+                    normalizer=normalizer,
+                    weight_norm=weight_norm,
+                    gated=gated,
+                    gate_bias=gate_bias,
+                    weight_init=weight_init,
+                    bias_init=bias_init,
+                    data_init=data_init,
+                )
+            )
+
+        super().__init__()
+        self.conv_layers = ModuleList(conv_layers)
+
+    def _get_spatial_ndims(self) -> int:
+        raise NotImplementedError()
+
+    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+        conv_outputs: List[Tensor] = []
+        i = 0
+        for conv_layer in self.conv_layers:
+            this_output = conv_layer(inputs[i])
+            conv_outputs.append(this_output)
+            i += 1
+        return conv_outputs
+
+
+class PixelCNNConv1d(PixelCNNConvNd):
+    """
+    PixelCNN 1d convolution layer.
+
+    This layer applies a 1d convolution on each PixelCNN stack separatedly.
+    It is mainly designed for down-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 1
+
+
+class PixelCNNConv2d(PixelCNNConvNd):
+    """
+    PixelCNN 2d convolution layer.
+
+    This layer applies a 2d convolution on each PixelCNN stack separatedly.
+    It is mainly designed for down-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 2
+
+
+class PixelCNNConv3d(PixelCNNConvNd):
+    """
+    PixelCNN 3d convolution layer.
+
+    This layer applies a 3d convolution on each PixelCNN stack separatedly.
+    It is mainly designed for down-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 3
+
+
+class PixelCNNConvTransposeNd(BaseMultiVariateContextualLayer):
+
+    __constants__ = ('deconv_layers',)
+
+    deconv_layers: ModuleList
+    """The deconv layers for each PixelCNN stack."""
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_size: Union[int, Sequence[int]],
+                 stride: Union[int, Sequence[int]] = 1,
+                 output_padding: Union[int, Sequence[int]] = 0,
+                 use_bias: Optional[bool] = None,
+                 activation: Optional[LayerOrLayerFactory] = None,
+                 normalizer: Optional[NormalizerOrNormalizerFactory] = None,
+                 weight_norm: WeightNormArgType = False,
+                 gated: bool = False,
+                 gate_bias: float = DEFAULT_GATE_BIAS,
+                 weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
+                 bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
+                 data_init: Optional[DataInitArgType] = None):
+        spatial_ndims = self._get_spatial_ndims()
+
+        # validate the arguments
+        kernel_size = validate_pixelcnn_kernel_size(kernel_size, spatial_ndims)
+        stride = validate_conv_size('stride', stride, spatial_ndims)
+        dilation = [1] * spatial_ndims
+        output_padding = validate_output_padding(output_padding, stride, dilation, spatial_ndims)
+
+        if activation is not None:
+            activation = validate_layer_factory('activation', activation)
+        if normalizer is not None:
+            normalizer = validate_layer_factory('normalizer', normalizer)
+
+        # construct the conv layer stacks
+        deconv_layers = []
+        stack_kernel_sizes = get_stack_kernel_sizes(kernel_size)
+        stack_conv_shifts = get_stack_conv_shifts(spatial_ndims)
+
+        for i in range(spatial_ndims):
+            deconv_factory = partial(
+                shifted_deconv,
+                getattr(composed, f'ConvTranspose{spatial_ndims}d'),
+                spatial_shift=stack_conv_shifts[i],
+            )
+            deconv_layers.append(
+                deconv_factory(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=stack_kernel_sizes[i],
+                    stride=stride,
+                    output_padding=output_padding,
+                    dilation=dilation,
+                    use_bias=use_bias,
+                    activation=activation,
+                    normalizer=normalizer,
+                    weight_norm=weight_norm,
+                    gated=gated,
+                    gate_bias=gate_bias,
+                    weight_init=weight_init,
+                    bias_init=bias_init,
+                    data_init=data_init,
+                )
+            )
+
+        super().__init__()
+        self.deconv_layers = ModuleList(deconv_layers)
+
+    def _get_spatial_ndims(self) -> int:
+        raise NotImplementedError()
+
+    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+        deconv_outputs: List[Tensor] = []
+        i = 0
+        for conv_layer in self.deconv_layers:
+            this_output = conv_layer(inputs[i])
+            deconv_outputs.append(this_output)
+            i += 1
+        return deconv_outputs
+
+
+class PixelCNNConvTranspose1d(PixelCNNConvTransposeNd):
+    """
+    PixelCNN 1d deconvolution layer.
+
+    This layer applies a 1d deconvolution on each PixelCNN stack separatedly.
+    It is mainly designed for up-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 1
+
+
+class PixelCNNConvTranspose2d(PixelCNNConvTransposeNd):
+    """
+    PixelCNN 2d deconvolution layer.
+
+    This layer applies a 2d deconvolution on each PixelCNN stack separatedly.
+    It is mainly designed for up-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 2
+
+
+class PixelCNNConvTranspose3d(PixelCNNConvTransposeNd):
+    """
+    PixelCNN 3d deconvolution layer.
+
+    This layer applies a 3d deconvolution on each PixelCNN stack separatedly.
+    It is mainly designed for up-sampling the input, by specifying
+    `stride > 1`.  Note any context passed to this layer will be simply ignored.
+    """
+
+    def _get_spatial_ndims(self) -> int:
+        return 3
+
+
+# ---- pixelcnn network composer ----
 class PixelCNNNd(BaseContextualLayer):
 
     __constants__ = ('input_layer', 'layers', 'output_layer')

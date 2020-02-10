@@ -164,6 +164,27 @@ class PixelCNNTestCase(unittest.TestCase):
                 with pytest.raises(Exception):
                     _ = resblock_layer([T.zeros([])] * (spatial_ndims + 1))
 
+                # the down-sampling and up-sampling layer
+                down_sample_cls = getattr(tk.layers, f'PixelCNNConv{spatial_ndims}d')
+                down_sample_layer = down_sample_cls(1, 1, kernel_size, stride=2)
+                down_sample_layer = T.jit_compile(down_sample_layer)
+
+                down_sample_output_size = T.shape(down_sample_layer(
+                    [T.zeros(make_conv_shape([1], 1, size))] * spatial_ndims)[0])
+                up_sample_cls = getattr(tk.layers, f'PixelCNNConvTranspose{spatial_ndims}d')
+                up_sample_layer = up_sample_cls(
+                    1, 1, kernel_size, stride=2,
+                    output_padding=tk.layers.get_deconv_output_padding(
+                        input_size=[down_sample_output_size[a]
+                                    for a in get_spatial_axis(spatial_ndims)],
+                        output_size=size,
+                        kernel_size=kernel_size,
+                        stride=2,
+                        padding='half',  # sum of the both sides == (kernel_size - 1) * dilation
+                    )
+                )
+                up_sample_layer = T.jit_compile(up_sample_layer)
+
                 # the output layer
                 output_layer_cls = getattr(
                     tk.layers, f'PixelCNNOutput{spatial_ndims}d')
@@ -202,6 +223,11 @@ class PixelCNNTestCase(unittest.TestCase):
                         outputs2 = resblock_layer(outputs2)
                     ensure_full_receptive_field(self, outputs2[-1], size, pos)
 
+                    # check the down-sample and up-sample
+                    down_sample_outputs = down_sample_layer(outputs)
+                    up_sample_outputs = up_sample_layer(down_sample_outputs)
+                    ensure_stacks_causality(self, up_sample_outputs, size, pos)
+
                 # ---- test zero input on different input layers ----
                 x_t = T.zeros(make_conv_shape([1], 1, size), dtype=T.float32)
                 outputs = input_layer(x_t)
@@ -220,7 +246,7 @@ class PixelCNNTestCase(unittest.TestCase):
         in_channels = 3
         out_channels = 5
 
-        for size in [[12], [12, 11], [12, 11, 10]]:
+        for size in [[15], [15, 13], [15, 13, 11]]:
             spatial_ndims = len(size)
 
             for kernel_size in [3, 5, [5, 3, 5][:spatial_ndims]]:
@@ -232,25 +258,33 @@ class PixelCNNTestCase(unittest.TestCase):
                     in_channels, out_channels, kernel_size=kernel_size)
                 input_layer = T.jit_compile(input_layer)
 
-                # the pixelcnn resblocks
+                # the pixelcnn layers
                 resblock_layer_cls = getattr(
                     tk.layers, f'PixelCNNResBlock{spatial_ndims}d')
+                conv_layer_cls = getattr(
+                    tk.layers, f'PixelCNNConv{spatial_ndims}d')
+                deconv_layer_cls = getattr(
+                    tk.layers, f'PixelCNNConvTranspose{spatial_ndims}d')
                 normalizer_cls = getattr(
                     tk.layers, f'ActNorm{spatial_ndims}d')
                 dropout_cls = getattr(
                     tk.layers, f'Dropout{spatial_ndims}d')
 
-                resblock_layers = [
+                pixelcnn_layers = [
                     resblock_layer_cls(
                         out_channels, out_channels, kernel_size=kernel_size,
                         activation=tk.layers.LeakyReLU, normalizer=normalizer_cls,
                         merge_context1=_MyAddContext,
                         data_init=tk.init.StdDataInit,
                     ),
-                    resblock_layer_cls(
+                    conv_layer_cls(
                         out_channels, out_channels, kernel_size=kernel_size,
-                        activation=tk.layers.ReLU, normalizer=normalizer_cls,
-                        dropout=lambda: dropout_cls(), merge_context1=_MyAddContext,
+                        stride=2, activation=tk.layers.Tanh, normalizer=normalizer_cls,
+                        data_init=tk.init.StdDataInit,
+                    ),
+                    deconv_layer_cls(
+                        out_channels, out_channels, kernel_size=kernel_size,
+                        stride=2, activation=tk.layers.Tanh, normalizer=normalizer_cls,
                         data_init=tk.init.StdDataInit,
                     ),
                     resblock_layer_cls(
@@ -260,17 +294,17 @@ class PixelCNNTestCase(unittest.TestCase):
                         data_init=tk.init.StdDataInit,
                     ),
                 ]
-                resblock_layers = [T.jit_compile(l) for l in resblock_layers]
+                pixelcnn_layers = [T.jit_compile(l) for l in pixelcnn_layers]
 
                 # the pixelcnn network
                 network_cls = getattr(tk.layers, f'PixelCNN{spatial_ndims}d')
 
                 with pytest.raises(TypeError,
                                    match='`input_layer` must be an instance of'):
-                    _ = network_cls(*resblock_layers)
+                    _ = network_cls(*pixelcnn_layers)
 
                 network1 = network_cls(input_layer)
-                network2 = network_cls(input_layer, resblock_layers[0], resblock_layers[1:])
+                network2 = network_cls(input_layer, pixelcnn_layers[0], pixelcnn_layers[1:])
 
                 # ---- test the network ----
                 x_t = T.random.randn(make_conv_shape([3], in_channels, size))
@@ -284,7 +318,7 @@ class PixelCNNTestCase(unittest.TestCase):
                 expected_outputs2 = expected_outputs1 = input_layer(x_t)
                 expected_output1 = expected_outputs1[-1]
 
-                for l in resblock_layers:
+                for l in pixelcnn_layers:
                     expected_outputs2 = l(expected_outputs2)
                 expected_output2 = expected_outputs2[-1]
 
@@ -295,7 +329,7 @@ class PixelCNNTestCase(unittest.TestCase):
                 expected_outputs2 = expected_outputs1 = input_layer(x_t)
                 expected_output1 = expected_outputs1[-1]
 
-                for l in resblock_layers:
+                for l in pixelcnn_layers:
                     expected_outputs2 = l(expected_outputs2, context)
                 expected_output2 = expected_outputs2[-1]
 
