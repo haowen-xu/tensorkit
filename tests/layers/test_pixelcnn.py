@@ -301,7 +301,7 @@ class PixelCNNTestCase(unittest.TestCase):
 
                 with pytest.raises(TypeError,
                                    match='`input_layer` must be an instance of'):
-                    _ = network_cls(*pixelcnn_layers)
+                    _ = network_cls(tk.layers.Linear(2, 3))
 
                 network1 = network_cls(input_layer)
                 network2 = network_cls(input_layer, pixelcnn_layers[0], pixelcnn_layers[1:])
