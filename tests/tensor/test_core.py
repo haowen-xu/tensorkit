@@ -797,9 +797,39 @@ class TensorCoreTestCase(unittest.TestCase):
                 self.assertEqual(T.shape(section), sec_shape)
                 assert_equal(section, expected[i].reshape(sec_shape))
 
-        # pad
-        x = np.random.randn(2, 3)
+        # slice
+        x = np.random.randn(3, 4)
         x_t = T.as_tensor(x)
+        assert_equal(T.slice(x_t, []), x)
+        assert_equal(T.slice(x_t, [1]), x[:, 1:])
+        assert_equal(T.slice(x_t, [1, -2]), x[1:, -2:])
+        assert_equal(T.slice(x_t, [0, 0]), x)
+
+        assert_equal(T.slice(x_t, [], []), x)
+        assert_equal(T.slice(x_t, [1], [1]), x[:, 1:2])
+        assert_equal(T.slice(x_t, [-1, 2], [1, 2]), x[2:3, 2:4])
+        assert_equal(T.slice(x_t, [0, 0], [0, 0]), x[0:0, 0:0])
+
+        with pytest.raises(Exception,
+                           match=r'`len\(slice_start\)` must be less or equal to '
+                                 r'`rank\(input\)`'):
+            _ = T.slice(x_t, [1, 1, 1])
+
+        with pytest.raises(Exception,
+                           match=r'`len\(slice_start\)` != `len\(slice_length\)`'):
+            _ = T.slice(x_t, [1, 1], [2])
+
+        # slice_axis
+        assert_equal(T.slice_axis(x_t, -2, 1), x[1:])
+        assert_equal(T.slice_axis(x_t, -1, 2, 1), x[:, 2:3])
+        assert_equal(T.slice_axis(x_t, 0, 2, 1), x[2:3])
+        assert_equal(T.slice_axis(x_t, 1, 1), x[:, 1:])
+
+        for axis in (-3, 2):
+            with pytest.raises(Exception):
+                _ = T.slice_axis(x_t, axis, 0)
+
+        # pad
         assert_equal(T.pad(x_t, []), x)
         assert_equal(
             T.pad(x_t, [(1, 2)]),
@@ -817,6 +847,82 @@ class TensorCoreTestCase(unittest.TestCase):
             T.pad(x_t, [(1, 2), 3])
         with pytest.raises(Exception):
             T.pad(x_t, [(1, 2), (3, 4), (5, 6)])
+
+        # pad_axis
+        for axis in [-2, -1, 0, 1]:
+            assert_equal(T.pad_axis(x_t, axis, (0, 0)), x)
+            padding = [[0, 0], [0, 0]]
+            padding[axis] = [1, 2]
+            assert_equal(
+                T.pad_axis(x_t, axis, (1, 2)),
+                np.pad(x, padding, mode='constant', constant_values=0.)
+            )
+            assert_equal(
+                T.pad_axis(x_t, axis, (1, 2), 123.),
+                np.pad(x, padding, mode='constant', constant_values=123.)
+            )
+
+        for axis in (-3, 2):
+            with pytest.raises(Exception):
+                _ = T.pad_axis(x_t, axis, (0, 0))
+
+        # shift
+        assert_equal(T.shift(x_t, []), x)
+        assert_equal(T.shift(x_t, [0, 0]), x)
+        assert_equal(
+            T.shift(x_t, [1]),
+            np.pad(x[:, :-1], [[0, 0], [1, 0]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.shift(x_t, [-1, 0]),
+            np.pad(x[1:, :], [[0, 1], [0, 0]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.shift(x_t, [-2, 1], fill_value=123.),
+            np.pad(x[2:, :-1], [[0, 2], [1, 0]], mode='constant', constant_values=123.)
+        )
+
+        with pytest.raises(Exception,
+                           match=r'`len\(shift\) <= rank\(input\)` does not hold'):
+            _ = T.shift(x_t, [1, 2, 3])
+
+        with pytest.raises(Exception,
+                           match=r'`shift` out of range at axis .*'):
+            _ = T.shift(x_t, [4, 0])
+
+        with pytest.raises(Exception,
+                           match=r'`shift` out of range at axis .*'):
+            _ = T.shift(x_t, [0, -5])
+
+        # shift_axis
+        for axis in (-2, -1, 0, 1):
+            assert_equal(T.shift_axis(x_t, axis, 0), x)
+        assert_equal(
+            T.shift_axis(x_t, -2, 1),
+            np.pad(x[:-1, :], [[1, 0], [0, 0]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.shift_axis(x_t, -1, -2),
+            np.pad(x[:, 2:], [[0, 0], [0, 2]], mode='constant', constant_values=0.)
+        )
+        assert_equal(
+            T.shift_axis(x_t, 0, -2, fill_value=123.),
+            np.pad(x[2:, :], [[0, 2], [0, 0]], mode='constant', constant_values=123.)
+        )
+        assert_equal(
+            T.shift_axis(x_t, 1, 1, fill_value=123.),
+            np.pad(x[:, :-1], [[0, 0], [1, 0]], mode='constant', constant_values=123.)
+        )
+
+        with pytest.raises(Exception, match='`shift` out of range'):
+            _ = T.shift_axis(x_t, -2, 4)
+
+        with pytest.raises(Exception, match='`shift` out of range'):
+            _ = T.shift_axis(x_t, 1, -5)
+
+        for axis in (-3, 2):
+            with pytest.raises(Exception):
+                _ = T.shift_axis(x_t, axis, 0)
 
     def test_math_univariate_op(self):
         np.random.seed(1234)

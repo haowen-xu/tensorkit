@@ -169,6 +169,13 @@ class TensorInitiailizersTestCase(unittest.TestCase):
             tk.init.apply_initializer(weight, tk.init.zeros)
             assert_equal(weight, T.full_like(weight, 0.))
 
+    def test_ones(self):
+        for dtype in float_dtypes:
+            weight = T.variable([2, 3, 4], dtype=dtype, initializer=0.)
+            assert_equal(weight, T.full_like(weight, 0.))
+            tk.init.apply_initializer(weight, tk.init.ones)
+            assert_equal(weight, T.full_like(weight, 1.))
+
     def test_fill(self):
         for dtype in float_dtypes:
             weight = T.variable([2, 3, 4], dtype=dtype, initializer=0.)

@@ -599,7 +599,7 @@ def avg_pool_nd(spatial_ndims: int,
                 kernel_size: Union[int, List[int]],
                 stride: Union[int, List[int]],
                 padding: Union[int, List[int]],
-                count_padded_zeros: bool = True):
+                count_padded_zeros: bool = T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS):
     if count_padded_zeros:
         def reduce_fn(val, mark):
             return np.mean(val)

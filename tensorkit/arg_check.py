@@ -65,7 +65,7 @@ def validate_conv_size(name: str,
     if not value_ok:
         raise ValueError(
             f'`{name}` must be either a positive integer, or a sequence of '
-            f'positive integers with length `{spatial_ndims}`: got {value}.'
+            f'positive integers of length `{spatial_ndims}`: got {value}.'
         )
     return value
 

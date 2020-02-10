@@ -12,6 +12,10 @@ from tests.ops import *
 
 class TensorNNTestCase(unittest.TestCase):
 
+    def test_constants(self):
+        self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
+        self.assertFalse(T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS)
+
     def test_activation_functions(self):
         np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
@@ -25,7 +29,6 @@ class TensorNNTestCase(unittest.TestCase):
         assert_allclose(T.nn.relu(x_t), x * (x >= 0))
 
         # test leaky_relu
-        self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
         assert_allclose(
             T.nn.leaky_relu(x_t),
             x * (x >= 0) + (T.nn.LEAKY_RELU_DEFAULT_SLOPE * x * (x < 0))

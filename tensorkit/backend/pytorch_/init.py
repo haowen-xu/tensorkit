@@ -13,7 +13,8 @@ __all__ = [
     'calculate_fan_in_and_fan_out', 'get_activation_gain', 'apply_initializer',
 
     # data-independent tensor initializers
-    'zeros', 'fill', 'uniform', 'normal', 'xavier_uniform', 'xavier_normal',
+    'zeros', 'ones', 'fill', 'uniform', 'normal',
+    'xavier_uniform', 'xavier_normal',
     'kaming_uniform', 'kaming_normal',
 
     # data-dependent layer initializers
@@ -182,6 +183,11 @@ def _calculate_fan(tensor: Tensor,
 def zeros(tensor: Tensor, **kwargs):
     with no_grad():
         core.fill_zeros(tensor)
+
+
+def ones(tensor: Tensor, **kwargs):
+    with no_grad():
+        core.fill(tensor, fill_value=1.)
 
 
 def fill(tensor: Tensor, fill_value: Union[int, float, np.ndarray], **kwargs):

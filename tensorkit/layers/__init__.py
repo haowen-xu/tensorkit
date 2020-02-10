@@ -4,6 +4,7 @@ from .contextual import *
 from .core import *
 from .flow_layer import *
 from .gated import *
+from .pixelcnn import *
 from .pool import *
 from .resnet import *
 from .shape_ import *

@@ -5,8 +5,10 @@ import torch
 from .core import *
 
 __all__ = [
+    # constants
+    'LEAKY_RELU_DEFAULT_SLOPE', 'AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS',
+
     # activation functions
-    'LEAKY_RELU_DEFAULT_SLOPE',
     'relu', 'leaky_relu',
     'sigmoid', 'log_sigmoid',
     'softmax', 'log_softmax',
@@ -30,6 +32,7 @@ __all__ = [
 
 # ---- activation functions ----
 LEAKY_RELU_DEFAULT_SLOPE = 0.01
+AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS = False
 
 
 @jit
@@ -418,39 +421,43 @@ def depth_to_space3d(input: Tensor, block_size: int) -> Tensor:
 
 
 # ---- pooling functions ----
+@jit
 def avg_pool1d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],
                padding: List[int],
-               count_padded_zeros: bool = True):
+               count_padded_zeros: bool = AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS):
     return torch.nn.functional.avg_pool1d(
         input, kernel_size=kernel_size, stride=stride, padding=padding,
         count_include_pad=count_padded_zeros,
     )
 
 
+@jit
 def avg_pool2d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],
                padding: List[int],
-               count_padded_zeros: bool = True):
+               count_padded_zeros: bool = AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS):
     return torch.nn.functional.avg_pool2d(
         input, kernel_size=kernel_size, stride=stride, padding=padding,
         count_include_pad=count_padded_zeros,
     )
 
 
+@jit
 def avg_pool3d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],
                padding: List[int],
-               count_padded_zeros: bool = True):
+               count_padded_zeros: bool = AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS):
     return torch.nn.functional.avg_pool3d(
         input, kernel_size=kernel_size, stride=stride, padding=padding,
         count_include_pad=count_padded_zeros,
     )
 
 
+@jit
 def max_pool1d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],
@@ -459,6 +466,7 @@ def max_pool1d(input: Tensor,
         input, kernel_size=kernel_size, stride=stride, padding=padding)
 
 
+@jit
 def max_pool2d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],
@@ -467,6 +475,7 @@ def max_pool2d(input: Tensor,
         input, kernel_size=kernel_size, stride=stride, padding=padding)
 
 
+@jit
 def max_pool3d(input: Tensor,
                kernel_size: List[int],
                stride: List[int],

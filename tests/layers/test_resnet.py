@@ -239,13 +239,15 @@ def check_resblock(ctx,
     )
     ctx.assertIs(layer.merge_context0, merge_context0)
     ctx.assertIs(layer.merge_context1, merge_context1)
-    context = T.random.randn(T.shape(x))
+    ctx_shape = make_conv_shape([3], 5, [1] * spatial_ndims)
+    context = [T.random.randn(ctx_shape), T.random.randn(ctx_shape)]
 
     layer = T.jit_compile(layer)
     assert_allclose(
         layer(x, context),
         (layer.shortcut(x) +
-         layer.conv1(context * layer.conv0(context + x))),
+         context[0] * context[1] * layer.conv1(
+                    context[0] + context[1] + layer.conv0(x))),
         rtol=1e-4, atol=1e-6,
     )
 

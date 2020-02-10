@@ -14,29 +14,31 @@ class IgnoreContext(BaseContextualLayer):
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: Optional[Tensor]) -> Tensor:
+    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
         return input
 
 
 class AddContext(BaseContextualLayer):
     """
-    A module which adds the input with the context.
+    A module which adds the input with the contexts.
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: Optional[Tensor]) -> Tensor:
-        if context is None:
-            raise RuntimeError('`context` is required.')
-        return input + context
+    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+        output = input
+        for t in context:
+            output = output + t
+        return output
 
 
 class MultiplyContext(BaseContextualLayer):
     """
-    A module which multiplies the input with the context.
+    A module which multiplies the input with the contexts.
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: Optional[Tensor]) -> Tensor:
-        if context is None:
-            raise RuntimeError('`context` is required.')
-        return input * context
+    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+        output = input
+        for t in context:
+            output = output * t
+        return output
