@@ -932,6 +932,8 @@ class TensorCoreTestCase(unittest.TestCase):
         x_t = T.as_tensor_backend(x)
         u_t = T.as_tensor_backend(u)
 
+        assert_allclose(T.floor(x_t), np.floor(x))
+        assert_allclose(T.ceil(x_t), np.ceil(x))
         assert_allclose(T.abs(x_t), np.abs(x))
         assert_allclose(T.neg(x_t), -x)
         assert_allclose(T.square(x_t), x ** 2)
@@ -1279,6 +1281,14 @@ class TensorCoreTestCase(unittest.TestCase):
         self.assertTrue(np.any(x < -0.5))
         self.assertTrue(np.any(x > 0.5))
         assert_equal(T.clip(t1, -0.5, 0.5), np.clip(x, -0.5, 0.5))
+
+        # test maybe_clip
+        assert_equal(T.maybe_clip(t1), x)
+        assert_equal(T.maybe_clip(t1, -0.5, 0.5), np.clip(x, -0.5, 0.5))
+        assert_equal(T.maybe_clip(t1, x_min=-0.5), np.maximum(x, -0.5))
+        assert_equal(T.maybe_clip(t1, x_max=0.5), np.minimum(x, 0.5))
+        assert_equal(T.maybe_clip(t1, x_min=-0.5, x_max=None), np.maximum(x, -0.5))
+        assert_equal(T.maybe_clip(t1, x_min=None, x_max=0.5), np.minimum(x, 0.5))
 
     def test_sort(self):
         x = np.random.randn(5, 6, 7)

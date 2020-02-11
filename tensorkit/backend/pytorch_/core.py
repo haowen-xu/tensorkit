@@ -51,8 +51,8 @@ __all__ = [
     'pad', 'pad_axis', 'shift', 'shift_axis',
 
     # math operators
-    'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin', 'cos', 'tan',
-    'tanh',
+    'floor', 'ceil', 'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin',
+    'cos', 'tan', 'tanh',
     'erf', 'erfc', 'erfinv',
     'add', 'sub', 'mul', 'div', 'mod', 'pow', 'sqrt', 'truediv', 'floordiv',
     'add_n',
@@ -69,7 +69,7 @@ __all__ = [
 
     # comparison operators (resulting in `boolean` dtype)
     'equal', 'not_equal', 'less', 'less_equal', 'greater', 'greater_equal',
-    'minimum', 'maximum', 'clip',
+    'minimum', 'maximum', 'clip', 'maybe_clip',
 
     # sort operators
     'sort', 'argsort',
@@ -955,6 +955,8 @@ def identity(input: Tensor) -> Tensor:
     return input
 
 
+floor = torch.floor
+ceil = torch.ceil
 abs = torch.abs
 neg = torch.neg
 
@@ -1317,6 +1319,20 @@ def maximum(x: Tensor, y: Tensor) -> Tensor:
 @jit
 def clip(x: Tensor, x_min: float, x_max: float) -> Tensor:
     return torch.clamp(x, x_min, x_max)
+
+
+@jit
+def maybe_clip(x: Tensor,
+               x_min: Optional[float] = None,
+               x_max: Optional[float] = None) -> Tensor:
+    if x_min is not None and x_max is not None:
+        return clip(x, x_min, x_max)
+    elif x_min is not None:
+        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype))
+    elif x_max is not None:
+        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype))
+    else:
+        return x
 
 
 # ---- sort operators ----
