@@ -376,7 +376,7 @@ class StrictInvertibleMatrix(InvertibleMatrix):
     def __init__(self,
                  seed_matrix: np.ndarray,
                  dtype: str = settings.float_x,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         """
         Construct a new :class:`StrictInvertibleMatrix`.
 
@@ -460,7 +460,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
                  strict: bool = False,
                  weight_init: TensorInitArgType = init.kaming_uniform,
                  dtype: str = settings.float_x,
-                 epsilon: float = 1e-6):
+                 epsilon: float = EPSILON):
         """
         Construct a new linear transformation flow.
 
@@ -763,7 +763,7 @@ class LinearScale(BaseScale):
 
     epsilon: float
 
-    def __init__(self, epsilon: float = 1e-5):
+    def __init__(self, epsilon: float = EPSILON):
         super().__init__()
         self.epsilon = epsilon
 

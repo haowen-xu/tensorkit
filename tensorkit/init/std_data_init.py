@@ -17,7 +17,7 @@ class StdDataInit(DataDependentInitializer):
 
     epsilon: float
 
-    def __init__(self, epsilon: float = 1e-5):
+    def __init__(self, epsilon: float = T.EPSILON):
         super().__init__()
         self.epsilon = epsilon
 

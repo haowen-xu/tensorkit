@@ -1,6 +1,7 @@
 import math
 import unittest
 from functools import partial
+from itertools import product
 from typing import *
 
 import numpy as np
@@ -663,7 +664,6 @@ class TensorRandomTestCase(unittest.TestCase):
         # sample
         def do_test_sample(is_one_hot: bool,
                            n_z: Optional[int],
-                           sample_shape: List[int],
                            dtype: Optional[str],
                            float_dtype: str):
             probs_t = T.as_tensor(probs, dtype=float_dtype)
@@ -676,6 +676,7 @@ class TensorRandomTestCase(unittest.TestCase):
                 expected_dtype = T.int32 if is_one_hot else T.categorical_dtype
 
             # sample
+            sample_shape = [n_z] if n_z is not None else []
             kwargs = {'dtype': dtype} if dtype else {}
             t = (T.random.one_hot_categorical if is_one_hot
                  else T.random.categorical)(probs_t, n_samples=n_z, **kwargs)
@@ -706,14 +707,14 @@ class TensorRandomTestCase(unittest.TestCase):
                 np_log_prob=log_prob(x, probs, n_classes, is_one_hot)
             )
 
-        # overal test on various arguments
+        # overall test on various arguments
         for is_one_hot in (True, False):
-            for n_z, sample_shape in [(None, []), (100, [100])]:
-                do_test_sample(is_one_hot, n_z, sample_shape, None, T.float32)
+            for n_z in (None, 100):
+                do_test_sample(is_one_hot, n_z, None, T.float32)
 
         for dtype in (None,) + number_dtypes:
             for float_dtype in float_dtypes:
-                do_test_sample(True, 100, [100], dtype, float_dtype)
+                do_test_sample(True, 100, dtype, float_dtype)
 
         # sample with 2d probs
         for Z_sample_fn in (T.random.categorical, T.random.one_hot_categorical):
@@ -765,6 +766,218 @@ class TensorRandomTestCase(unittest.TestCase):
             with pytest.raises(Exception, match='The rank of `probs` must be at '
                                                 'least 1'):
                 _ = Z_sample_fn(probs=T.as_tensor_backend(probs[0, 0, 0, 0]))
+
+    def test_discretized_logistic(self):
+        np.random.seed(1234)
+        next_seed_val = [1234]
+
+        def next_seed():
+            ret = next_seed_val[0]
+            next_seed_val[0] += 1
+            return ret
+
+        def safe_sigmoid(x):
+            return np.where(x < 0, np.exp(x) / (1. + np.exp(x)), 1. / (1. + np.exp(-x)))
+
+        def do_discretize(x, bin_size, min_val=None, max_val=None):
+            if min_val is not None:
+                x = x - min_val
+            x = np.floor(x / bin_size + .5) * bin_size
+            if min_val is not None:
+                x = x + min_val
+            if min_val is not None:
+                x = np.maximum(x, min_val)
+            if max_val is not None:
+                x = np.minimum(x, max_val)
+            return x
+
+        def naive_discretized_logistic_pdf(
+                x, mean, log_scale, bin_size, min_val=None, max_val=None,
+                biased_edges=True, discretize_given=True):
+            # discretize x
+            if discretize_given:
+                x = do_discretize(x, bin_size, min_val, max_val)
+
+            # middle pdfs
+            half_bin = bin_size * 0.5
+            x_hi = (x - mean + half_bin) / np.exp(log_scale)
+            x_low = (x - mean - half_bin) / np.exp(log_scale)
+            cdf_delta = safe_sigmoid(x_hi) - safe_sigmoid(x_low)
+            middle_pdf = np.log(np.maximum(cdf_delta, 1e-7))
+            log_prob = middle_pdf
+
+            # left edge
+            if min_val is not None and biased_edges:
+                log_prob = np.where(
+                    x < min_val + half_bin,
+                    np.log(safe_sigmoid(x_hi)),
+                    log_prob
+                )
+
+            # right edge
+            if max_val is not None and biased_edges:
+                log_prob = np.where(
+                    x >= max_val - half_bin,
+                    np.log(1. - safe_sigmoid(x_low)),
+                    log_prob
+                )
+
+            # zero out prob outside of [min_val - half_bin, max_val + half_bin].
+            if min_val is not None and max_val is not None:
+                log_prob = np.where(
+                    np.logical_and(
+                        x >= min_val - half_bin,
+                        x <= max_val + half_bin,
+                    ),
+                    log_prob,
+                    T.random.LOG_ZERO_VALUE
+                )
+            return log_prob
+
+        def naive_discretized_logistic_sample(
+                uniform_samples, mean, log_scale, bin_size, min_val=None,
+                max_val=None, discretize_sample=True):
+            u = uniform_samples
+            samples = mean + np.exp(log_scale) * (np.log(u) - np.log1p(-u))
+            if discretize_sample:
+                samples = do_discretize(samples, bin_size, min_val, max_val)
+            return samples
+
+        def get_samples(mean, log_scale, n_samples=None, **kwargs):
+            seed = next_seed()
+            kwargs.setdefault('epsilon', 1e-7)
+            sample_shape = T.broadcast_shape(T.shape(mean), T.shape(log_scale))
+            if n_samples is not None:
+                sample_shape = [n_samples] + sample_shape
+
+            np.random.seed(seed)
+            T.random.seed(seed)
+            u = T.random.uniform(
+                shape=sample_shape, low=kwargs['epsilon'],
+                high=1. - kwargs['epsilon'], dtype=T.get_dtype(mean))
+            u = T.to_numpy(u)
+
+            np.random.seed(seed)
+            T.random.seed(seed)
+            r = T.random.discretized_logistic(
+                mean, log_scale, n_samples=n_samples, **kwargs)
+
+            return u, r
+
+        mean = 3 * np.random.uniform(size=[2, 1, 4]).astype(np.float64) - 1
+        log_scale = np.random.normal(size=[3, 1, 5, 1]).astype(np.float64)
+
+        # sample
+        def do_test_sample(bin_size: float,
+                           min_val: Optional[float],
+                           max_val: Optional[float],
+                           discretize_sample: bool,
+                           discretize_given: bool,
+                           biased_edges: bool,
+                           reparameterized: bool,
+                           n_samples: Optional[int],
+                           validate_tensors: bool,
+                           dtype: str):
+            mean_t = T.as_tensor(mean, dtype=dtype)
+            log_scale_t = T.as_tensor(log_scale, dtype=dtype)
+            value_shape = T.broadcast_shape(T.shape(mean_t), T.shape(log_scale_t))
+
+            # sample
+            sample_shape = [n_samples] if n_samples is not None else []
+            u, t = get_samples(
+                mean_t, log_scale_t, n_samples=n_samples, bin_size=bin_size,
+                min_val=min_val, max_val=max_val, discretize=discretize_sample,
+                reparameterized=reparameterized, epsilon=T.EPSILON,
+                validate_tensors=validate_tensors,
+            )
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.shape(t), sample_shape + value_shape)
+
+            # check values
+            this_mean = mean.astype(dtype)
+            this_log_scale = log_scale.astype(dtype)
+            expected_t = naive_discretized_logistic_sample(
+                u, this_mean, this_log_scale, bin_size,
+                min_val, max_val, discretize_sample=discretize_sample,
+            )
+            assert_allclose(t, expected_t, rtol=1e-4, atol=1e-6)
+
+            # check log_prob
+            do_check_log_prob(
+                given=t,
+                batch_ndims=len(t.shape),
+                Z_log_prob_fn=partial(
+                    T.random.discretized_logistic_log_prob,
+                    mean=mean_t, log_scale=log_scale_t, bin_size=bin_size,
+                    min_val=min_val, max_val=max_val, biased_edges=biased_edges,
+                    discretize=discretize_given, validate_tensors=validate_tensors,
+                ),
+                np_log_prob=naive_discretized_logistic_pdf(
+                    x=T.to_numpy(t), mean=this_mean, log_scale=this_log_scale,
+                    bin_size=bin_size, min_val=min_val, max_val=max_val,
+                    biased_edges=biased_edges, discretize_given=discretize_given,
+                )
+            )
+
+        for dtype in float_dtypes:
+            do_test_sample(bin_size=1 / 31., min_val=None, max_val=None,
+                           discretize_sample=True, discretize_given=True,
+                           biased_edges=False, reparameterized=False, n_samples=None,
+                           validate_tensors=False, dtype=dtype)
+            do_test_sample(bin_size=1 / 32., min_val=-3., max_val=2.,
+                           discretize_sample=True, discretize_given=True,
+                           biased_edges=True, reparameterized=False, n_samples=100,
+                           validate_tensors=True, dtype=dtype)
+
+        for discretize, biased_edges, validate_tensors in product(
+                    [True, False],
+                    [True, False],
+                    [True, False],
+                ):
+            do_test_sample(
+                bin_size=1 / 127., min_val=None, max_val=None,
+                discretize_sample=discretize, discretize_given=discretize,
+                biased_edges=biased_edges, reparameterized=not discretize,
+                n_samples=None, validate_tensors=validate_tensors, dtype=T.float32)
+            do_test_sample(
+                bin_size=1 / 128., min_val=-3., max_val=2.,
+                discretize_sample=discretize, discretize_given=discretize,
+                biased_edges=biased_edges, reparameterized=not discretize,
+                n_samples=None, validate_tensors=validate_tensors, dtype=T.float32)
+
+        mean_t = T.as_tensor(mean, dtype=T.float32)
+        log_scale_t = T.as_tensor(log_scale, dtype=T.float32)
+        given_t = T.zeros(T.broadcast_shape(T.shape(mean_t), T.shape(log_scale_t)))
+
+        with pytest.raises(Exception,
+                           match='`min_val` and `max_val` must be both None or neither None'):
+            _ = T.random.discretized_logistic(
+                mean_t, log_scale_t, 1 / 255., min_val=-3.)
+
+        with pytest.raises(Exception,
+                           match='`min_val` and `max_val` must be both None or neither None'):
+            _ = T.random.discretized_logistic(
+                mean_t, log_scale_t, 1 / 255., max_val=2.)
+
+        with pytest.raises(Exception,
+                           match='`discretize` and `reparameterized` cannot be both True'):
+            _ = T.random.discretized_logistic(
+                mean_t, log_scale_t, 1 / 255., discretize=True, reparameterized=True)
+
+        with pytest.raises(Exception,
+                           match='`mean.dtype` != `log_scale.dtype`'):
+            _ = T.random.discretized_logistic(
+                mean_t, T.as_tensor(log_scale, dtype=T.float64), 1 / 255.)
+
+        with pytest.raises(Exception,
+                           match='`min_val` and `max_val` must be both None or neither None'):
+            _ = T.random.discretized_logistic_log_prob(
+                given_t, mean_t, log_scale_t, 1 / 255., min_val=-3.)
+
+        with pytest.raises(Exception,
+                           match='`min_val` and `max_val` must be both None or neither None'):
+            _ = T.random.discretized_logistic_log_prob(
+                given_t, mean_t, log_scale_t, 1 / 255., max_val=2.)
 
     def test_random_init(self):
         np.random.seed(1234)

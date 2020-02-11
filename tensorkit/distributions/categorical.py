@@ -35,7 +35,7 @@ class BaseCategorical(Distribution):
                  probs: Optional[TensorOrData],
                  dtype: str,
                  event_ndims: int,
-                 epsilon: float = 1e-7,
+                 epsilon: float = T.EPSILON,
                  validate_tensors: Optional[bool] = None):
         (logits, probs), = check_tensor_arg_types([('logits', logits),
                                                    ('probs', probs)])
@@ -142,7 +142,7 @@ class Categorical(BaseCategorical):
                  probs: Optional[TensorOrData] = None,
                  dtype: str = T.categorical_dtype,
                  event_ndims: int = 0,
-                 epsilon: float = 1e-7,
+                 epsilon: float = T.EPSILON,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`Categorical` distribution object.
@@ -222,7 +222,7 @@ class OneHotCategorical(BaseCategorical):
                  probs: Optional[TensorOrData] = None,
                  dtype: str = T.int32,
                  event_ndims: int = 1,
-                 epsilon: float = 1e-7,
+                 epsilon: float = T.EPSILON,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`OneHotCategorical` distribution object.

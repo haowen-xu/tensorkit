@@ -554,7 +554,7 @@ class ScaleTestCase(unittest.TestCase):
         T.random.seed(1234)
 
         x = T.random.randn([2, 3, 4])
-        scale = LinearScale(epsilon=1e-5)
+        scale = LinearScale(epsilon=T.EPSILON)
         self.assertIn('epsilon=', repr(scale))
         scale = T.jit_compile(scale)
 
