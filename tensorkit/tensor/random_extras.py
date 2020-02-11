@@ -35,7 +35,7 @@ def truncated_randn(shape: List[int],
                     low: Optional[float] = None,
                     high: Optional[float] = None,
                     dtype: str = float_x(),
-                    epsilon: float = 1e-7) -> Tensor:
+                    epsilon: float = EPSILON) -> Tensor:
     # fast routine: low is None and high is None, use standard randn
     if low is None and high is None:
         return randn(shape, dtype)
@@ -137,7 +137,7 @@ def truncated_normal(mean: Tensor,
                      high: Optional[float] = None,
                      n_samples: Optional[int] = None,
                      reparameterized: bool = True,
-                     epsilon: float = 1e-7) -> Tensor:
+                     epsilon: float = EPSILON) -> Tensor:
     if mean.dtype != std.dtype:
         raise ValueError('`mean.dtype` != `std.dtype`: {} vs {}'.
                          format(mean.dtype, std.dtype))
@@ -225,7 +225,7 @@ def discretized_logistic(mean: Tensor,
                          discretize: bool = True,
                          reparameterized: bool = False,
                          n_samples: Optional[int] = None,
-                         epsilon: float = 1e-7,
+                         epsilon: float = EPSILON,
                          validate_tensors: bool = False) -> Tensor:
     if (min_val is not None and max_val is None) or \
             (min_val is None and max_val is not None):
@@ -278,7 +278,7 @@ def discretized_logistic_log_prob(given: Tensor,
                                   biased_edges: bool = True,
                                   discretize: bool = True,
                                   group_ndims: int = 0,
-                                  epsilon: float = 1e-7,
+                                  epsilon: float = EPSILON,
                                   log_zero: float = LOG_ZERO_VALUE,
                                   validate_tensors: bool = False) -> Tensor:
     if (min_val is not None and max_val is None) or \

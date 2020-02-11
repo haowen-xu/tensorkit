@@ -492,7 +492,7 @@ class BatchNormTestCase(unittest.TestCase):
     def test_batch_norm(self):
         T.random.seed(1234)
 
-        eps = 1e-5
+        eps = T.EPSILON
         for spatial_ndims in (0, 1, 2, 3):
             cls = getattr(tk.layers, ('BatchNorm' if not spatial_ndims
                                       else f'BatchNorm{spatial_ndims}d'))

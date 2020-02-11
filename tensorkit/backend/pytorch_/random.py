@@ -154,7 +154,7 @@ def bernoulli_logits_to_probs(logits: Tensor) -> Tensor:
 
 @jit
 def bernoulli_probs_to_logits(probs: Tensor,
-                              epsilon: float = 1e-7) -> Tensor:
+                              epsilon: float = EPSILON) -> Tensor:
     probs_clipped = clip(probs, epsilon, 1. - epsilon)
     return log(probs_clipped) - log1p(-probs_clipped)
 
@@ -214,7 +214,7 @@ def categorical_logits_to_probs(logits: Tensor) -> Tensor:
 
 @jit
 def categorical_probs_to_logits(probs: Tensor,
-                                epsilon: float = 1e-7) -> Tensor:
+                                epsilon: float = EPSILON) -> Tensor:
     return log(clip(probs, epsilon, 1. - epsilon))
 
 

@@ -57,7 +57,7 @@ class CouplingLayer(FeatureMappingFlow):
                               Callable[[], BaseScale]] = 'exp',
                  secondary: bool = False,
                  sigmoid_scale_bias: float = 2.,
-                 epsilon: float = 1e-5):
+                 epsilon: float = T.EPSILON):
         """
         Construct a new :class:`BaseCouplingLayer`.
 
@@ -184,7 +184,7 @@ class CouplingLayerNd(CouplingLayer):
                               Callable[[], BaseScale]] = 'exp',
                  secondary: bool = False,
                  sigmoid_scale_bias: float = 2.,
-                 epsilon: float = 1e-5):
+                 epsilon: float = T.EPSILON):
         spatial_ndims = self._get_spatial_ndims()
         feature_axis = -1 if T.IS_CHANNEL_LAST else -(spatial_ndims + 1)
 

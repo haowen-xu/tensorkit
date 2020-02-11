@@ -177,7 +177,7 @@ class NormedWeightStore(BaseParamStore):
                  shape: List[int],
                  initializer: TensorInitArgType,
                  norm_axis: int = 1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(shape)
         self.norm_axis = norm_axis
         self.epsilon = epsilon
@@ -214,7 +214,7 @@ class NormedAndScaledWeightStore(BaseParamStore):
                  shape: List[int],
                  initializer: TensorInitArgType,
                  norm_axis: int = 1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(shape)
         self.norm_axis = norm_axis
         self.epsilon = epsilon
@@ -801,7 +801,7 @@ class BatchNorm(torch_nn.BatchNorm1d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(num_features, eps=epsilon, momentum=momentum)
 
     def _check_input_dim(self, input: Tensor):
@@ -816,7 +816,7 @@ class BatchNorm1d(torch_nn.BatchNorm1d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(num_features, eps=epsilon, momentum=momentum)
 
     def _check_input_dim(self, input: Tensor):
@@ -831,7 +831,7 @@ class BatchNorm2d(torch_nn.BatchNorm2d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(num_features, eps=epsilon, momentum=momentum)
 
     def _check_input_dim(self, input: Tensor):
@@ -846,7 +846,7 @@ class BatchNorm3d(torch_nn.BatchNorm3d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
-                 epsilon: float = 1e-5):
+                 epsilon: float = EPSILON):
         super().__init__(num_features, eps=epsilon, momentum=momentum)
 
     def _check_input_dim(self, input: Tensor):

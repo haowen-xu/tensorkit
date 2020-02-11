@@ -302,7 +302,7 @@ class TruncatedNormal(BaseNormal):
                  high: Optional[float] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
-                 epsilon: float = 1e-7,
+                 epsilon: float = T.EPSILON,
                  log_zero: float = T.random.LOG_ZERO_VALUE,
                  validate_tensors: Optional[bool] = None):
         """

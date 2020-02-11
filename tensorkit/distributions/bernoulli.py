@@ -39,7 +39,7 @@ class Bernoulli(Distribution):
                  probs: Optional[TensorOrData] = None,
                  dtype: str = T.int32,
                  event_ndims: int = 0,
-                 epsilon: float = 1e-7,
+                 epsilon: float = T.EPSILON,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`Bernoulli` distribution object.

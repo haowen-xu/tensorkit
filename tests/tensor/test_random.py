@@ -887,7 +887,7 @@ class TensorRandomTestCase(unittest.TestCase):
             u, t = get_samples(
                 mean_t, log_scale_t, n_samples=n_samples, bin_size=bin_size,
                 min_val=min_val, max_val=max_val, discretize=discretize_sample,
-                reparameterized=reparameterized, epsilon=1e-5,
+                reparameterized=reparameterized, epsilon=T.EPSILON,
                 validate_tensors=validate_tensors,
             )
             self.assertEqual(T.get_dtype(t), dtype)

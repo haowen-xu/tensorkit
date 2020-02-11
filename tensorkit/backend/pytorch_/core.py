@@ -10,7 +10,7 @@ from ...settings_ import settings
 
 __all__ = [
     # constants
-    'IS_CHANNEL_LAST',
+    'IS_CHANNEL_LAST', 'EPSILON',
 
     # typing
     'Tensor', 'Variable', 'Module',
@@ -88,6 +88,9 @@ __all__ = [
 # ---- constants ----
 IS_CHANNEL_LAST = False
 """Whether or not the channel axis is the last axis for convolutional operations?"""
+
+EPSILON = 1e-6
+"""The small infinitesimal constant to avoid diving by zero of taking logarithm of zero."""
 
 
 # ---- typing ----

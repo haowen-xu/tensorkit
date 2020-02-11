@@ -41,7 +41,7 @@ class ActNorm(FeatureMappingFlow):
                  event_ndims: int = 1,
                  scale: Union[str, ActNormScaleType] = 'exp',
                  initialized: bool = False,
-                 epsilon: float = 1e-5,
+                 epsilon: float = T.EPSILON,
                  dtype: str = T.float_x()):
         """
         Construct a new :class:`ActNorm` instance.
@@ -194,7 +194,7 @@ class ActNormNd(ActNorm):
                  num_features: int,
                  scale: Union[str, ActNormScaleType] = 'exp',
                  initialized: bool = False,
-                 epsilon: float = 1e-5,
+                 epsilon: float = T.EPSILON,
                  dtype: str = T.float_x()):
         """
         Construct a new convolutional :class:`ActNorm` instance.
