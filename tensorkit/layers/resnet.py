@@ -392,7 +392,7 @@ class ResBlockNd(BaseContextualLayer):
         return kwargs
 
     @jit_method
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         # feed the input into both the shortcut and the residual path
         residual = shortcut = input
 

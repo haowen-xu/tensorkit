@@ -330,11 +330,11 @@ class BaseSingleVariateLayer(BaseLayer):
     actually implement the module.
     """
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         raise NotImplementedError()
 
     def forward(self, input: Tensor) -> Tensor:
-        return self._call(input)
+        return self._forward(input)
 
 
 class BaseMultiVariateLayer(BaseLayer):
@@ -343,11 +343,11 @@ class BaseMultiVariateLayer(BaseLayer):
     The inputs and outputs should be given as a list of Tensors.
     """
 
-    def _call(self, inputs: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor]) -> List[Tensor]:
         raise NotImplementedError()
 
     def forward(self, inputs: List[Tensor]) -> List[Tensor]:
-        return self._call(inputs)
+        return self._forward(inputs)
 
 
 class BaseSplitLayer(BaseLayer):
@@ -356,11 +356,11 @@ class BaseSplitLayer(BaseLayer):
     The outputs should be given as a list of Tensors.
     """
 
-    def _call(self, input: Tensor) -> List[Tensor]:
+    def _forward(self, input: Tensor) -> List[Tensor]:
         raise NotImplementedError()
 
     def forward(self, input: Tensor) -> List[Tensor]:
-        return self._call(input)
+        return self._forward(input)
 
 
 class BaseMergeLayer(BaseLayer):
@@ -369,11 +369,11 @@ class BaseMergeLayer(BaseLayer):
     The inputs should be given as a list of Tensors.
     """
 
-    def _call(self, inputs: List[Tensor]) -> Tensor:
+    def _forward(self, inputs: List[Tensor]) -> Tensor:
         raise NotImplementedError()
 
     def forward(self, inputs: List[Tensor]) -> Tensor:
-        return self._call(inputs)
+        return self._forward(inputs)
 
 
 class BaseContextualLayer(BaseLayer):
@@ -382,7 +382,7 @@ class BaseContextualLayer(BaseLayer):
     and contextual tensors.
     """
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         raise NotImplementedError()
 
     def forward(self,
@@ -390,7 +390,7 @@ class BaseContextualLayer(BaseLayer):
                 context: Optional[List[Tensor]] = None) -> Tensor:
         if context is None:
             context = []
-        return self._call(input, context)
+        return self._forward(input, context)
 
 
 class BaseMultiVariateContextualLayer(BaseLayer):
@@ -399,7 +399,7 @@ class BaseMultiVariateContextualLayer(BaseLayer):
     input tensors and contextual tensors.
     """
 
-    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
         raise NotImplementedError()
 
     def forward(self,
@@ -407,7 +407,7 @@ class BaseMultiVariateContextualLayer(BaseLayer):
                 context: Optional[List[Tensor]] = None) -> List[Tensor]:
         if context is None:
             context = []
-        return self._call(inputs, context)
+        return self._forward(inputs, context)
 
 
 class Sequential(torch_nn.Sequential):
@@ -476,8 +476,8 @@ class CoreLinear(BaseLayer):
                     attributes.append(f'{attr}={val!r}')
         return f'{self.__class__.__qualname__}({", ".join(attributes)})'
 
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         raise NotImplementedError()
 
     def forward(self, input: Tensor) -> Tensor:
@@ -486,7 +486,7 @@ class CoreLinear(BaseLayer):
             bias = None
         else:
             bias = self.bias_store()
-        return self._call(input, weight, bias)
+        return self._forward(input, weight, bias)
 
 
 class Linear(CoreLinear):
@@ -522,8 +522,8 @@ class Linear(CoreLinear):
         )
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         output, front_shape = flatten_to_ndims(input, 2)
         output = torch.nn.functional.linear(output, weight, bias)
         output = unflatten_from_ndims(output, front_shape)
@@ -592,8 +592,8 @@ class LinearConv1d(LinearConvNd):
         return 1
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv1d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -613,8 +613,8 @@ class LinearConv2d(LinearConvNd):
         return 2
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv2d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -634,8 +634,8 @@ class LinearConv3d(LinearConvNd):
         return 3
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv3d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -731,8 +731,8 @@ class LinearConvTranspose1d(LinearConvTransposeNd):
         return 1
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose1d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -754,8 +754,8 @@ class LinearConvTranspose2d(LinearConvTransposeNd):
         return 2
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose2d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -777,8 +777,8 @@ class LinearConvTranspose3d(LinearConvTransposeNd):
         return 3
 
     @jit_method
-    def _call(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-              ) -> Tensor:
+    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
+                 ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose3d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -872,7 +872,7 @@ class Dropout1d(BaseSingleVariateLayer):
         self.p = p
         self._keep_prob = 1. - p
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         if input.dim() < 2:  # pragma: no cover
             raise ValueError('`input` must be at least 2d, but the '
                              'input shape is {}.'.format(shape(input)))

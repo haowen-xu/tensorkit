@@ -38,7 +38,7 @@ class Branch(BaseSplitLayer):
         self.branches = ModuleList(list(branches))
         self.shared = shared
 
-    def _call(self, input: Tensor) -> List[Tensor]:
+    def _forward(self, input: Tensor) -> List[Tensor]:
         outputs: List[Tensor] = []
         shared_output = self.shared(input)
         for branch in self.branches:

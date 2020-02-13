@@ -21,7 +21,7 @@ class StdDataInit(DataDependentInitializer):
         super().__init__()
         self.epsilon = epsilon
 
-    def _call(self, layer: Module, inputs: List[Tensor]) -> None:
+    def _forward(self, layer: Module, inputs: List[Tensor]) -> None:
         if T.is_jit_layer(layer):
             raise TypeError(f'JIT compiled layer is not supported: got {layer!r}')
         if not isinstance(layer, CoreLinear):

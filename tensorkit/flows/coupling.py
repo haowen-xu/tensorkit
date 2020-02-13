@@ -131,12 +131,12 @@ class CouplingLayer(FeatureMappingFlow):
         self.sigmoid_scale_bias = sigmoid_scale_bias
         self.epsilon = epsilon
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         # split the tensor
         n_features = input.shape[self.axis]
         n1 = n_features // 2

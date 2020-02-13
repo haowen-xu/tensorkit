@@ -78,12 +78,12 @@ class BaseFlow(BaseLayer):
         """
         return InverseFlow(self)
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         raise NotImplementedError()
 
     def forward(self,
@@ -133,7 +133,7 @@ class BaseFlow(BaseLayer):
                 )
 
         # compute the transformed output and log-det
-        output, output_log_det = self._call(
+        output, output_log_det = self._forward(
             input, input_log_det, inverse, compute_log_det)
 
         if output_log_det is not None:
@@ -227,11 +227,11 @@ class InverseFlow(BaseFlow):
     def invert(self) -> BaseFlow:
         return self.original_flow
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         return self.original_flow(
             input, input_log_det, not inverse, compute_log_det)
 
@@ -291,12 +291,12 @@ class SequentialFlow(BaseFlow):
         else:
             self._inverse_chain = ModuleList([_NotInvertibleFlow()])
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         output, output_log_det = input, input_log_det
 
         if inverse:
@@ -508,12 +508,12 @@ class InvertibleLinearNd(FeatureMappingFlow):
         raise NotImplementedError()
 
     @jit_method
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         # obtain the weight
         weight, log_det = self.invertible_matrix(
             inverse=inverse, compute_log_det=compute_log_det)

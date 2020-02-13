@@ -71,12 +71,12 @@ class ReshapeFlow(BaseFlow):
         self.x_event_shape = x_event_shape
         self.y_event_shape = y_event_shape
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = reshape_tail(input, self.y_event_ndims, self.x_event_shape)
         else:
@@ -121,11 +121,11 @@ class SpaceDepthTransformFlow(BaseFlow):
     def _inv_transform(self, input: Tensor) -> Tensor:
         raise NotImplementedError()
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = self._inv_transform(input)
         else:

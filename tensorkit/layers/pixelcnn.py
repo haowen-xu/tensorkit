@@ -85,7 +85,7 @@ class SpatialShift(BaseSingleVariateLayer):
         else:
             self.shift = list(shift)
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return shift(input, self.shift)
 
 
@@ -99,7 +99,7 @@ class BranchAndAdd(BaseSingleVariateLayer):
         super().__init__()
         self.branches = ModuleList(flatten_nested_layers(branches))
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         branch_outputs: List[Tensor] = []
         for branch in self.branches:
             branch_outputs.append(branch(input))
@@ -128,7 +128,7 @@ class AddOnesChannelNd(BaseSingleVariateLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         channel_shape = shape(input)
         channel_shape[self._channel_axis] = 1
 
@@ -162,7 +162,7 @@ class AddLeadingContext(BaseContextualLayer):
         super().__init__()
         self.first_n = first_n
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         output = input
         for i in range(self.first_n):
             output = output + context[i]
@@ -181,7 +181,7 @@ class IgnoreLeadingContext(BaseContextualLayer):
         self.wrapped = wrapped
         self.first_n = first_n
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         return self.wrapped(input, context[self.first_n:])
 
 
@@ -320,7 +320,7 @@ class PixelCNNInputNd(BaseSplitLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, input: Tensor) -> List[Tensor]:
+    def _forward(self, input: Tensor) -> List[Tensor]:
         if rank(input) != self._spatial_ndims + 2:
             raise ValueError(
                 '`input` is expected to be {}d: got input shape {}.'.
@@ -384,7 +384,7 @@ class PixelCNNOutputNd(BaseMergeLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, inputs: List[Tensor]) -> Tensor:
+    def _forward(self, inputs: List[Tensor]) -> Tensor:
         if len(inputs) != self._spatial_ndims:
             raise ValueError(
                 '`len(inputs)` is expected to be {}: got {} tensors.'.
@@ -549,7 +549,7 @@ class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
         super().__init__()
         self.resnet_layers = ModuleList(resnet_layers)
 
-    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
         resnet_outputs: List[Tensor] = []
         i = 0
         for resnet_layer in self.resnet_layers:
@@ -654,7 +654,7 @@ class PixelCNNConvNd(BaseMultiVariateContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
         conv_outputs: List[Tensor] = []
         i = 0
         for conv_layer in self.conv_layers:
@@ -775,7 +775,7 @@ class PixelCNNConvTransposeNd(BaseMultiVariateContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
         deconv_outputs: List[Tensor] = []
         i = 0
         for conv_layer in self.deconv_layers:
@@ -865,7 +865,7 @@ class PixelCNNNd(BaseContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         outputs = self.input_layer(input)
         for block in self.layers:
             outputs = block(outputs, context)

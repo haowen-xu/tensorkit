@@ -24,7 +24,7 @@ class _MyWrapper(BaseSingleVariateLayer):
         super().__init__()
         self.wrapped = wrapped
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return self.wrapped(input)
 
 
@@ -191,13 +191,13 @@ class _MySingleVariateLayer(BaseSingleVariateLayer):
                                 dtype=T.get_dtype(x))
 
     @T.jit_method
-    def _call(self, x: Tensor) -> Tensor:
+    def _forward(self, x: Tensor) -> Tensor:
         return self._add_numpy_array(x * 11. + self.bias)
 
 
 class _MyMultiVariateLayer(BaseMultiVariateLayer):
 
-    def _call(self, inputs: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor]) -> List[Tensor]:
         ret: List[Tensor] = []
         for i in range(len(inputs) - 1):
             ret.append(inputs[i] + inputs[i + 1])
@@ -206,13 +206,13 @@ class _MyMultiVariateLayer(BaseMultiVariateLayer):
 
 class _MySplitLayer(BaseSplitLayer):
 
-    def _call(self, input: Tensor) -> List[Tensor]:
+    def _forward(self, input: Tensor) -> List[Tensor]:
         return [input, input + 1, input + 2]
 
 
 class _MyMergeLayer(BaseMergeLayer):
 
-    def _call(self, inputs: List[Tensor]) -> Tensor:
+    def _forward(self, inputs: List[Tensor]) -> Tensor:
         return T.add_n(inputs)
 
 

@@ -13,12 +13,12 @@ from tests.ops import make_conv_shape
 class _MyFlow(tk.flows.BaseFlow):
 
     @T.jit_method
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             raise RuntimeError('Not invertible.')
         output = input * 2.

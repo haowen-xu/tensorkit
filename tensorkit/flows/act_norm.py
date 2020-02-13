@@ -146,12 +146,12 @@ class ActNorm(FeatureMappingFlow):
         return True
 
     @T.jit_method
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         # initialize the parameters
         if not self.initialized:
             if inverse:

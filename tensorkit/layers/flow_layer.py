@@ -23,7 +23,7 @@ class FlowLayer(BaseSingleVariateLayer):
         super().__init__()
         self.flow = flow
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         output, output_log_det = self.flow(input, compute_log_det=False)
         return output
 

@@ -105,7 +105,7 @@ def ensure_full_receptive_field(ctx,
 
 class _MyAddContext(tk.layers.BaseContextualLayer):
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         if len(context) == 0:
             return input
         elif len(context) == 1:

@@ -9,7 +9,7 @@ __all__ = [
 
 class ReLU(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return relu(input)
 
 
@@ -23,17 +23,17 @@ class LeakyReLU(BaseSingleVariateLayer):
         super().__init__()
         self.negative_slope = negative_slope
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return leaky_relu(input, negative_slope=self.negative_slope)
 
 
 class Tanh(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return tanh(input)
 
 
 class Sigmoid(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return sigmoid(input)

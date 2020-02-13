@@ -26,7 +26,7 @@ class FlattenToNDims(BaseSingleVariateLayer):
         self.layer = layer
         self.ndims = ndims
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         # validate the shape of input
         input_rank = rank(input)
         expected_rank = self.ndims
@@ -73,7 +73,7 @@ class ConstantPad(BaseSingleVariateLayer):
         self.padding = padding
         self.value = value
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return pad(input, self.padding, value=self.value)
 
 
@@ -132,35 +132,35 @@ class ConstantPad3d(ConstantPadNd):
 # ---- channel swap ----
 class ChannelFirstToLast1d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last1d(input)
 
 
 class ChannelFirstToLast2d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last2d(input)
 
 
 class ChannelFirstToLast3d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last3d(input)
 
 
 class ChannelLastToFirst1d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first1d(input)
 
 
 class ChannelLastToFirst2d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first2d(input)
 
 
 class ChannelLastToFirst3d(BaseSingleVariateLayer):
 
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first3d(input)

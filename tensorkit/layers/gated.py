@@ -28,7 +28,7 @@ class BaseGated(BaseSingleVariateLayer):
         raise NotImplementedError()
 
     @jit_method
-    def _call(self, input: Tensor) -> Tensor:
+    def _forward(self, input: Tensor) -> Tensor:
         if input.shape[self.feature_axis] != self.num_features * 2:
             raise ValueError(
                 'The shape of the pre-gated output is invalid: '

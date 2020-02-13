@@ -9,7 +9,7 @@ from tests.helper import *
 
 class _MyContextualLayer(tk.layers.BaseContextualLayer):
 
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         output = input
         base = -1.
         for t in context:
@@ -20,7 +20,7 @@ class _MyContextualLayer(tk.layers.BaseContextualLayer):
 
 class _MyMultiVariateContextualLayer(tk.layers.BaseMultiVariateContextualLayer):
 
-    def _call(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
         outputs: List[Tensor] = []
         input_base = 1.
         for input in inputs:

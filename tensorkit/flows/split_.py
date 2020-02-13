@@ -124,12 +124,12 @@ class SplitFlow(BaseFlow):
         self.y_sections = y_sections
         self.y_axis = y_axis
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             out_left, out_right = split(
                 input, sections=self.y_sections, axis=self.y_axis)

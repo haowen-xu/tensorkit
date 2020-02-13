@@ -14,7 +14,7 @@ class IgnoreContext(BaseContextualLayer):
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         return input
 
 
@@ -24,7 +24,7 @@ class AddContext(BaseContextualLayer):
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         output = input
         for t in context:
             output = output + t
@@ -37,7 +37,7 @@ class MultiplyContext(BaseContextualLayer):
     """
 
     @jit_method
-    def _call(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         output = input
         for t in context:
             output = output * t

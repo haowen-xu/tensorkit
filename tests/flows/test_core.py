@@ -21,11 +21,11 @@ class _MyFlow(BaseFlow):
                          y_event_ndims=2,
                          explicitly_invertible=True)
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = reshape_tail(0.5 * (input - 1.), 2, [-1])
         else:
@@ -54,11 +54,11 @@ class _MyBadFlow(BaseFlow):
                          y_event_ndims=1,
                          explicitly_invertible=True)
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         output = input
         output_log_det = input_log_det
         if compute_log_det:
@@ -197,12 +197,12 @@ class _MyFlow1(BaseFlow):
         super().__init__(x_event_ndims=1, y_event_ndims=1,
                          explicitly_invertible=True)
 
-    def _call(self,
-              input: Tensor,
-              input_log_det: Optional[Tensor],
-              inverse: bool,
-              compute_log_det: bool
-              ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _forward(self,
+                 input: Tensor,
+                 input_log_det: Optional[Tensor],
+                 inverse: bool,
+                 compute_log_det: bool
+                 ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = (input - 1.) * 0.5
         else:
