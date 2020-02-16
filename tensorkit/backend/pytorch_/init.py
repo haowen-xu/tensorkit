@@ -271,11 +271,11 @@ class DataDependentInitializer(object):
         _ = DataDependentInitializerForwardPreHook(
             self, layer, initialized=initialized)
 
-    def _forward(self, layer: Module, inputs: List[Tensor]) -> None:
+    def _init(self, layer: Module, inputs: List[Tensor]) -> None:
         raise NotImplementedError()
 
     def __call__(self, layer: Module, inputs: List[Tensor]) -> None:
-        self._forward(layer, list(inputs))
+        self._init(layer, list(inputs))
 
     def __repr__(self) -> str:
         buf = []

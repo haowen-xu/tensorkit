@@ -21,7 +21,7 @@ class StdDataInit(DataDependentInitializer):
         super().__init__()
         self.epsilon = epsilon
 
-    def _forward(self, layer: Module, inputs: List[Tensor]) -> None:
+    def _init(self, layer: Module, inputs: List[Tensor]) -> None:
         if T.is_jit_layer(layer):
             raise TypeError(f'JIT compiled layer is not supported: got {layer!r}')
         if not isinstance(layer, CoreLinear):
@@ -31,8 +31,9 @@ class StdDataInit(DataDependentInitializer):
                              f'{inputs!r}')
 
         # get the weight and bias
+        use_bias = layer.use_bias
         weight = layer.weight_store()
-        bias = layer.bias_store() if layer.bias_store is not None else None
+        bias = layer.bias_store() if use_bias else None
         is_conv_transpose = isinstance(layer, (LinearConvTranspose1d,
                                                LinearConvTranspose2d,
                                                LinearConvTranspose3d))

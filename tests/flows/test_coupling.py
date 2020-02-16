@@ -51,7 +51,7 @@ def check_coupling_layer(ctx,
             scale = SigmoidScale(pre_scale_bias=sigmoid_scale_bias)
         elif scale_type == 'linear' or scale_type is LinearScale:
             scale = LinearScale()
-        elif isinstance(scale_type, BaseScale) or T.is_jit_layer(scale_type):
+        elif isinstance(scale_type, Scale) or T.is_jit_layer(scale_type):
             scale = scale_type
         else:
             raise ValueError(f'Invalid value for `scale`: {scale_type}')

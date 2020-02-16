@@ -2,7 +2,9 @@ from functools import partial
 from typing import *
 
 from .. import init, tensor as T
-from ..tensor import Tensor, Module, reshape
+from ..tensor import (Tensor, Module, reshape, shape, int_range,
+                      calculate_mean_and_var, assert_finite,
+                      as_tensor_backend, maximum, log, sqrt)
 from ..layers import *
 from ..typing_ import *
 from .core import *
@@ -103,61 +105,64 @@ class ActNorm(FeatureMappingFlow):
     def set_initialized(self, initialized: bool = True) -> None:
         self.initialized = initialized
 
-    @T.jit_ignore
-    def initialize_with_input(self, input: Tensor) -> bool:
+    @T.jit_method
+    def calculate_bias_and_pre_scale_for_init(self, input: Tensor) -> Tuple[Tensor, Tensor]:
         # PyTorch 1.3.1 bug: cannot mark this method as returning `None`.
         input_rank = T.rank(input)
 
-        if not isinstance(input, Tensor) or input_rank < self.event_ndims + 1:
+        if not isinstance(input, Tensor) or input_rank < self.x_event_ndims + 1:
             raise ValueError(
-                f'`input` is required to be a tensor with '
-                f'at least {self.event_ndims + 1} dimensions: got input shape '
-                f'{T.shape(input)!r}, while `event_ndims` of '
-                f'the ActNorm layer {self!r} is {self.event_ndims}.')
+                '`input` is required to be a tensor with at least {} '
+                'dimensions: got input shape {}.'.
+                format(self.x_event_ndims, shape(input))
+            )
 
         # calculate the axis to reduce
         feature_axis = input_rank + self.axis
         reduce_axis = (
-            T.int_range(0, feature_axis) +
-            T.int_range(feature_axis + 1, input_rank)
+            int_range(0, feature_axis) +
+            int_range(feature_axis + 1, input_rank)
         )
 
         # calculate sample mean and variance
-        input_mean, input_var = T.calculate_mean_and_var(
+        input_mean, input_var = calculate_mean_and_var(
             input, axis=reduce_axis, unbiased=True)
-        input_var = T.assert_finite(input_var, 'input_var')
+        input_var = assert_finite(input_var, 'input_var')
 
         # calculate the initial_value for `bias`
         bias = -input_mean
 
         # calculate the initial value for `pre_scale`
-        epsilon = T.as_tensor_backend(self.epsilon, dtype=input_var.dtype)
+        epsilon = as_tensor_backend(self.epsilon, dtype=input_var.dtype)
         if self.scale_type == 'exp':
-            pre_scale = -0.5 * T.log(T.maximum(input_var, epsilon))
+            pre_scale = -0.5 * log(maximum(input_var, epsilon))
         else:
-            pre_scale = 1. / T.sqrt(T.maximum(input_var, epsilon))
+            pre_scale = 1. / sqrt(maximum(input_var, epsilon))
 
-        # assign the initial values to the layer parameters
+        return bias, pre_scale
+
+    @T.jit_ignore
+    def _initialize_act_norm(self, input: Tensor) -> None:
+        bias, pre_scale = self.calculate_bias_and_pre_scale_for_init(input)
         with T.no_grad():
             T.assign(get_parameter(self, 'bias'), bias)
             T.assign(get_parameter(self, 'pre_scale'), pre_scale)
-
         self.set_initialized(True)
-        return True
 
     @T.jit_method
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         # initialize the parameters
         if not self.initialized:
             if inverse:
                 raise RuntimeError(
                     '`ActNorm` must be initialized with `inverse = False`.')
-            self.initialize_with_input(input)
+            # self.initialize_with_input(input)
+            self._initialize_act_norm(input)
             self.set_initialized(True)
 
         # do transformation
@@ -169,7 +174,7 @@ class ActNorm(FeatureMappingFlow):
             output, output_log_det = self.scale(
                 input=input,
                 pre_scale=pre_scale,
-                event_ndims=self.event_ndims,
+                event_ndims=self.x_event_ndims,
                 input_log_det=input_log_det,
                 compute_log_det=compute_log_det,
                 inverse=True,
@@ -179,7 +184,7 @@ class ActNorm(FeatureMappingFlow):
             output, output_log_det = self.scale(
                 input=input + shift,
                 pre_scale=pre_scale,
-                event_ndims=self.event_ndims,
+                event_ndims=self.x_event_ndims,
                 input_log_det=input_log_det,
                 compute_log_det=compute_log_det,
                 inverse=False,

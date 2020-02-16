@@ -203,6 +203,12 @@ class TensorNNTestCase(unittest.TestCase):
                     _f(logits), _f(labels), reduction, negative)
                 assert_allclose(ans, out)
 
+                # test cross_entropy with int32 labels
+                ans = cross_entropy(logits, labels, reduction, negative)
+                out = T.nn.cross_entropy_with_logits(
+                    _f(logits), T.cast(_f(labels), dtype=T.int32), reduction, negative)
+                assert_allclose(ans, out)
+
                 # test cross_entropy on 2d
                 ans = cross_entropy(
                     logits[0, 0, 0], labels[0, 0], reduction, negative)

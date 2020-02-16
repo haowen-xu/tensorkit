@@ -103,9 +103,9 @@ def ensure_full_receptive_field(ctx,
     )
 
 
-class _MyAddContext(tk.layers.BaseContextualLayer):
+class _MyAddContext(tk.layers.BaseLayer):
 
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
         if len(context) == 0:
             return input
         elif len(context) == 1:
@@ -266,7 +266,7 @@ class PixelCNNTestCase(unittest.TestCase):
                 deconv_layer_cls = getattr(
                     tk.layers, f'PixelCNNConvTranspose{spatial_ndims}d')
                 normalizer_cls = getattr(
-                    tk.layers, f'ActNorm{spatial_ndims}d')
+                    tk.layers, f'BatchNorm{spatial_ndims}d')
                 dropout_cls = getattr(
                     tk.layers, f'Dropout{spatial_ndims}d')
 

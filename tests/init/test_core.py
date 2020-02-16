@@ -325,7 +325,7 @@ class _MyDataDependentInitializer(tk.init.DataDependentInitializer):
     def __init__(self, watcher):
         self.watcher = watcher
 
-    def _forward(self, layer: T.Module, inputs: List[T.Tensor]) -> None:
+    def _init(self, layer: T.Module, inputs: List[T.Tensor]) -> None:
         _ = layer(inputs[0])
         self.watcher.append((layer, inputs))
 

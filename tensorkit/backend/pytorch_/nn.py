@@ -117,6 +117,8 @@ def cross_entropy_with_logits(logits: Tensor,
 
     logits, front_shape = flatten_to_ndims(logits, 2)
     labels, _ = flatten_to_ndims(labels, 1)
+    if labels.dtype != torch.int64:
+        labels = labels.to(torch.int64)
 
     ret = torch.nn.functional.cross_entropy(
         logits, labels, reduction=reduction)

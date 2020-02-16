@@ -72,7 +72,7 @@ def shifted_deconv(deconv_cls,
                       dilation=dilation, padding=padding, **kwargs)
 
 
-class SpatialShift(BaseSingleVariateLayer):
+class SpatialShift(BaseLayer):
 
     __constants__ = ('shift',)
 
@@ -85,11 +85,11 @@ class SpatialShift(BaseSingleVariateLayer):
         else:
             self.shift = list(shift)
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return shift(input, self.shift)
 
 
-class BranchAndAdd(BaseSingleVariateLayer):
+class BranchAndAdd(BaseLayer):
 
     __constants__ = ('branches',)
 
@@ -99,7 +99,7 @@ class BranchAndAdd(BaseSingleVariateLayer):
         super().__init__()
         self.branches = ModuleList(flatten_nested_layers(branches))
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         branch_outputs: List[Tensor] = []
         for branch in self.branches:
             branch_outputs.append(branch(input))
@@ -109,7 +109,7 @@ class BranchAndAdd(BaseSingleVariateLayer):
         return output
 
 
-class AddOnesChannelNd(BaseSingleVariateLayer):
+class AddOnesChannelNd(BaseLayer):
 
     __constants__ = ('_channel_axis', '_spatial_ndims')
 
@@ -128,7 +128,7 @@ class AddOnesChannelNd(BaseSingleVariateLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         channel_shape = shape(input)
         channel_shape[self._channel_axis] = 1
 
@@ -154,7 +154,7 @@ class AddOnesChannel3d(AddOnesChannelNd):
         return 3
 
 
-class AddLeadingContext(BaseContextualLayer):
+class AddLeadingContext(BaseLayer):
 
     __constants__ = ('first_n',)
 
@@ -162,14 +162,18 @@ class AddLeadingContext(BaseContextualLayer):
         super().__init__()
         self.first_n = first_n
 
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def forward(self,
+                input: Tensor,
+                context: Optional[List[Tensor]] = None) -> Tensor:
+        if context is None:  # pragma: no cover
+            raise RuntimeError('`context` is required.')
         output = input
         for i in range(self.first_n):
             output = output + context[i]
         return output
 
 
-class IgnoreLeadingContext(BaseContextualLayer):
+class IgnoreLeadingContext(BaseLayer):
 
     __constants__ = ('wrapped', 'first_n',)
 
@@ -181,7 +185,11 @@ class IgnoreLeadingContext(BaseContextualLayer):
         self.wrapped = wrapped
         self.first_n = first_n
 
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def forward(self,
+                input: Tensor,
+                context: Optional[List[Tensor]] = None) -> Tensor:
+        if context is None:  # pragma: no cover
+            raise RuntimeError('`context` is required.')
         return self.wrapped(input, context[self.first_n:])
 
 
@@ -226,7 +234,7 @@ def validate_pixelcnn_kernel_size(kernel_size, spatial_ndims: int) -> List[int]:
 
 
 # ---- pixelcnn input layer, which constructs the multiple pixelcnn stacks ----
-class PixelCNNInputNd(BaseSplitLayer):
+class PixelCNNInputNd(BaseLayer):
 
     __constants__ = ('_spatial_ndims', 'add_ones_channel', 'stacks',)
 
@@ -320,7 +328,7 @@ class PixelCNNInputNd(BaseSplitLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, input: Tensor) -> List[Tensor]:
+    def forward(self, input: Tensor) -> List[Tensor]:
         if rank(input) != self._spatial_ndims + 2:
             raise ValueError(
                 '`input` is expected to be {}d: got input shape {}.'.
@@ -371,7 +379,7 @@ class PixelCNNInput3d(PixelCNNInputNd):
 
 
 # ---- pixelcnn output layer, which obtains the final output from the stacks ----
-class PixelCNNOutputNd(BaseMergeLayer):
+class PixelCNNOutputNd(BaseLayer):
 
     __constants__ = ('_spatial_ndims',)
 
@@ -384,7 +392,7 @@ class PixelCNNOutputNd(BaseMergeLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, inputs: List[Tensor]) -> Tensor:
+    def forward(self, inputs: List[Tensor]) -> Tensor:
         if len(inputs) != self._spatial_ndims:
             raise ValueError(
                 '`len(inputs)` is expected to be {}: got {} tensors.'.
@@ -424,7 +432,7 @@ class PixelCNNOutput3d(PixelCNNOutputNd):
 
 
 # ---- pixelcnn layers ----
-class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
+class PixelCNNResBlockNd(BaseLayer):
 
     __constants__ = ('resnet_layers',)
 
@@ -549,7 +557,12 @@ class PixelCNNResBlockNd(BaseMultiVariateContextualLayer):
         super().__init__()
         self.resnet_layers = ModuleList(resnet_layers)
 
-    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def forward(self,
+                inputs: List[Tensor],
+                context: Optional[List[Tensor]] = None) -> List[Tensor]:
+        if context is None:
+            context = []
+
         resnet_outputs: List[Tensor] = []
         i = 0
         for resnet_layer in self.resnet_layers:
@@ -585,7 +598,7 @@ class PixelCNNResBlock3d(PixelCNNResBlockNd):
 
 
 # ---- pixelcnn down-sampling conv layers and up-sampling deconv layers ----
-class PixelCNNConvNd(BaseMultiVariateContextualLayer):
+class PixelCNNConvNd(BaseLayer):
 
     __constants__ = ('conv_layers',)
 
@@ -654,7 +667,9 @@ class PixelCNNConvNd(BaseMultiVariateContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def forward(self,
+                inputs: List[Tensor],
+                context: Optional[List[Tensor]] = None) -> List[Tensor]:
         conv_outputs: List[Tensor] = []
         i = 0
         for conv_layer in self.conv_layers:
@@ -703,7 +718,7 @@ class PixelCNNConv3d(PixelCNNConvNd):
         return 3
 
 
-class PixelCNNConvTransposeNd(BaseMultiVariateContextualLayer):
+class PixelCNNConvTransposeNd(BaseLayer):
 
     __constants__ = ('deconv_layers',)
 
@@ -775,7 +790,9 @@ class PixelCNNConvTransposeNd(BaseMultiVariateContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
+    def forward(self,
+                inputs: List[Tensor],
+                context: Optional[List[Tensor]] = None) -> List[Tensor]:
         deconv_outputs: List[Tensor] = []
         i = 0
         for conv_layer in self.deconv_layers:
@@ -825,7 +842,7 @@ class PixelCNNConvTranspose3d(PixelCNNConvTransposeNd):
 
 
 # ---- pixelcnn network composer ----
-class PixelCNNNd(BaseContextualLayer):
+class PixelCNNNd(BaseLayer):
 
     __constants__ = ('input_layer', 'layers', 'output_layer')
 
@@ -865,7 +882,9 @@ class PixelCNNNd(BaseContextualLayer):
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def forward(self,
+                input: Tensor,
+                context: Optional[List[Tensor]] = None) -> Tensor:
         outputs = self.input_layer(input)
         for block in self.layers:
             outputs = block(outputs, context)

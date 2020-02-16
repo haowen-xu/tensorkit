@@ -11,7 +11,7 @@ __all__ = [
 ]
 
 
-class ReshapeFlow(BaseFlow):
+class ReshapeFlow(Flow):
     """
     A flow which reshapes the last `x_event_ndims` of `x` into `y_event_shape`.
 
@@ -26,7 +26,7 @@ class ReshapeFlow(BaseFlow):
         # log_det == tf.zeros([2])
     """
 
-    __constants__ = BaseFlow.__constants__ + ('x_event_shape', 'y_event_shape')
+    __constants__ = Flow.__constants__ + ('x_event_shape', 'y_event_shape')
 
     x_event_shape: List[int]
     y_event_shape: List[int]
@@ -71,12 +71,12 @@ class ReshapeFlow(BaseFlow):
         self.x_event_shape = x_event_shape
         self.y_event_shape = y_event_shape
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = reshape_tail(input, self.y_event_ndims, self.x_event_shape)
         else:
@@ -88,7 +88,7 @@ class ReshapeFlow(BaseFlow):
         return output, output_log_det
 
 
-class SpaceDepthTransformFlow(BaseFlow):
+class SpaceDepthTransformFlow(Flow):
 
     __constants__ = ('block_size',)
 
@@ -115,21 +115,21 @@ class SpaceDepthTransformFlow(BaseFlow):
     def _get_spatial_ndim(self) -> int:
         raise NotImplementedError()
 
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         raise NotImplementedError()
 
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         raise NotImplementedError()
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
-            output = self._inv_transform(input)
+            output = self._transform_inverse(input)
         else:
-            output = self._transform(input)
+            output = self._transform_forward(input)
 
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:
@@ -145,14 +145,14 @@ class SpaceToDepth1d(SpaceDepthTransformFlow):
         return 1
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return space_to_depth1d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return depth_to_space1d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return DepthToSpace1d(self.block_size)
 
 
@@ -163,14 +163,14 @@ class SpaceToDepth2d(SpaceDepthTransformFlow):
         return 2
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return space_to_depth2d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return depth_to_space2d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return DepthToSpace2d(self.block_size)
 
 
@@ -181,14 +181,14 @@ class SpaceToDepth3d(SpaceDepthTransformFlow):
         return 3
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return space_to_depth3d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return depth_to_space3d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return DepthToSpace3d(self.block_size)
 
 
@@ -199,14 +199,14 @@ class DepthToSpace1d(SpaceDepthTransformFlow):
         return 1
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return depth_to_space1d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return space_to_depth1d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return SpaceToDepth1d(self.block_size)
 
 
@@ -217,14 +217,14 @@ class DepthToSpace2d(SpaceDepthTransformFlow):
         return 2
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return depth_to_space2d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return space_to_depth2d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return SpaceToDepth2d(self.block_size)
 
 
@@ -235,12 +235,12 @@ class DepthToSpace3d(SpaceDepthTransformFlow):
         return 3
 
     @jit_method
-    def _transform(self, input: Tensor) -> Tensor:
+    def _transform_forward(self, input: Tensor) -> Tensor:
         return depth_to_space3d(input, self.block_size)
 
     @jit_method
-    def _inv_transform(self, input: Tensor) -> Tensor:
+    def _transform_inverse(self, input: Tensor) -> Tensor:
         return space_to_depth3d(input, self.block_size)
 
-    def invert(self) -> BaseFlow:
+    def invert(self) -> Flow:
         return SpaceToDepth3d(self.block_size)

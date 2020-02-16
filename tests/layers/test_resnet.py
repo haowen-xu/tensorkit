@@ -48,8 +48,8 @@ def check_resblock(ctx,
     # force `use_bias` = False
     layer = resblock_cls(in_channels=5, out_channels=5, kernel_size=1,
                          use_bias=False)
-    ctx.assertIsNone(layer.conv0.bias_store)
-    ctx.assertIsNone(layer.conv1.bias_store)
+    ctx.assertFalse(layer.conv0.use_bias)
+    ctx.assertFalse(layer.conv1.use_bias)
 
     layer = T.jit_compile(layer)
     assert_allclose(
@@ -63,7 +63,7 @@ def check_resblock(ctx,
                          use_shortcut=True)
     ctx.assertIsInstance(layer.shortcut, linear_cls)
     ctx.assertIsInstance(layer.shortcut.weight_store, tk.layers.SimpleParamStore)
-    ctx.assertIsNone(layer.shortcut.bias_store)
+    ctx.assertFalse(layer.shortcut.use_bias)
     ctx.assertEqual(layer.shortcut.kernel_size, [1] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.stride, [1] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.padding, [(0, 0)] * spatial_ndims)
@@ -101,7 +101,7 @@ def check_resblock(ctx,
         **output_padding_arg
     )
     ctx.assertIsInstance(layer.shortcut, linear_cls)
-    ctx.assertIsNone(layer.shortcut.bias_store)
+    ctx.assertFalse(layer.shortcut.use_bias)
     ctx.assertEqual(layer.shortcut.kernel_size, kernel_size)
     ctx.assertEqual(layer.shortcut.stride, stride)
     ctx.assertEqual(layer.shortcut.padding, padding)
@@ -158,7 +158,7 @@ def check_resblock(ctx,
     tk.layers.set_train_mode(layer, True)
     _ = layer(x)  # initialize the normalizers
     tk.layers.set_train_mode(layer, False)
-    ctx.assertIsNone(layer.conv0.bias_store)
+    ctx.assertFalse(layer.conv0.use_bias)
     ctx.assertIsInstance(layer.pre_conv0, tk.layers.Sequential)
     ctx.assertIsInstance(layer.pre_conv0[0], normalizer_cls)
     ctx.assertIsInstance(layer.pre_conv0[1], tk.layers.LeakyReLU)

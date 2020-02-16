@@ -1,2 +1,2 @@
-from . import linalg, nn, random
+from . import linalg, nn, random, utils
 from .core import *

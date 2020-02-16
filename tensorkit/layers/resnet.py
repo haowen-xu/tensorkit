@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 
-class ResBlockNd(BaseContextualLayer):
+class ResBlockNd(BaseLayer):
     """
     A general implementation of ResNet block.
 
@@ -24,7 +24,8 @@ class ResBlockNd(BaseContextualLayer):
     .. code-block:: python
 
         shortcut = input
-        if strides != 1 or in_channels != out_channels or use_shortcut:
+        if strides != 1 or (kernel_size != 1 and padding != 'half') or \
+                in_channels != out_channels or use_shortcut:
             shortcut_layer = shortcut(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -211,6 +212,7 @@ class ResBlockNd(BaseContextualLayer):
         kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
         stride = validate_conv_size('strides', stride, spatial_ndims)
         dilation = validate_conv_size('dilation', dilation, spatial_ndims)
+        is_half_padding = padding == PaddingMode.HALF.value
         padding = validate_padding(padding, kernel_size, dilation, spatial_ndims)
 
         if output_padding != 0 and \
@@ -240,8 +242,10 @@ class ResBlockNd(BaseContextualLayer):
         if shortcut is not None:
             use_shortcut = True
         if use_shortcut is None:
-            use_shortcut = (any(s != 1 for s in stride) or
-                            in_channels != out_channels)
+            use_shortcut = (
+                any(s != 1 for s in stride) or
+                (not is_half_padding and any(k != 1 for k in stride)) or
+                in_channels != out_channels)
 
         if activation is not None:
             activation_factory = validate_layer_factory('activation', activation)
@@ -391,8 +395,12 @@ class ResBlockNd(BaseContextualLayer):
     def _add_output_padding_to_kwargs(self, output_padding, kwargs):
         return kwargs
 
-    @jit_method
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
+    def forward(self,
+                input: Tensor,
+                context: Optional[List[Tensor]] = None) -> Tensor:
+        if context is None:
+            context = []
+
         # feed the input into both the shortcut and the residual path
         residual = shortcut = input
 

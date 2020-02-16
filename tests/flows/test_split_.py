@@ -91,10 +91,8 @@ class SplitFlowTestCase(unittest.TestCase):
         T.random.seed(1234)
 
         # x and y with the same event ndims
-        left = T.jit_compile(ActNorm(2))
-        right = T.jit_compile(ActNorm(3))
-        _ = left(T.random.randn([5, 2]))
-        _ = right(T.random.randn([5, 3]))
+        left = T.jit_compile(InvertibleDense(2))
+        right = T.jit_compile(InvertibleDense(3))
 
         check_split_flow(
             ctx=self,
@@ -110,20 +108,20 @@ class SplitFlowTestCase(unittest.TestCase):
         with pytest.raises(ValueError,
                            match=f'`left` and `right` flows must have same '
                                  f'`x_event_ndims` and `y_event_ndims`: '
-                                 f'got `left.x_event_ndims` == {left.x_event_ndims}, '
-                                 f'`left.y_event_ndims` == {left.y_event_ndims}, '
-                                 f'`right.x_event_ndims` == {left.x_event_ndims}, '
+                                 f'got `left.x_event_ndims` == {left.get_x_event_ndims()}, '
+                                 f'`left.y_event_ndims` == {left.get_y_event_ndims()}, '
+                                 f'`right.x_event_ndims` == {left.get_x_event_ndims()}, '
                                  f'and `right.y_event_ndims` == 6'):
-            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * left.x_event_ndims, [1] * 6))
+            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * left.get_x_event_ndims(), [1] * 6))
 
         with pytest.raises(ValueError,
                            match=f'`left` and `right` flows must have same '
                                  f'`x_event_ndims` and `y_event_ndims`: '
-                                 f'got `left.x_event_ndims` == {left.x_event_ndims}, '
-                                 f'`left.y_event_ndims` == {left.y_event_ndims}, '
+                                 f'got `left.x_event_ndims` == {left.get_x_event_ndims()}, '
+                                 f'`left.y_event_ndims` == {left.get_y_event_ndims()}, '
                                  f'`right.x_event_ndims` == 6, '
-                                 f'and `right.y_event_ndims` == {left.y_event_ndims}'):
-            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * 6, [1] * left.y_event_ndims))
+                                 f'and `right.y_event_ndims` == {left.get_y_event_ndims()}'):
+            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * 6, [1] * left.get_y_event_ndims()))
 
         # x and y with different event ndims
         left = ReshapeFlow([-1], [-1, 2])
@@ -159,14 +157,10 @@ class SplitFlowTestCase(unittest.TestCase):
 
         for spatial_ndims in (1, 2, 3):
             cls = getattr(tk.flows, f'SplitFlow{spatial_ndims}d')
-            sub_cls = getattr(tk.flows, f'ActNorm{spatial_ndims}d')
+            sub_cls = getattr(tk.flows, f'InvertibleConv{spatial_ndims}d')
 
             left = T.jit_compile(sub_cls(2))
             right = T.jit_compile(sub_cls(3))
-            _ = left(T.random.randn(
-                make_conv_shape([5], 2, [6, 7, 8][:spatial_ndims])))
-            _ = right(T.random.randn(
-                make_conv_shape([5], 3, [6, 7, 8][:spatial_ndims])))
 
             check_split_flow(
                 ctx=self,

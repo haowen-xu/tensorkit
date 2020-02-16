@@ -1,4 +1,4 @@
-from ..backend.flows import BaseFlow
+from ..backend.flows import Flow
 from ..tensor import Tensor, Module, is_jit_layer
 from .core import *
 
@@ -8,7 +8,7 @@ __all__ = [
 ]
 
 
-class FlowLayer(BaseSingleVariateLayer):
+class FlowLayer(BaseLayer):
     """
     Wrap a :class:`tk.flows.BaseFlow` into a single-input, single-output layer.
     """
@@ -17,13 +17,13 @@ class FlowLayer(BaseSingleVariateLayer):
 
     flow: Module
 
-    def __init__(self, flow: BaseFlow):
-        if not is_jit_layer(flow) and not isinstance(flow, BaseFlow):
+    def __init__(self, flow: Flow):
+        if not is_jit_layer(flow) and not isinstance(flow, Flow):
             raise TypeError(f'`flow` must be a flow: got {flow!r}')
         super().__init__()
         self.flow = flow
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         output, output_log_det = self.flow(input, compute_log_det=False)
         return output
 

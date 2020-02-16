@@ -14,7 +14,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class _MyWrapper(BaseSingleVariateLayer):
+class _MyWrapper(BaseLayer):
 
     __constants__ = ('wrapped',)
 
@@ -24,7 +24,7 @@ class _MyWrapper(BaseSingleVariateLayer):
         super().__init__()
         self.wrapped = wrapped
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return self.wrapped(input)
 
 
@@ -67,14 +67,20 @@ class UtilsAndConstantsTestCase(unittest.TestCase):
         c = get_buffer(layer, 'c')
         c2 = get_buffer(layer, 'c2')
 
-        self.assertDictEqual(dict(get_parameters(layer)), {'w': w, 'w2': w2})
-        self.assertDictEqual(dict(get_buffers(layer)), {'c': c, 'c2': c2})
+        self.assertListEqual(list(get_parameters(layer)), [w, w2])
+        self.assertDictEqual(dict(get_named_parameters(layer)), {'w': w, 'w2': w2})
+        self.assertListEqual(list(get_buffers(layer)), [c, c2])
+        self.assertDictEqual(dict(get_named_buffers(layer)), {'c': c, 'c2': c2})
 
         seq = _MyWrapper(layer)
-        self.assertDictEqual(dict(get_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
-        self.assertDictEqual(dict(get_parameters(seq, recursive=False)), {})
-        self.assertDictEqual(dict(get_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
-        self.assertDictEqual(dict(get_buffers(seq, recursive=False)), {})
+        self.assertListEqual(list(get_parameters(seq)), [w, w2])
+        self.assertListEqual(list(get_parameters(seq, recursive=False)), [])
+        self.assertDictEqual(dict(get_named_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
+        self.assertDictEqual(dict(get_named_parameters(seq, recursive=False)), {})
+        self.assertListEqual(list(get_buffers(seq)), [c, c2])
+        self.assertListEqual(list(get_buffers(seq, recursive=False)), [])
+        self.assertDictEqual(dict(get_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
+        self.assertDictEqual(dict(get_named_buffers(seq, recursive=False)), {})
 
     def test_SimpleParamStore(self):
         initial_value = np.random.randn(2, 3, 4)
@@ -173,7 +179,7 @@ class IdentityTestCase(unittest.TestCase):
         assert_equal(x, layer(x))
 
 
-class _MySingleVariateLayer(BaseSingleVariateLayer):
+class _MySingleVariateLayer(BaseLayer):
 
     bias: float
 
@@ -190,29 +196,28 @@ class _MySingleVariateLayer(BaseSingleVariateLayer):
         return x + T.from_numpy(np.arange(x.shape[-1]),
                                 dtype=T.get_dtype(x))
 
-    @T.jit_method
-    def _forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         return self._add_numpy_array(x * 11. + self.bias)
 
 
-class _MyMultiVariateLayer(BaseMultiVariateLayer):
+class _MyMultiVariateLayer(BaseLayer):
 
-    def _forward(self, inputs: List[Tensor]) -> List[Tensor]:
+    def forward(self, inputs: List[Tensor]) -> List[Tensor]:
         ret: List[Tensor] = []
         for i in range(len(inputs) - 1):
             ret.append(inputs[i] + inputs[i + 1])
         return ret
 
 
-class _MySplitLayer(BaseSplitLayer):
+class _MySplitLayer(BaseLayer):
 
-    def _forward(self, input: Tensor) -> List[Tensor]:
+    def forward(self, input: Tensor) -> List[Tensor]:
         return [input, input + 1, input + 2]
 
 
-class _MyMergeLayer(BaseMergeLayer):
+class _MyMergeLayer(BaseLayer):
 
-    def _forward(self, inputs: List[Tensor]) -> Tensor:
+    def forward(self, inputs: List[Tensor]) -> Tensor:
         return T.add_n(inputs)
 
 

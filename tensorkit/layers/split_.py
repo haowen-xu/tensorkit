@@ -6,7 +6,7 @@ from .core import *
 __all__ = ['Branch']
 
 
-class Branch(BaseSplitLayer):
+class Branch(BaseLayer):
     """
     A module that maps the input tensor into multiple tensors via sub-modules.
 
@@ -38,7 +38,7 @@ class Branch(BaseSplitLayer):
         self.branches = ModuleList(list(branches))
         self.shared = shared
 
-    def _forward(self, input: Tensor) -> List[Tensor]:
+    def forward(self, input: Tensor) -> List[Tensor]:
         outputs: List[Tensor] = []
         shared_output = self.shared(input)
         for branch in self.branches:

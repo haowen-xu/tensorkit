@@ -54,12 +54,12 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         add_parameter(self, 'inv_permutation', inv_permutation,
                       requires_grad=False)
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = index_select(input, self.inv_permutation, axis=self.axis)
         else:

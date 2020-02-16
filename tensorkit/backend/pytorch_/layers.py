@@ -14,12 +14,12 @@ __all__ = [
     'DEFAULT_GATE_BIAS', 'DEFAULT_WEIGHT_INIT', 'DEFAULT_BIAS_INIT',
 
     # utils
-    'add_parameter', 'get_parameter', 'get_parameters',
-    'add_buffer', 'get_buffer', 'get_buffers',
+    'add_parameter', 'get_parameter', 'get_parameters', 'get_named_parameters',
+    'add_buffer', 'get_buffer', 'get_buffers', 'get_named_buffers',
     'set_train_mode',
 
     # parameter store modules
-    'BaseParamStore', 'SimpleParamStore',
+    'ParamStore', 'SimpleParamStore',
     'NormedWeightStore', 'NormedAndScaledWeightStore',
     'get_weight_store', 'get_bias_store',
 
@@ -27,10 +27,7 @@ __all__ = [
     'Identity',
 
     # base layers and composition layers
-    'BaseLayer', 'BaseSingleVariateLayer', 'BaseMultiVariateLayer',
-    'BaseSplitLayer', 'BaseMergeLayer',
-    'ModuleList', 'Sequential',
-    'BaseContextualLayer', 'BaseMultiVariateContextualLayer',
+    'BaseLayer', 'ModuleList', 'Sequential',
 
     # linear layers
     'CoreLinear', 'Linear',
@@ -70,7 +67,12 @@ def get_parameter(layer: Module, name: str) -> Optional[Variable]:
 
 
 def get_parameters(layer: Module, recursive: bool = True
-                   ) -> Iterator[Tuple[str, Variable]]:
+                   ) -> Iterator[Variable]:
+    return layer.parameters(recurse=recursive)
+
+
+def get_named_parameters(layer: Module, recursive: bool = True
+                         ) -> Iterator[Tuple[str, Variable]]:
     return layer.named_parameters(recurse=recursive)
 
 
@@ -87,7 +89,12 @@ def get_buffer(layer: Module, name: str) -> Optional[Tensor]:
 
 
 def get_buffers(layer: Module, recursive: bool = True
-                ) -> Iterator[Tuple[str, Tensor]]:
+                ) -> Iterator[Tensor]:
+    return layer.buffers(recurse=recursive)
+
+
+def get_named_buffers(layer: Module, recursive: bool = True
+                      ) -> Iterator[Tuple[str, Tensor]]:
     return layer.named_buffers(recurse=recursive)
 
 
@@ -97,7 +104,16 @@ def set_train_mode(layer: Module, training: bool = True):
 
 
 # ---- weight wrapper: a simple weight, or a normed weight ----
-class BaseParamStore(Module):
+class _NullParamStore(Module):
+    # This module is actually not used in any context.
+    # It is just a place-holder module, to gain JIT support.
+
+    def forward(self) -> Tensor:  # pragma: no cover
+        zero_shape: List[int] = []
+        return torch.zeros(zero_shape, dtype=torch.float32)
+
+
+class ParamStore(Module):
     """
     Base class for a component that stores a trainable parameter,
     or a set of trainable parameters that can be used to derive
@@ -125,7 +141,7 @@ class BaseParamStore(Module):
         raise NotImplementedError()
 
 
-class SimpleParamStore(BaseParamStore):
+class SimpleParamStore(ParamStore):
     """A module that carries a direct variable as the parameter."""
 
     def __init__(self,
@@ -165,10 +181,10 @@ def weight_norm_decompose(weight: Tensor,
     return v, v_norm
 
 
-class NormedWeightStore(BaseParamStore):
+class NormedWeightStore(ParamStore):
     """A module that carries the weight-normed `weight`, without `g`."""
 
-    __constants__ = BaseParamStore.__constants__ + ('feature_axis', 'epsilon')
+    __constants__ = ParamStore.__constants__ + ('feature_axis', 'epsilon')
 
     norm_axis: int
     epsilon: float
@@ -202,10 +218,10 @@ class NormedWeightStore(BaseParamStore):
             assign_data(self.v, v)
 
 
-class NormedAndScaledWeightStore(BaseParamStore):
+class NormedAndScaledWeightStore(ParamStore):
     """A module that carries the weight-normed `weight`, with `v` and `g`."""
 
-    __constants__ = BaseParamStore.__constants__ + ('feature_axis', 'epsilon')
+    __constants__ = ParamStore.__constants__ + ('feature_axis', 'epsilon')
 
     norm_axis: int
     epsilon: float
@@ -245,7 +261,7 @@ def get_weight_store(shape: List[int],
                      initializer: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                      norm_axis: int = 1,
                      weight_norm: WeightNormArgType = False
-                     ) -> BaseParamStore:
+                     ) -> ParamStore:
     """
     Create a module which carries the `weight` parameter.
 
@@ -275,7 +291,7 @@ def get_weight_store(shape: List[int],
 def get_bias_store(shape: List[int],
                    initializer: TensorInitArgType = DEFAULT_BIAS_INIT,
                    use_bias: bool = True
-                   ) -> Optional[BaseParamStore]:
+                   ) -> Optional[ParamStore]:
     """
     Create a module that carries the `bias` parameter.
 
@@ -300,7 +316,26 @@ class Identity(Module):
 
 
 # ---- base layers and composition layers ----
-class BaseLayer(Module):
+class BaseLayerMeta(type):
+
+    def __new__(cls, name, parents, dct):
+        if torch.__version__ == '1.4.0':
+            # strange bug, that PyTorch 1.4.0 does not support annotations
+            # with type `Module` or `ModuleList`
+            if '__annotations__' in dct:
+                annotations = dct['__annotations__']
+                annotation_keys = list(annotations)
+                for attr in annotation_keys:
+                    if annotations[attr] in (Module, ModuleList):
+                        annotations.pop(attr)
+
+        return super().__new__(cls, name, parents, dct)
+
+
+class BaseLayer(Module, metaclass=BaseLayerMeta):
+
+    def _is_attr_included_in_repr(self, attr: str, value: Any) -> bool:
+        return True
 
     def extra_repr(self) -> str:
         buf = []
@@ -314,100 +349,15 @@ class BaseLayer(Module):
             if attr.startswith('_'):
                 continue
             attr_val = getattr(self, attr, None)
-            if attr_val is None or isinstance(attr_val, Module) or \
-                    isinstance(attr_val, Tensor):
+            if attr_val is None or \
+                    isinstance(attr_val, Module) or \
+                    isinstance(attr_val, Tensor) or \
+                    is_jit_layer(attr_val):
                 continue
-            buf.append(f'{attr}={attr_val!r}')
+            if self._is_attr_included_in_repr(attr, attr_val):
+                buf.append(f'{attr}={attr_val!r}')
 
         return ', '.join(buf)
-
-
-class BaseSingleVariateLayer(BaseLayer):
-    """
-    Base class for single-input, single-output layers.
-
-    Sub-classes should override `_call(input: Tensor) -> Tensor` to
-    actually implement the module.
-    """
-
-    def _forward(self, input: Tensor) -> Tensor:
-        raise NotImplementedError()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return self._forward(input)
-
-
-class BaseMultiVariateLayer(BaseLayer):
-    """
-    Base class for multiple-input, multiple-output layers.
-    The inputs and outputs should be given as a list of Tensors.
-    """
-
-    def _forward(self, inputs: List[Tensor]) -> List[Tensor]:
-        raise NotImplementedError()
-
-    def forward(self, inputs: List[Tensor]) -> List[Tensor]:
-        return self._forward(inputs)
-
-
-class BaseSplitLayer(BaseLayer):
-    """
-    Base class for single-input, multiple-output layers.
-    The outputs should be given as a list of Tensors.
-    """
-
-    def _forward(self, input: Tensor) -> List[Tensor]:
-        raise NotImplementedError()
-
-    def forward(self, input: Tensor) -> List[Tensor]:
-        return self._forward(input)
-
-
-class BaseMergeLayer(BaseLayer):
-    """
-    Base class for multiple-input, single-output layers.
-    The inputs should be given as a list of Tensors.
-    """
-
-    def _forward(self, inputs: List[Tensor]) -> Tensor:
-        raise NotImplementedError()
-
-    def forward(self, inputs: List[Tensor]) -> Tensor:
-        return self._forward(inputs)
-
-
-class BaseContextualLayer(BaseLayer):
-    """
-    Base class layers that produces the output according to the input tensor
-    and contextual tensors.
-    """
-
-    def _forward(self, input: Tensor, context: List[Tensor]) -> Tensor:
-        raise NotImplementedError()
-
-    def forward(self,
-                input: Tensor,
-                context: Optional[List[Tensor]] = None) -> Tensor:
-        if context is None:
-            context = []
-        return self._forward(input, context)
-
-
-class BaseMultiVariateContextualLayer(BaseLayer):
-    """
-    Base class layers that produces the output tensors according to the
-    input tensors and contextual tensors.
-    """
-
-    def _forward(self, inputs: List[Tensor], context: List[Tensor]) -> List[Tensor]:
-        raise NotImplementedError()
-
-    def forward(self,
-                inputs: List[Tensor],
-                context: Optional[List[Tensor]] = None) -> List[Tensor]:
-        if context is None:
-            context = []
-        return self._forward(inputs, context)
 
 
 class Sequential(torch_nn.Sequential):
@@ -432,7 +382,8 @@ class CoreLinear(BaseLayer):
     )
 
     weight_store: Module
-    bias_store: Optional[Module]
+    bias_store: Module
+    use_bias: bool
 
     def __init__(self,
                  weight_shape: List[int],
@@ -447,6 +398,8 @@ class CoreLinear(BaseLayer):
             weight_shape, initializer=weight_init, weight_norm=weight_norm)
         bias_store = get_bias_store(
             bias_shape, initializer=bias_init, use_bias=use_bias)
+        if bias_store is None:
+            bias_store = _NullParamStore()
 
         if data_init is not None:
             if not isinstance(data_init, init.DataDependentInitializer) and \
@@ -460,40 +413,37 @@ class CoreLinear(BaseLayer):
         super().__init__()
         self.weight_store = weight_store
         self.bias_store = bias_store
+        self.use_bias = use_bias
 
         if data_init is not None:
             data_init.register(self)
 
-    def __repr__(self) -> str:
-        attributes = []
-        for attr in self.__annotations__:
-            val = getattr(self, attr, None)
-            if val is not None:
-                if attr == 'use_bias':
-                    if not val:
-                        attributes.append(f'{attr}={val}')
-                elif not isinstance(val, (Module, Tensor)):
-                    attributes.append(f'{attr}={val!r}')
-        return f'{self.__class__.__qualname__}({", ".join(attributes)})'
+    def _is_attr_included_in_repr(self, attr: str, value: Any) -> bool:
+        return attr != 'use_bias' or not value
 
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def __repr__(self):
+        return f'{self.__class__.__qualname__}({self.extra_repr()})'
+
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         raise NotImplementedError()
 
     def forward(self, input: Tensor) -> Tensor:
         weight = self.weight_store()
-        if self.bias_store is None:
-            bias = None
+        if self.use_bias:
+            bias: Optional[Tensor] = self.bias_store()
         else:
-            bias = self.bias_store()
-        return self._forward(input, weight, bias)
+            bias: Optional[Tensor] = None
+        return self._linear_transform(input, weight, bias)
 
 
 class Linear(CoreLinear):
 
     in_features: int
     out_features: int
-    use_bias: bool
 
     def __init__(self,
                  in_features: int,
@@ -509,7 +459,6 @@ class Linear(CoreLinear):
 
         self.in_features = in_features
         self.out_features = out_features
-        self.use_bias = use_bias
 
         super().__init__(
             weight_shape=[out_features, in_features],
@@ -522,8 +471,11 @@ class Linear(CoreLinear):
         )
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         output, front_shape = flatten_to_ndims(input, 2)
         output = torch.nn.functional.linear(output, weight, bias)
         output = unflatten_from_ndims(output, front_shape)
@@ -539,7 +491,6 @@ class LinearConvNd(CoreLinear):
     padding: List[Tuple[int, int]]
     _symmetric_padding: Optional[List[int]]
     dilation: List[int]
-    use_bias: bool
 
     def __init__(self,
                  in_channels: int,
@@ -570,7 +521,6 @@ class LinearConvNd(CoreLinear):
         self.dilation = dilation
         self.padding = padding
         self._symmetric_padding = _symmetric_padding
-        self.use_bias = use_bias
 
         super().__init__(
             weight_shape=[out_channels, in_channels] + kernel_size,
@@ -592,8 +542,11 @@ class LinearConv1d(LinearConvNd):
         return 1
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv1d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -613,8 +566,11 @@ class LinearConv2d(LinearConvNd):
         return 2
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv2d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -634,8 +590,11 @@ class LinearConv3d(LinearConvNd):
         return 3
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv3d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -659,7 +618,6 @@ class LinearConvTransposeNd(CoreLinear):
     is_symmetric_padding: bool
     dilation: List[int]
     output_padding: List[int]
-    use_bias: bool
 
     def __init__(self,
                  in_channels: int,
@@ -694,7 +652,6 @@ class LinearConvTransposeNd(CoreLinear):
         self._symmetric_padding = _symmetric_padding
         self.output_padding = output_padding
         self.dilation = dilation
-        self.use_bias = use_bias
 
         super().__init__(
             weight_shape=[in_channels, out_channels] + kernel_size,
@@ -731,8 +688,11 @@ class LinearConvTranspose1d(LinearConvTransposeNd):
         return 1
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose1d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -754,8 +714,11 @@ class LinearConvTranspose2d(LinearConvTransposeNd):
         return 2
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose2d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -777,8 +740,11 @@ class LinearConvTranspose3d(LinearConvTransposeNd):
         return 3
 
     @jit_method
-    def _forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]
-                 ) -> Tensor:
+    def _linear_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
         if self._symmetric_padding is not None:
             return torch.nn.functional.conv_transpose3d(
                 input=input, weight=weight, bias=bias, stride=self.stride,
@@ -859,7 +825,7 @@ class BatchNorm3d(torch_nn.BatchNorm3d):
 Dropout = torch_nn.Dropout
 
 
-class Dropout1d(BaseSingleVariateLayer):
+class Dropout1d(BaseLayer):
     """Randomly zero out entire channels of the 1d convolution input."""
 
     __constants__ = ('p', '_keep_prob')
@@ -872,7 +838,7 @@ class Dropout1d(BaseSingleVariateLayer):
         self.p = p
         self._keep_prob = 1. - p
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         if input.dim() < 2:  # pragma: no cover
             raise ValueError('`input` must be at least 2d, but the '
                              'input shape is {}.'.format(shape(input)))

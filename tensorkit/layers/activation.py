@@ -1,19 +1,19 @@
 from ..tensor import Tensor, tanh
-from ..tensor.nn import LEAKY_RELU_DEFAULT_SLOPE, relu, leaky_relu, sigmoid
+from ..tensor.nn import *
 from .core import *
 
 __all__ = [
-    'ReLU', 'LeakyReLU', 'Tanh', 'Sigmoid',
+    'ReLU', 'LeakyReLU', 'Tanh', 'Sigmoid', 'LogSoftmax',
 ]
 
 
-class ReLU(BaseSingleVariateLayer):
+class ReLU(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return relu(input)
 
 
-class LeakyReLU(BaseSingleVariateLayer):
+class LeakyReLU(BaseLayer):
 
     __constants__ = ('negative_slope',)
 
@@ -23,17 +23,23 @@ class LeakyReLU(BaseSingleVariateLayer):
         super().__init__()
         self.negative_slope = negative_slope
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return leaky_relu(input, negative_slope=self.negative_slope)
 
 
-class Tanh(BaseSingleVariateLayer):
+class Tanh(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return tanh(input)
 
 
-class Sigmoid(BaseSingleVariateLayer):
+class Sigmoid(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return sigmoid(input)
+
+
+class LogSoftmax(BaseLayer):
+
+    def forward(self, input: Tensor) -> Tensor:
+        return log_softmax(input)

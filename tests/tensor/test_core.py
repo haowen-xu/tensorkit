@@ -1080,6 +1080,24 @@ class TensorCoreTestCase(unittest.TestCase):
                                    match='`axis` must not be an empty list'):
                     _ = T_op(t, axis=[])
 
+        # test argmax, argmin
+        def np_argmaxmin(fn, x, axis, keepdims=False):
+            r_shape = list(x.shape)
+            r_shape[axis] = 1
+            r = fn(x, axis)
+            if keepdims:
+                r = r.reshape(r_shape)
+            return r
+
+        for name in ['argmax', 'argmin']:
+            T_op = getattr(T, name, getattr(T, name, None))
+            np_op = partial(np_argmaxmin, getattr(np, name))
+
+            for axis in (0, 1, 2, -1, -2, -3):
+                assert_allclose(T_op(t, axis=axis), np_op(x, axis=axis))
+                assert_allclose(T_op(t, axis=axis, keepdims=True),
+                                np_op(x, axis=axis, keepdims=True))
+
         # test calculate_mean_and_var
         x = np.random.randn(3, 4, 5)
         for dtype in float_dtypes:
@@ -1362,7 +1380,7 @@ class TensorCoreTestCase(unittest.TestCase):
             [l_sum, l_squares],
             [xt, yt],
             grad_outputs=[None, T.ones_like(l_squares)],
-            keep_graph=True,
+            retain_graph=True,
             create_graph=True
         )
         assert_allclose(x_grad, y + 21 * x ** 2)
@@ -1373,7 +1391,7 @@ class TensorCoreTestCase(unittest.TestCase):
             [x_grad, y_grad],
             [xt, yt],
             grad_outputs=[T.ones_like(xt), T.ones_like(yt)],
-            keep_graph=True,
+            retain_graph=True,
             create_graph=False
         )
         assert_allclose(x_grad_2, 42. * x + 1.)
@@ -1384,7 +1402,7 @@ class TensorCoreTestCase(unittest.TestCase):
             [l_sum, l_squares],
             [xt],
             grad_outputs=[None, T.ones_like(l_squares)],
-            keep_graph=True,
+            retain_graph=True,
             create_graph=True
         )
         assert_allclose(x_grad, y + 21 * x ** 2)
@@ -1393,7 +1411,7 @@ class TensorCoreTestCase(unittest.TestCase):
             [l_sum, l_squares],
             [yt],
             grad_outputs=[None, T.ones_like(l_squares)],
-            keep_graph=True,
+            retain_graph=True,
             create_graph=True
         )
         assert_allclose(y_grad, x + 33 * y ** 2)
@@ -1403,7 +1421,7 @@ class TensorCoreTestCase(unittest.TestCase):
         [x_grad, y_grad] = T.grad(
             [l_sum],
             [xt, yt],
-            keep_graph=False,
+            retain_graph=False,
             create_graph=False,
             allow_unused=True,
         )
@@ -1417,11 +1435,11 @@ class TensorCoreTestCase(unittest.TestCase):
 
         # stop_grad, but `allow_unused` is False
         l_sum = T.reduce_sum(T.stop_grad(xt ** 2) * yt)
-        with pytest.raises(Exception, match='Set allow_unused=True'):
+        with pytest.raises(Exception):
             _ = T.grad(
                 [l_sum],
                 [xt, yt],
-                keep_graph=False,
+                retain_graph=False,
                 create_graph=False,
                 allow_unused=False,
             )

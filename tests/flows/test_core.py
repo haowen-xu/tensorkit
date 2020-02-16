@@ -14,18 +14,18 @@ from tests.helper import *
 from tests.ops import *
 
 
-class _MyFlow(BaseFlow):
+class _MyFlow(Flow):
 
     def __init__(self):
         super().__init__(x_event_ndims=1,
                          y_event_ndims=2,
                          explicitly_invertible=True)
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = reshape_tail(0.5 * (input - 1.), 2, [-1])
         else:
@@ -47,18 +47,18 @@ class _MyFlow(BaseFlow):
         return output, output_log_det
 
 
-class _MyBadFlow(BaseFlow):
+class _MyBadFlow(Flow):
 
     def __init__(self):
         super().__init__(x_event_ndims=1,
                          y_event_ndims=1,
                          explicitly_invertible=True)
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
         output = input
         output_log_det = input_log_det
         if compute_log_det:
@@ -72,19 +72,19 @@ class _MyBadFlow(BaseFlow):
 class BaseFlowTestCase(unittest.TestCase):
 
     def test_constructor(self):
-        flow = BaseFlow(x_event_ndims=1,
-                        y_event_ndims=2,
-                        explicitly_invertible=True)
-        self.assertEqual(flow.x_event_ndims, 1)
-        self.assertEqual(flow.y_event_ndims, 2)
-        self.assertEqual(flow.explicitly_invertible, True)
+        flow = Flow(x_event_ndims=1,
+                    y_event_ndims=2,
+                    explicitly_invertible=True)
+        self.assertEqual(flow.get_x_event_ndims(), 1)
+        self.assertEqual(flow.get_y_event_ndims(), 2)
+        self.assertEqual(flow.is_explicitly_invertible(), True)
 
-        flow = BaseFlow(x_event_ndims=3,
-                        y_event_ndims=1,
-                        explicitly_invertible=False)
-        self.assertEqual(flow.x_event_ndims, 3)
-        self.assertEqual(flow.y_event_ndims, 1)
-        self.assertEqual(flow.explicitly_invertible, False)
+        flow = Flow(x_event_ndims=3,
+                    y_event_ndims=1,
+                    explicitly_invertible=False)
+        self.assertEqual(flow.get_x_event_ndims(), 3)
+        self.assertEqual(flow.get_y_event_ndims(), 1)
+        self.assertEqual(flow.is_explicitly_invertible(), False)
 
     def test_invert(self):
         flow = _MyFlow()
@@ -93,9 +93,9 @@ class BaseFlowTestCase(unittest.TestCase):
 
     def test_call(self):
         flow = T.jit_compile(_MyFlow())
-        self.assertEqual(flow.x_event_ndims, 1)
-        self.assertEqual(flow.y_event_ndims, 2)
-        self.assertEqual(flow.explicitly_invertible, True)
+        self.assertEqual(flow.get_x_event_ndims(), 1)
+        self.assertEqual(flow.get_y_event_ndims(), 2)
+        self.assertEqual(flow.is_explicitly_invertible(), True)
 
         # test call
         x = T.random.randn([2, 3, 4])
@@ -138,13 +138,14 @@ class FeatureMappingFlowTestCase(unittest.TestCase):
         flow = FeatureMappingFlow(axis=-1,
                                   event_ndims=2,
                                   explicitly_invertible=True)
-        self.assertEqual(flow.event_ndims, 2)
-
-        flow = T.jit_compile(flow)
+        self.assertEqual(flow.get_event_ndims(), 2)
         self.assertEqual(flow.axis, -1)
-        self.assertEqual(flow.x_event_ndims, 2)
-        self.assertEqual(flow.y_event_ndims, 2)
-        self.assertEqual(flow.explicitly_invertible, True)
+        flow = T.jit_compile(flow)
+
+        self.assertEqual(flow.get_axis(), -1)
+        self.assertEqual(flow.get_x_event_ndims(), 2)
+        self.assertEqual(flow.get_y_event_ndims(), 2)
+        self.assertEqual(flow.is_explicitly_invertible(), True)
 
         with pytest.raises(ValueError,
                            match='`event_ndims` must be at least 1'):
@@ -168,9 +169,9 @@ class InverseFlowTestCase(unittest.TestCase):
         self.assertIs(flow.invert(), original_flow)
 
         flow = T.jit_compile(flow)
-        self.assertEqual(flow.x_event_ndims, 2)
-        self.assertEqual(flow.y_event_ndims, 1)
-        self.assertTrue(flow.explicitly_invertible)
+        self.assertEqual(flow.get_x_event_ndims(), 2)
+        self.assertEqual(flow.get_y_event_ndims(), 1)
+        self.assertTrue(flow.is_explicitly_invertible())
 
         x = T.random.randn([2, 3, 4, 1])
         expected_y = T.reshape((x - 1.) * 0.5, [2, 3, 4])
@@ -191,18 +192,18 @@ class InverseFlowTestCase(unittest.TestCase):
             _ = InverseFlow(T.jit_compile(base_flow))
 
 
-class _MyFlow1(BaseFlow):
+class _MyFlow1(Flow):
 
     def __init__(self):
         super().__init__(x_event_ndims=1, y_event_ndims=1,
                          explicitly_invertible=True)
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = (input - 1.) * 0.5
         else:
@@ -230,15 +231,15 @@ class SequentialFlowTestCase(unittest.TestCase):
     def test_constructor(self):
         flows = [T.jit_compile(_MyFlow1()), T.jit_compile(_MyFlow())]
         flow = T.jit_compile(SequentialFlow(flows))
-        self.assertEqual(flow.x_event_ndims, 1)
-        self.assertEqual(flow.y_event_ndims, 2)
-        self.assertTrue(flow.explicitly_invertible)
+        self.assertEqual(flow.get_x_event_ndims(), 1)
+        self.assertEqual(flow.get_y_event_ndims(), 2)
+        self.assertTrue(flow.is_explicitly_invertible())
 
         flow2 = _MyFlow()
         flow2.explicitly_invertible = False
         flows = [T.jit_compile(_MyFlow1()), T.jit_compile(flow2)]
         flow = T.jit_compile(SequentialFlow(flows))
-        self.assertFalse(flow.explicitly_invertible)
+        self.assertFalse(flow.is_explicitly_invertible())
 
         with pytest.raises(ValueError,
                            match='`flows` must not be empty'):
@@ -281,19 +282,19 @@ class SequentialFlowTestCase(unittest.TestCase):
             _ = flow(x, inverse=True)
 
 
-def check_invertible_matrix(ctx, m):
+def check_invertible_matrix(ctx, m, size):
     matrix, log_det = m(inverse=False, compute_log_det=False)
     ctx.assertIsNone(log_det)
 
     matrix, log_det = m(inverse=False, compute_log_det=True)
-    ctx.assertEqual(T.shape(matrix), [m.size, m.size])
+    ctx.assertEqual(T.shape(matrix), [size, size])
     assert_allclose(T.matrix_inverse(T.matrix_inverse(matrix)),
                     matrix, rtol=1e-4, atol=1e-6)
     assert_allclose(T.linalg.slogdet(matrix)[1], log_det,
                     rtol=1e-4, atol=1e-6)
 
     inv_matrix, inv_log_det = m(inverse=True, compute_log_det=True)
-    ctx.assertEqual(T.shape(inv_matrix), [m.size, m.size])
+    ctx.assertEqual(T.shape(inv_matrix), [size, size])
     assert_allclose(T.matrix_inverse(inv_matrix),
                     matrix, rtol=1e-4, atol=1e-6)
     assert_allclose(T.matrix_inverse(T.matrix_inverse(inv_matrix)),
@@ -310,9 +311,9 @@ class InvertibleMatrixTestCase(unittest.TestCase):
             for n in [1, 3, 5]:
                 m = cls(np.random.randn(n, n))
                 self.assertEqual(repr(m), f'{cls.__qualname__}(size={n})')
+                self.assertEqual(m.size, n)
 
                 m = T.jit_compile(m)
-                self.assertEqual(m.size, n)
 
                 # check the initial value is an orthogonal matrix
                 matrix, _ = m(inverse=False, compute_log_det=False)
@@ -323,19 +324,20 @@ class InvertibleMatrixTestCase(unittest.TestCase):
                                 rtol=1e-4, atol=1e-6)
 
                 # check the invertibility
-                check_invertible_matrix(self, m)
+                check_invertible_matrix(self, m, n)
 
                 # check the gradient
                 matrix, log_det = m(inverse=False, compute_log_det=True)
-                params = [v for _, v in tk.layers.get_parameters(m)]
-                grads = T.grad([T.reduce_sum(matrix), T.reduce_sum(log_det)], params)
+                params = list(tk.layers.get_parameters(m))
+                grads = T.grad(
+                    [T.reduce_sum(matrix), T.reduce_sum(log_det)], params)
 
                 # update with gradient, then check the invertibility
                 if cls is StrictInvertibleMatrix:
                     for param, grad in zip(params, grads):
                         with T.no_grad():
                             T.assign(param, param + 0.001 * grad)
-                    check_invertible_matrix(self, m)
+                    check_invertible_matrix(self, m, n)
 
 
 def check_invertible_linear(ctx,
@@ -405,7 +407,7 @@ class InvertibleLinearTestCase(unittest.TestCase):
 
 
 def check_scale(ctx,
-                scale: BaseScale,
+                scale: Scale,
                 x,
                 pre_scale,
                 expected_y,
@@ -479,7 +481,7 @@ def check_scale(ctx,
                         rtol=1e-4, atol=1e-6)
 
 
-class _BadScale1(BaseScale):
+class _BadScale1(Scale):
 
     def _scale_and_log_scale(self,
                              pre_scale: Tensor,
@@ -494,7 +496,7 @@ class _BadScale1(BaseScale):
         return scale, log_scale
 
 
-class _BadScale2(BaseScale):
+class _BadScale2(Scale):
 
     def _scale_and_log_scale(self,
                              pre_scale: Tensor,

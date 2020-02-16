@@ -59,7 +59,7 @@ __all__ = [
 
     # reduce operators
     'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
-    'log_sum_exp', 'log_mean_exp',
+    'argmax', 'argmin', 'log_sum_exp', 'log_mean_exp',
     # 'all', 'any',
     'calculate_mean_and_var', 'norm_except_axis',
 
@@ -1109,6 +1109,16 @@ def reduce_min(input: Tensor,
 
 
 @jit
+def argmax(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.argmax(input, dim=axis, keepdim=keepdims)
+
+
+@jit
+def argmin(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.argmin(input, dim=axis, keepdim=keepdims)
+
+
+@jit
 def log_sum_exp(input: Tensor,
                 axis: Optional[List[int]] = None,
                 keepdims: bool = False) -> Tensor:
@@ -1363,33 +1373,47 @@ def matrix_inverse(matrix: Tensor) -> Tensor:
 
 
 # ---- gradient utilities ----
-if settings.disable_jit:
+if settings.disable_jit or not torch.__version__.startswith('1.3.'):
+    @jit
     def grad(outputs: List[Tensor],
              inputs: List[Tensor],
              grad_outputs: Optional[List[Optional[Tensor]]] = None,
-             keep_graph: Optional[bool] = None,
+             retain_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Optional[Tensor]]:
-        return list(
+        grad_outs = list(
             torch.autograd.grad(
                 outputs=outputs,
                 inputs=inputs,
                 grad_outputs=grad_outputs,
-                retain_graph=keep_graph,
+                retain_graph=retain_graph,
                 create_graph=create_graph,
                 allow_unused=allow_unused,
             )
         )
 
+        if not allow_unused:
+            for i in range(len(grad_outs)):
+                if grad_outs[i] is None:
+                    raise RuntimeError(
+                        'One of the differentiated Tensors '
+                        'appears to not have been used in the graph. '
+                        'Set allow_unused=True if this is the desired '
+                        'behavior.'
+                    )
 
-    def is_null_grad(origin: Tensor, gradient: Optional[Tensor]) -> bool:
-        return gradient is None
+        return grad_outs
+
+
+    def is_null_grad(origin: Tensor, grad: Optional[Tensor]) -> bool:
+        return grad is None
+
 else:
     @jit
     def grad(outputs: List[Tensor],
              inputs: List[Tensor],
              grad_outputs: Optional[List[Optional[Tensor]]] = None,
-             keep_graph: Optional[bool] = None,
+             retain_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Tensor]:
         grad_outs = list(
@@ -1397,7 +1421,7 @@ else:
                 outputs=outputs,
                 inputs=inputs,
                 grad_outputs=grad_outputs,
-                keep_graph=keep_graph,
+                keep_graph=retain_graph,
                 create_graph=create_graph,
                 allow_unused=allow_unused,
             )
