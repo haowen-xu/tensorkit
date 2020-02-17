@@ -12,11 +12,22 @@ __all__ = [
 
 
 class TensorStream(mltk.DataStream):
+    """
+    A subclass of :class:`mltk.DataStream` that transforms the underlying
+    NumPy array data stream into tensor data stream.
+    """
 
     source: mltk.DataStream
     device: str
 
     def __init__(self, source: mltk.DataStream, device: Optional[str] = None):
+        """
+        Construct a new :class:`TensorStream`.
+
+        Args:
+            source: The source data stream.
+            device: The device where to place new tensors.
+        """
         device = device or T.current_device()
         super().__init__(
             batch_size=source.batch_size,
@@ -45,14 +56,24 @@ class TensorStream(mltk.DataStream):
         finally:
             g.close()
 
-    def _concat_arrays(self, arrays: Sequence[T.Tensor]) -> T.Tensor:
-        return T.concat(list(arrays), axis=0)
-
 
 def as_tensor_stream(source: mltk.DataStream,
                      device: Optional[str] = None,
                      prefetch: Optional[int] = None
-                     ) -> mltk.DataStream:
+                     ) -> Union[TensorStream, mltk.data.ThreadingDataStream]:
+    """
+    Construct a tensor data stream.
+
+    Args:
+        source: The source NumPy array stream.
+        device: The device where to place new tensors.
+        prefetch: Number of batches to prefetch in background.
+            If specified, will wrap the constructed :class:`TensorStream`
+            with a :class:`mltk.data.ThreadingDataStream`.
+
+    Returns:
+        The tensor data stream.
+    """
     stream = TensorStream(source, device=device)
     if prefetch is not None:
         stream = stream.threaded(prefetch)

@@ -159,9 +159,8 @@ def use_device(device: str):
     else:
         old_device = _current_device[0]
         try:
-            with torch.cuda.device(device):
-                _current_device[0] = device
-                yield
+            _current_device[0] = device
+            yield
         finally:
             _current_device[0] = old_device
 

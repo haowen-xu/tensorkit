@@ -221,7 +221,7 @@ class TensorCoreTestCase(TestCase):
                 (2, 125),
                 (T.int8, T.int16, T.int32, T.int64),
                 (None, T.CPU_DEVICE)):
-            t = T.int_scalar(value, dtype=dtype)
+            t = T.int_scalar(value, dtype=dtype, device=device)
             self.assertEqual(T.get_dtype(t), dtype)
             self.assertEqual(T.get_device(t), device or T.current_device())
             assert_equal(t, value)

@@ -1,5 +1,3 @@
-import mltk
-
 import numpy as np
 
 from tensorkit import tensor as T
