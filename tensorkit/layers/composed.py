@@ -61,6 +61,7 @@ class Dense(Sequential):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         # check the arguments
         if use_bias is None:
@@ -76,6 +77,7 @@ class Dense(Sequential):
                 weight_init=weight_init,
                 bias_init=bias_init,
                 data_init=data_init,
+                device=device,
             ),
             out_features=out_features,
             out_feature_axis=-1,
@@ -105,6 +107,7 @@ class ConvNd(Sequential):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         spatial_ndims = self._get_spatial_ndims()
         linear_factory = self._get_linear_factory()
@@ -132,6 +135,7 @@ class ConvNd(Sequential):
                 weight_init=weight_init,
                 bias_init=bias_init,
                 data_init=data_init,
+                device=device,
             ),
             out_features=out_channels,
             out_feature_axis=-1 if T.IS_CHANNEL_LAST else -(spatial_ndims + 1),
@@ -195,6 +199,7 @@ class ConvTransposeNd(Sequential):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         spatial_ndims = self._get_spatial_ndims()
         linear_factory = self._get_linear_factory()
@@ -225,6 +230,7 @@ class ConvTransposeNd(Sequential):
                 weight_init=weight_init,
                 bias_init=bias_init,
                 data_init=data_init,
+                device=device,
             ),
             out_features=out_channels,
             out_feature_axis=-1 if T.IS_CHANNEL_LAST else -(spatial_ndims + 1),

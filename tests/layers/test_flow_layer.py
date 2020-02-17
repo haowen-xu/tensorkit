@@ -30,9 +30,9 @@ class _MyFlow(tk.flows.Flow):
 class FlowLayerTestCase(unittest.TestCase):
 
     def test_FlowLayer(self):
-        flow = T.jit_compile(_MyFlow(
+        flow = tk.layers.jit_compile(_MyFlow(
             x_event_ndims=0, y_event_ndims=0, explicitly_invertible=True))
-        layer = T.jit_compile(tk.layers.FlowLayer(flow))
+        layer = tk.layers.jit_compile(tk.layers.FlowLayer(flow))
 
         x = T.random.randn([3, 4, 5])
         assert_allclose(layer(x), x * 2.)
@@ -53,7 +53,7 @@ class ActNormLayerTestCase(unittest.TestCase):
         _ = layer(T.random.randn([3, 4, 5]))
 
         # check call
-        layer = T.jit_compile(layer)
+        layer = tk.layers.jit_compile(layer)
         x = T.random.randn([3, 4, 5])
         assert_allclose(layer(x), flow(x)[0])
 
@@ -72,6 +72,6 @@ class ActNormLayerTestCase(unittest.TestCase):
             _ = layer(T.random.randn(shape))
 
             # check call
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             x = T.random.randn(shape)
             assert_allclose(layer(x), flow(x)[0])

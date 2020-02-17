@@ -24,7 +24,7 @@ def check_act_norm(ctx, spatial_ndims: int, cls):
         ctx.assertIn(f'num_features={num_features}', repr(flow))
         ctx.assertIn(f'axis={-(spatial_ndims + 1)}', repr(flow))
         ctx.assertIn(f'scale_type={scale_type!r}', repr(flow))
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         # check initialize
         if not initialized:

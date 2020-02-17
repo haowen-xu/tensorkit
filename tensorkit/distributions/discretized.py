@@ -65,6 +65,7 @@ class DiscretizedLogistic(Distribution):
                  reparameterized: bool = False,
                  event_ndims: int = 0,
                  epsilon: float = T.EPSILON,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`DiscretizedLogistic`.
@@ -87,6 +88,7 @@ class DiscretizedLogistic(Distribution):
                 considered as an event.
             epsilon: An infinitesimal constant to avoid dividing by zero or
                 taking logarithm of zero.
+            device: The device where to place new tensors and variables.
             validate_tensors: Whether or not to check the numerical issues?
                 Defaults to ``settings.validate_tensors``.
         """
@@ -96,8 +98,8 @@ class DiscretizedLogistic(Distribution):
                              '`discretize_sample` is True.')
 
         mean, log_scale = check_tensor_arg_types(
-            ('mean', mean), ('log_scale', log_scale))
-        log_scale = T.as_tensor_backend(log_scale, dtype=mean.dtype)
+            ('mean', mean), ('log_scale', log_scale), device=device)
+        log_scale = T.cast_like(log_scale, mean)
         dtype = T.get_dtype(mean)
 
         if min_val is not None and max_val is not None:
@@ -127,6 +129,7 @@ class DiscretizedLogistic(Distribution):
             continuous=not discretize_sample,
             reparameterized=reparameterized,
             event_ndims=event_ndims,
+            device=device or T.get_device(mean),
             validate_tensors=validate_tensors,
         )
         self.mean = mean
@@ -188,7 +191,8 @@ class DiscretizedLogistic(Distribution):
             attrs=(
                 'mean', 'log_scale', 'bin_size', 'min_val', 'max_val',
                 'biased_edges', 'discretize_given', 'discretize_sample',
-                'reparameterized', 'event_ndims', 'epsilon', 'validate_tensors'
+                'reparameterized', 'event_ndims', 'epsilon', 'device',
+                'validate_tensors',
             ),
             overrided_params=overrided_params,
         )

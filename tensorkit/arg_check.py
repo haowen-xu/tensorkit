@@ -22,7 +22,7 @@ def validate_positive_int(arg_name: str, arg_value) -> int:
 
 # layer argument validators
 def validate_layer(arg_name: str, layer) -> 'Module':
-    from tensorkit.tensor import is_jit_layer
+    from tensorkit.layers import is_jit_layer
     if isinstance(layer, Module) or is_jit_layer(layer):
         return layer
     else:

@@ -32,12 +32,12 @@ class TensorRandomTestCase(unittest.TestCase):
 
     def test_seed(self):
         T.random.seed(1234)
-        x = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
-        y = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
+        x = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
+        y = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
         self.assertFalse(np.allclose(x, y))
 
         T.random.seed(1234)
-        z = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
+        z = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
         assert_allclose(x, z)
 
     def test_rand(self):
@@ -226,9 +226,9 @@ class TensorRandomTestCase(unittest.TestCase):
         # test n_samples by manual expanding the param shape
         for dtype in float_dtypes:
             # test sample dtype and shape
-            mean_t = T.cast(T.expand(T.as_tensor_backend(mean), [n_samples, 2, 3, 4]), dtype)
-            std_t = T.cast(T.expand(T.as_tensor_backend(std), [n_samples, 1, 3, 4]), dtype)
-            logstd_t = T.cast(T.expand(T.as_tensor_backend(logstd), [n_samples, 1, 3, 4]), dtype)
+            mean_t = T.cast(T.expand(T.as_tensor(mean), [n_samples, 2, 3, 4]), dtype)
+            std_t = T.cast(T.expand(T.as_tensor(std), [n_samples, 1, 3, 4]), dtype)
+            logstd_t = T.cast(T.expand(T.as_tensor(logstd), [n_samples, 1, 3, 4]), dtype)
             t = T.random.normal(mean_t, std_t)
             self.assertEqual(T.get_dtype(t), dtype)
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
@@ -600,7 +600,7 @@ class TensorRandomTestCase(unittest.TestCase):
             do_test_sample(n_z, sample_shape, T.float64, dtype)
 
         with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-            _ = T.random.bernoulli(probs=T.as_tensor_backend(probs), n_samples=0)
+            _ = T.random.bernoulli(probs=T.as_tensor(probs), n_samples=0)
 
         # given has lower rank than params, broadcasted to match param
         for float_dtype in float_dtypes:
@@ -721,7 +721,7 @@ class TensorRandomTestCase(unittest.TestCase):
             is_one_hot = Z_sample_fn == T.random.one_hot_categorical
             this_probs = probs[0, 0]
             t = Z_sample_fn(
-                probs=T.as_tensor_backend(this_probs),
+                probs=T.as_tensor(this_probs),
                 n_samples=100
             )
             self.assertEqual(
@@ -730,7 +730,7 @@ class TensorRandomTestCase(unittest.TestCase):
             )
 
             x = T.to_numpy(t)
-            logits_t = T.as_tensor_backend(np.log(this_probs))
+            logits_t = T.as_tensor(np.log(this_probs))
             do_check_log_prob(
                 given=t,
                 batch_ndims=len(t.shape) - int(is_one_hot),
@@ -761,11 +761,11 @@ class TensorRandomTestCase(unittest.TestCase):
         # argument error
         for Z_sample_fn in (T.random.categorical, T.random.one_hot_categorical):
             with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor_backend(probs), n_samples=0)
+                _ = Z_sample_fn(probs=T.as_tensor(probs), n_samples=0)
 
             with pytest.raises(Exception, match='The rank of `probs` must be at '
                                                 'least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor_backend(probs[0, 0, 0, 0]))
+                _ = Z_sample_fn(probs=T.as_tensor(probs[0, 0, 0, 0]))
 
     def test_discretized_logistic(self):
         np.random.seed(1234)

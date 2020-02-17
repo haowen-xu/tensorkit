@@ -98,7 +98,7 @@ class Mixture(Distribution):
                 validate_tensors = True
 
         # attributes of `components`
-        for attr in ('dtype', 'continuous', 'event_ndims', 'batch_shape'):
+        for attr in ('dtype', 'continuous', 'event_ndims', 'batch_shape', 'device'):
             c0_val = getattr(components[0], attr)
             for i, c in enumerate(components[1:], 1):
                 c_val = getattr(c, attr)
@@ -108,15 +108,18 @@ class Mixture(Distribution):
                         f'{c_val} vs {c0_val}.'
                     )
         dtype = components[0].dtype
+        device = components[0].device
         continuous = components[0].continuous
         batch_shape = components[0].batch_shape
 
-        # categorical `batch_shape` must be broadcastable to `batch_shape`
-        if categorical.batch_shape != batch_shape:
-            raise ValueError(
-                f'`categorical.batch_shape` != the `batch_shape` of '
-                f'`components`: {categorical.batch_shape} vs {batch_shape}.'
-            )
+        # categorical `batch_shape` and `device` must match the components
+        for attr in ('batch_shape', 'device'):
+            if getattr(categorical, attr) != getattr(components[0], attr):
+                raise ValueError(
+                    f'`categorical.{attr}` != the `{attr}` of '
+                    f'`components`: {getattr(categorical, attr)} vs '
+                    f'{getattr(components[0], attr)}.'
+                )
 
         # infer the `min_event_shape` and `min_event_ndims`
         min_event_shape = components[0].event_shape
@@ -159,6 +162,7 @@ class Mixture(Distribution):
             reparameterized=reparameterized,
             event_ndims=event_ndims,
             min_event_ndims=min_event_ndims,
+            device=device,
             validate_tensors=validate_tensors,
         )
         self.categorical = categorical.to_indexed()

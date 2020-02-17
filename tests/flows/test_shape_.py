@@ -20,7 +20,7 @@ class ReshapeFlowTestCase(unittest.TestCase):
         self.assertEqual(flow.get_y_event_ndims(), 1)
         self.assertIn('x_event_shape=[4, -1]', repr(flow))
         self.assertIn('y_event_shape=[-1]', repr(flow))
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         x = T.random.randn([2, 3, 4, 5])
         expected_y = T.reshape_tail(x, 2, [-1])

@@ -43,7 +43,7 @@ def main(exp: mltk.Experiment[Config]):
         return {'loss': loss, 'acc': acc}
 
     def evaluate(x, y):
-        with T.no_grad():
+        with tk.layers.scoped_eval_mode(net), T.no_grad():
             logits = net(x)
             acc = utils.calculate_acc(logits, y)
         return {'acc': acc}
@@ -87,6 +87,7 @@ def main(exp: mltk.Experiment[Config]):
     )
 
     # train the model
+    tk.layers.set_train_mode(net, True)
     utils.fit_model(loop=loop, optimizer=optimizer, fn=train_step,
                     stream=train_stream)
 
@@ -96,4 +97,5 @@ def main(exp: mltk.Experiment[Config]):
 
 if __name__ == '__main__':
     with mltk.Experiment(Config) as exp:
-        main(exp)
+        with T.use_device(T.first_gpu_device()):
+            main(exp)

@@ -2,21 +2,24 @@ from typing import *
 
 import torch
 from torch import nn as torch_nn
+from torch.jit import script as torch_script
 from torch.nn import ModuleList
 
-from . import init
-from .core import *
+from ...settings_ import settings
 from ...typing_ import *
 from ...arg_check import *
+from . import init
+from .core import *
 
 __all__ = [
     # constants
     'DEFAULT_GATE_BIAS', 'DEFAULT_WEIGHT_INIT', 'DEFAULT_BIAS_INIT',
 
     # utils
+    'jit_compile', 'is_jit_layer', 'layer_to_device',
     'add_parameter', 'get_parameter', 'get_parameters', 'get_named_parameters',
     'add_buffer', 'get_buffer', 'get_buffers', 'get_named_buffers',
-    'set_train_mode',
+    'set_train_mode', 'set_eval_mode',
 
     # parameter store modules
     'ParamStore', 'SimpleParamStore',
@@ -49,6 +52,36 @@ DEFAULT_BIAS_INIT = init.zeros
 
 
 # ---- utils ----
+def jit_compile(m: Module) -> Module:
+    if not settings.disable_jit:
+        m = torch_script(m)
+    return m
+
+
+def is_jit_layer(layer: Module) -> bool:
+    """Check whether or not `layer` is a JIT compiled layer."""
+    return isinstance(layer, torch.jit.ScriptModule)
+
+
+def layer_to_device(layer: Module, device: Optional[str] = None) -> Module:
+    """
+    Move the specified module or layer to the given device.
+    The module or layer may be changed in-place.
+
+    Args:
+        layer: The module or layer to be moved.
+        device: The device, to where move the module or layer.
+            If not specified, will move to ``T.current_device()``.
+
+    Returns:
+        The layer instance.
+    """
+    if device is None:
+        device = current_device()
+    layer = layer.to(device=torch.device(device))
+    return layer
+
+
 def add_parameter(layer: Module,
                   name: str,
                   value: Optional[Tensor],
@@ -103,14 +136,27 @@ def set_train_mode(layer: Module, training: bool = True):
     return layer
 
 
+def set_eval_mode(layer: Module):
+    layer.train(False)
+    return layer
+
+
 # ---- weight wrapper: a simple weight, or a normed weight ----
 class _NullParamStore(Module):
     # This module is actually not used in any context.
     # It is just a place-holder module, to gain JIT support.
 
+    __constants__ = ('device',)
+
+    device: str
+
+    def __init__(self, device: Optional[str] = None):
+        super().__init__()
+        self.device = device or current_device()
+
     def forward(self) -> Tensor:  # pragma: no cover
         zero_shape: List[int] = []
-        return torch.zeros(zero_shape, dtype=torch.float32)
+        return zeros(zero_shape, dtype='float32', device=self.device)
 
 
 class ParamStore(Module):
@@ -146,9 +192,12 @@ class SimpleParamStore(ParamStore):
 
     def __init__(self,
                  shape: List[int],
-                 initializer: TensorInitArgType):
+                 initializer: TensorInitArgType,
+                 device: Optional[str] = None):
+        device = device or current_device()
         super().__init__(shape)
-        add_parameter(self, 'value', variable(shape, initializer=initializer))
+        add_parameter(self, 'value', variable(
+            shape, initializer=initializer, device=device))
 
     @jit_method
     def get(self) -> Tensor:
@@ -177,7 +226,7 @@ def weight_norm_decompose(weight: Tensor,
         A tuple of `(v, v_norm)`.
     """
     v_norm = norm_except_axis(weight, axis=[norm_axis], keepdims=True)
-    v = weight / torch.max(v_norm, torch.as_tensor(epsilon, dtype=v_norm.dtype))
+    v = weight / torch.max(v_norm, float_scalar_like(epsilon, v_norm))
     return v, v_norm
 
 
@@ -193,12 +242,15 @@ class NormedWeightStore(ParamStore):
                  shape: List[int],
                  initializer: TensorInitArgType,
                  norm_axis: int = 1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
+
         super().__init__(shape)
         self.norm_axis = norm_axis
         self.epsilon = epsilon
 
-        weight = variable(shape, initializer=initializer)
+        weight = variable(shape, initializer=initializer, device=device)
         with no_grad():
             v, _ = weight_norm_decompose(weight, norm_axis, epsilon)
         add_parameter(self, 'v', v)
@@ -211,7 +263,7 @@ class NormedWeightStore(ParamStore):
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             v, _ = weight_norm_decompose(
-                as_tensor(value, dtype=get_dtype(self.v)),
+                as_tensor(value, dtype=get_dtype(self.v), device=get_device(self.v)),
                 self.norm_axis,
                 self.epsilon,
             )
@@ -230,12 +282,15 @@ class NormedAndScaledWeightStore(ParamStore):
                  shape: List[int],
                  initializer: TensorInitArgType,
                  norm_axis: int = 1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
+
         super().__init__(shape)
         self.norm_axis = norm_axis
         self.epsilon = epsilon
 
-        weight = variable(shape, initializer=initializer)
+        weight = variable(shape, initializer=initializer, device=device)
         with no_grad():
             v, g = weight_norm_decompose(weight, norm_axis, epsilon)
         add_parameter(self, 'v', v)
@@ -249,7 +304,7 @@ class NormedAndScaledWeightStore(ParamStore):
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             v, g = weight_norm_decompose(
-                as_tensor(value, dtype=get_dtype(self.v)),
+                as_tensor(value, dtype=get_dtype(self.v), device=get_dtype(self.v)),
                 self.norm_axis,
                 self.epsilon,
             )
@@ -260,7 +315,8 @@ class NormedAndScaledWeightStore(ParamStore):
 def get_weight_store(shape: List[int],
                      initializer: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                      norm_axis: int = 1,
-                     weight_norm: WeightNormArgType = False
+                     weight_norm: WeightNormArgType = False,
+                     device: Optional[str] = None,
                      ) -> ParamStore:
     """
     Create a module which carries the `weight` parameter.
@@ -273,16 +329,18 @@ def get_weight_store(shape: List[int],
             Use `NormedAndScaledWeightStore` if `True` or `WeightNormMode.FULL`.
             Use `NormedWeightStore` if `WeightNormMode.NO_SCALE`.
             Use `WeightStore` if `False` or `WeightNormMode.NONE`.
+        device: The device where to place new tensors and variables.
 
     Returns:
         The weight object.
     """
+    device = device or current_device()
     if weight_norm is True or weight_norm == WeightNormMode.FULL:
-        return NormedAndScaledWeightStore(shape, initializer, norm_axis)
+        return NormedAndScaledWeightStore(shape, initializer, norm_axis, device)
     elif weight_norm == WeightNormMode.NO_SCALE:
-        return NormedWeightStore(shape, initializer, norm_axis)
+        return NormedWeightStore(shape, initializer, norm_axis, device)
     elif weight_norm is False or weight_norm == WeightNormMode.NONE:
-        return SimpleParamStore(shape, initializer)
+        return SimpleParamStore(shape, initializer, device)
     else:
         raise ValueError(f'Invalid value for argument `weight_norm`: '
                          f'{weight_norm!r}.')
@@ -290,7 +348,8 @@ def get_weight_store(shape: List[int],
 
 def get_bias_store(shape: List[int],
                    initializer: TensorInitArgType = DEFAULT_BIAS_INIT,
-                   use_bias: bool = True
+                   use_bias: bool = True,
+                   device: Optional[str] = None
                    ) -> Optional[ParamStore]:
     """
     Create a module that carries the `bias` parameter.
@@ -300,12 +359,14 @@ def get_bias_store(shape: List[int],
         initializer: The initializer for the bias.
         use_bias: Whether or not to use the bias?
             If `False`, will return :obj:`None`.
+        device: The device where to place new tensors and variables.
 
     Returns:
         The bias object, or :obj:`None` if `use_bias` is False.
     """
+    device = device or current_device()
     if use_bias:
-        return SimpleParamStore(shape, initializer)
+        return SimpleParamStore(shape, initializer, device)
 
 
 # ---- identity layer ----
@@ -393,13 +454,17 @@ class CoreLinear(BaseLayer):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
+        device = device or current_device()
         weight_store = get_weight_store(
-            weight_shape, initializer=weight_init, weight_norm=weight_norm)
+            weight_shape, initializer=weight_init, weight_norm=weight_norm,
+            device=device
+        )
         bias_store = get_bias_store(
-            bias_shape, initializer=bias_init, use_bias=use_bias)
+            bias_shape, initializer=bias_init, use_bias=use_bias, device=device)
         if bias_store is None:
-            bias_store = _NullParamStore()
+            bias_store = _NullParamStore(device=device)
 
         if data_init is not None:
             if not isinstance(data_init, init.DataDependentInitializer) and \
@@ -453,6 +518,7 @@ class Linear(CoreLinear):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         in_features = validate_positive_int('in_features', in_features)
         out_features = validate_positive_int('out_features', out_features)
@@ -468,6 +534,7 @@ class Linear(CoreLinear):
             weight_init=weight_init,
             bias_init=bias_init,
             data_init=data_init,
+            device=device,
         )
 
     @jit_method
@@ -504,6 +571,7 @@ class LinearConvNd(CoreLinear):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         spatial_ndims = self._get_spatial_ndims()
         in_channels = validate_positive_int('in_channels', in_channels)
@@ -530,6 +598,7 @@ class LinearConvNd(CoreLinear):
             weight_init=weight_init,
             bias_init=bias_init,
             data_init=data_init,
+            device=device,
         )
 
     def _get_spatial_ndims(self) -> int:
@@ -632,6 +701,7 @@ class LinearConvTransposeNd(CoreLinear):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         spatial_ndims = self._get_spatial_ndims()
         in_channels = validate_positive_int('in_channels', in_channels)
@@ -661,6 +731,7 @@ class LinearConvTransposeNd(CoreLinear):
             weight_init=weight_init,
             bias_init=bias_init,
             data_init=data_init,
+            device=device,
         )
 
     def _get_spatial_ndims(self) -> int:
@@ -767,8 +838,12 @@ class BatchNorm(torch_nn.BatchNorm1d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
         super().__init__(num_features, eps=epsilon, momentum=momentum)
+        if device != CPU_DEVICE:
+            self.to(device=device)
 
     def _check_input_dim(self, input: Tensor):
         if rank(input) != 2:
@@ -782,8 +857,12 @@ class BatchNorm1d(torch_nn.BatchNorm1d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
         super().__init__(num_features, eps=epsilon, momentum=momentum)
+        if device != CPU_DEVICE:
+            self.to(device=device)
 
     def _check_input_dim(self, input: Tensor):
         if rank(input) != 3:
@@ -797,8 +876,12 @@ class BatchNorm2d(torch_nn.BatchNorm2d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
         super().__init__(num_features, eps=epsilon, momentum=momentum)
+        if device != CPU_DEVICE:
+            self.to(device=device)
 
     def _check_input_dim(self, input: Tensor):
         if input.dim() != 4:
@@ -812,8 +895,12 @@ class BatchNorm3d(torch_nn.BatchNorm3d):
     def __init__(self,
                  num_features: int,
                  momentum: float = 0.1,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
+        device = device or current_device()
         super().__init__(num_features, eps=epsilon, momentum=momentum)
+        if device != CPU_DEVICE:
+            self.to(device=device)
 
     def _check_input_dim(self, input: Tensor):
         if rank(input) != 5:
@@ -843,11 +930,12 @@ class Dropout1d(BaseLayer):
             raise ValueError('`input` must be at least 2d, but the '
                              'input shape is {}.'.format(shape(input)))
 
+        device = input.device
         output = input
         if self.training:
             noise_shape = output.shape[:-1] + (1,)
-            noise = torch.zeros(noise_shape, dtype=output.dtype)
-            keep_prob = torch.as_tensor(self._keep_prob, dtype=output.dtype)
+            noise = torch.zeros(noise_shape, dtype=output.dtype, device=device)
+            keep_prob = torch.as_tensor(self._keep_prob, dtype=output.dtype, device=device)
             noise = torch.bernoulli(keep_prob.expand(noise_shape), out=noise)
             noise = noise.detach()
             output = output * noise / keep_prob

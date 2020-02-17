@@ -11,7 +11,7 @@ class ContextualTestCase(unittest.TestCase):
         x = T.random.randn([2, 3, 4])
         context = [T.random.randn([2, 3, 4]),
                    T.random.randn([2, 3, 4])]
-        layer = T.jit_compile(tk.layers.IgnoreContext())
+        layer = tk.layers.jit_compile(tk.layers.IgnoreContext())
         assert_equal(layer(x), x)
         assert_equal(layer(x, context), x)
 
@@ -19,7 +19,7 @@ class ContextualTestCase(unittest.TestCase):
         x = T.random.randn([2, 3, 4])
         context = [T.random.randn([2, 3, 4]),
                    T.random.randn([2, 3, 4])]
-        layer = T.jit_compile(tk.layers.AddContext())
+        layer = tk.layers.jit_compile(tk.layers.AddContext())
         assert_equal(layer(x), x)
         assert_equal(layer(x, context), x + context[0] + context[1])
 
@@ -27,6 +27,6 @@ class ContextualTestCase(unittest.TestCase):
         x = T.random.randn([2, 3, 4])
         context = [T.random.randn([2, 3, 4]),
                    T.random.randn([2, 3, 4])]
-        layer = T.jit_compile(tk.layers.MultiplyContext())
+        layer = tk.layers.jit_compile(tk.layers.MultiplyContext())
         assert_equal(layer(x), x)
         assert_equal(layer(x, context), x * context[0] * context[1])

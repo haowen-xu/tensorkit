@@ -353,7 +353,8 @@ class LooseInvertibleMatrix(InvertibleMatrix):
 
     def __init__(self,
                  seed_matrix: np.ndarray,
-                 dtype: str = settings.float_x):
+                 dtype: str = settings.float_x,
+                 device: Optional[str] = None):
         """
         Construct a new :class:`LooseInvertibleMatrix`.
 
@@ -361,11 +362,16 @@ class LooseInvertibleMatrix(InvertibleMatrix):
             seed_matrix: A matrix that is used as a seed to obtain the
                 initial invertible and orthogonal matrix.
             dtype: The dtype of the matrix.
+            device: The device where to place new tensors and variables.
         """
+        device = device or current_device()
         initial_matrix = la.qr(seed_matrix)[0]
 
         super().__init__(initial_matrix.shape[0])
-        add_parameter(self, 'matrix', from_numpy(initial_matrix, dtype=dtype))
+        add_parameter(
+            self, 'matrix',
+            from_numpy(initial_matrix, dtype=dtype, device=device)
+        )
 
     def forward(self,
                 inverse: bool,
@@ -392,6 +398,7 @@ class StrictInvertibleMatrix(InvertibleMatrix):
     def __init__(self,
                  seed_matrix: np.ndarray,
                  dtype: str = settings.float_x,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
         """
         Construct a new :class:`StrictInvertibleMatrix`.
@@ -400,8 +407,12 @@ class StrictInvertibleMatrix(InvertibleMatrix):
             seed_matrix: A matrix that is used as a seed to obtain the
                 initial invertible and orthogonal matrix.
             dtype: The dtype of the matrix.
+            device: The device where to place new tensors and variables.
+            epsilon: The infinitesimal constant to avoid dividing by zero or
+                taking logarithm of zero.
         """
         initial_matrix = la.qr(seed_matrix)[0]
+        device = device or current_device()
 
         super().__init__(initial_matrix.shape[0])
         matrix_shape = list(initial_matrix.shape)
@@ -413,25 +424,29 @@ class StrictInvertibleMatrix(InvertibleMatrix):
         initial_log_s = np.log(np.maximum(np.abs(initial_s), epsilon))
         initial_U = np.triu(initial_U, k=1)
 
-        add_buffer(self, 'P', from_numpy(initial_P, dtype=dtype))
+        add_buffer(self, 'P', from_numpy(initial_P, dtype=dtype, device=device))
         assert_finite(
-            add_parameter(self, 'pre_L', from_numpy(initial_L, dtype=dtype)),
+            add_parameter(
+                self, 'pre_L', from_numpy(initial_L, dtype=dtype, device=device)),
             'pre_L',
         )
         add_buffer(
-            self, 'L_mask',
-            from_numpy(np.tril(np.ones(matrix_shape), k=-1), dtype=dtype))
+            self, 'L_mask', from_numpy(
+                np.tril(np.ones(matrix_shape), k=-1), dtype=dtype, device=device)
+        )
         assert_finite(
-            add_parameter(self, 'pre_U', from_numpy(initial_U, dtype=dtype)),
+            add_parameter(self, 'pre_U', from_numpy(
+                initial_U, dtype=dtype, device=device)),
             'pre_U',
         )
         add_buffer(
-            self, 'U_mask',
-            from_numpy(np.triu(np.ones(matrix_shape), k=1), dtype=dtype))
+            self, 'U_mask', from_numpy(
+                np.triu(np.ones(matrix_shape), k=1), dtype=dtype, device=device))
         add_buffer(
-            self, 'sign', from_numpy(initial_sign, dtype=dtype))
+            self, 'sign', from_numpy(initial_sign, dtype=dtype, device=device))
         assert_finite(
-            add_parameter(self, 'log_s', from_numpy(initial_log_s, dtype=dtype)),
+            add_parameter(self, 'log_s', from_numpy(
+                initial_log_s, dtype=dtype, device=device)),
             'log_s',
         )
 
@@ -441,7 +456,7 @@ class StrictInvertibleMatrix(InvertibleMatrix):
                 ) -> Tuple[Tensor, Optional[Tensor]]:
         P = self.P
         L = (self.L_mask * self.pre_L +
-             torch.eye(self.size, dtype=P.dtype))
+             torch.eye(self.size, dtype=P.dtype, device=self.P.device))
         U = self.U_mask * self.pre_U + torch.diag(self.sign * exp(self.log_s))
 
         log_det: Optional[Tensor] = None
@@ -476,6 +491,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
                  strict: bool = False,
                  weight_init: TensorInitArgType = init.kaming_uniform,
                  dtype: str = settings.float_x,
+                 device: Optional[str] = None,
                  epsilon: float = EPSILON):
         """
         Construct a new linear transformation flow.
@@ -489,9 +505,12 @@ class InvertibleLinearNd(FeatureMappingFlow):
                 and :class:`StrictInvertibleMatrix`.
             weight_init: The weight initializer for the seed matrix.
             dtype: The dtype of the invertible matrix.
+            device: The device where to place new tensors and variables.
             epsilon: The infinitesimal constant to avoid having numerical issues.
         """
         spatial_ndims = self._get_spatial_ndims()
+        device = device or current_device()
+
         super().__init__(
             axis=-(spatial_ndims + 1),
             event_ndims=(spatial_ndims + 1),
@@ -506,16 +525,17 @@ class InvertibleLinearNd(FeatureMappingFlow):
         # will allow the backend random seed to have effect on the initialization
         # step of the invertible matrix.
         seed_matrix = variable(
-            shape=[num_features, num_features], dtype=dtype,
+            shape=[num_features, num_features], dtype=dtype, device='cpu',
             initializer=weight_init, requires_grad=False,
         )
+        seed_matrix = to_numpy(seed_matrix)
 
         if strict:
             self.invertible_matrix = StrictInvertibleMatrix(
-                to_numpy(seed_matrix), dtype=dtype, epsilon=epsilon)
+                seed_matrix, dtype=dtype, device=device, epsilon=epsilon)
         else:
             self.invertible_matrix = LooseInvertibleMatrix(
-                to_numpy(seed_matrix), dtype=dtype)
+                seed_matrix, dtype=dtype, device=device)
 
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
@@ -792,12 +812,12 @@ class LinearScale(Scale):
         if inverse:
             scale = 1. / pre_scale
             if compute_log_scale:
-                epsilon = as_tensor_backend(self.epsilon, dtype=pre_scale.dtype)
+                epsilon = float_scalar_like(self.epsilon, pre_scale)
                 log_scale = -log(maximum(abs(pre_scale), epsilon))
         else:
             scale = pre_scale
             if compute_log_scale:
-                epsilon = as_tensor_backend(self.epsilon, dtype=pre_scale.dtype)
+                epsilon = float_scalar_like(self.epsilon, pre_scale)
                 log_scale = log(maximum(abs(pre_scale), epsilon))
 
         return scale, log_scale

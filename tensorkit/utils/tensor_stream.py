@@ -14,8 +14,10 @@ __all__ = [
 class TensorStream(mltk.DataStream):
 
     source: mltk.DataStream
+    device: str
 
-    def __init__(self, source: mltk.DataStream):
+    def __init__(self, source: mltk.DataStream, device: Optional[str] = None):
+        device = device or T.current_device()
         super().__init__(
             batch_size=source.batch_size,
             array_count=source.array_count,
@@ -24,8 +26,10 @@ class TensorStream(mltk.DataStream):
             random_state=source.random_state,
         )
         self.source = source
+        self.device = device
 
     def copy(self, **kwargs):
+        kwargs.setdefault('device', self.device)
         return TensorStream(source=self.source, **kwargs)
 
     def _minibatch_iterator(self) -> Generator[ArrayTuple, None, None]:
@@ -33,16 +37,20 @@ class TensorStream(mltk.DataStream):
         try:
             for batch_data in g:
                 with T.no_grad():
-                    batch_data = tuple(T.from_numpy(arr) for arr in batch_data)
+                    batch_data = tuple(
+                        T.from_numpy(arr, device=self.device)
+                        for arr in batch_data
+                    )
                     yield batch_data
         finally:
             g.close()
 
 
 def as_tensor_stream(source: mltk.DataStream,
+                     device: Optional[str] = None,
                      prefetch: Optional[int] = None
                      ) -> mltk.DataStream:
-    stream = TensorStream(source)
+    stream = TensorStream(source, device=device)
     if prefetch is not None:
         stream = stream.threaded(prefetch)
     return stream

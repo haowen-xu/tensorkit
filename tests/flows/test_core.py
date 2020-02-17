@@ -7,7 +7,7 @@ import pytest
 
 import tensorkit as tk
 from tensorkit import tensor as T
-from tensorkit.tensor import Tensor, reshape_tail, as_tensor_backend, zeros_like, shape
+from tensorkit.tensor import Tensor, reshape_tail, float_scalar_like, zeros_like, shape
 from tensorkit.tensor.random import randn
 from tensorkit.flows import *
 from tests.helper import *
@@ -33,7 +33,7 @@ class _MyFlow(Flow):
 
         output_log_det = input_log_det
         if compute_log_det:
-            log_2 = as_tensor_backend(math.log(2.), dtype=output.dtype)
+            log_2 = float_scalar_like(math.log(2.), output)
             if output_log_det is None:
                 if inverse:
                     output_log_det = -log_2 * input.shape[-2]
@@ -92,7 +92,7 @@ class BaseFlowTestCase(unittest.TestCase):
         self.assertIsInstance(inv_flow, InverseFlow)
 
     def test_call(self):
-        flow = T.jit_compile(_MyFlow())
+        flow = tk.layers.jit_compile(_MyFlow())
         self.assertEqual(flow.get_x_event_ndims(), 1)
         self.assertEqual(flow.get_y_event_ndims(), 2)
         self.assertEqual(flow.is_explicitly_invertible(), True)
@@ -123,7 +123,7 @@ class BaseFlowTestCase(unittest.TestCase):
             _ = flow(expected_y, T.random.randn([2, 4]), inverse=True)
 
         # test output_log_det shape error
-        flow = T.jit_compile(_MyBadFlow())
+        flow = tk.layers.jit_compile(_MyBadFlow())
         with pytest.raises(Exception,
                            match='The shape of `output_log_det` is not expected'):
             _ = flow(x)
@@ -140,7 +140,7 @@ class FeatureMappingFlowTestCase(unittest.TestCase):
                                   explicitly_invertible=True)
         self.assertEqual(flow.get_event_ndims(), 2)
         self.assertEqual(flow.axis, -1)
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         self.assertEqual(flow.get_axis(), -1)
         self.assertEqual(flow.get_x_event_ndims(), 2)
@@ -163,12 +163,12 @@ class FeatureMappingFlowTestCase(unittest.TestCase):
 class InverseFlowTestCase(unittest.TestCase):
 
     def test_InverseFlow(self):
-        original_flow = T.jit_compile(_MyFlow())
+        original_flow = tk.layers.jit_compile(_MyFlow())
         flow = InverseFlow(original_flow)
         self.assertIs(flow.original_flow, original_flow)
         self.assertIs(flow.invert(), original_flow)
 
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
         self.assertEqual(flow.get_x_event_ndims(), 2)
         self.assertEqual(flow.get_y_event_ndims(), 1)
         self.assertTrue(flow.is_explicitly_invertible())
@@ -189,7 +189,7 @@ class InverseFlowTestCase(unittest.TestCase):
         base_flow.explicitly_invertible = False
         with pytest.raises(TypeError,
                            match='`flow` must be an explicitly invertible flow'):
-            _ = InverseFlow(T.jit_compile(base_flow))
+            _ = InverseFlow(tk.layers.jit_compile(base_flow))
 
 
 class _MyFlow1(Flow):
@@ -211,7 +211,7 @@ class _MyFlow1(Flow):
 
         output_log_det = input_log_det
         if compute_log_det:
-            log_2 = T.as_tensor_backend(math.log(2.), dtype=output.dtype)
+            log_2 = T.float_scalar_like(math.log(2.), output)
             if output_log_det is None:
                 if inverse:
                     output_log_det = -log_2 * input.shape[-1]
@@ -229,16 +229,16 @@ class _MyFlow1(Flow):
 class SequentialFlowTestCase(unittest.TestCase):
 
     def test_constructor(self):
-        flows = [T.jit_compile(_MyFlow1()), T.jit_compile(_MyFlow())]
-        flow = T.jit_compile(SequentialFlow(flows))
+        flows = [tk.layers.jit_compile(_MyFlow1()), tk.layers.jit_compile(_MyFlow())]
+        flow = tk.layers.jit_compile(SequentialFlow(flows))
         self.assertEqual(flow.get_x_event_ndims(), 1)
         self.assertEqual(flow.get_y_event_ndims(), 2)
         self.assertTrue(flow.is_explicitly_invertible())
 
         flow2 = _MyFlow()
         flow2.explicitly_invertible = False
-        flows = [T.jit_compile(_MyFlow1()), T.jit_compile(flow2)]
-        flow = T.jit_compile(SequentialFlow(flows))
+        flows = [tk.layers.jit_compile(_MyFlow1()), tk.layers.jit_compile(flow2)]
+        flow = tk.layers.jit_compile(SequentialFlow(flows))
         self.assertFalse(flow.is_explicitly_invertible())
 
         with pytest.raises(ValueError,
@@ -261,8 +261,8 @@ class SequentialFlowTestCase(unittest.TestCase):
 
     def test_call(self):
         # test call and inverse call
-        flows = [_MyFlow1(), T.jit_compile(_MyFlow1())]
-        flow = T.jit_compile(SequentialFlow(flows))
+        flows = [_MyFlow1(), tk.layers.jit_compile(_MyFlow1())]
+        flow = tk.layers.jit_compile(SequentialFlow(flows))
 
         x = T.random.randn([2, 3, 4])
         expected_y = (x * 2. + 1.) * 2. + 1.
@@ -275,7 +275,7 @@ class SequentialFlowTestCase(unittest.TestCase):
         # test no inverse call
         flows = [_MyFlow1()]
         flows[0].explicitly_invertible = False
-        flow = T.jit_compile(SequentialFlow(flows))
+        flow = tk.layers.jit_compile(SequentialFlow(flows))
 
         with pytest.raises(Exception,
                            match='Not an explicitly invertible flow'):
@@ -313,7 +313,7 @@ class InvertibleMatrixTestCase(unittest.TestCase):
                 self.assertEqual(repr(m), f'{cls.__qualname__}(size={n})')
                 self.assertEqual(m.size, n)
 
-                m = T.jit_compile(m)
+                m = tk.layers.jit_compile(m)
 
                 # check the initial value is an orthogonal matrix
                 matrix, _ = m(inverse=False, compute_log_det=False)
@@ -354,7 +354,7 @@ def check_invertible_linear(ctx,
         # construct the layer
         flow = invertible_linear_factory(num_features, strict=strict)
         ctx.assertIn(f'num_features={num_features}', repr(flow))
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         # derive the expected answer
         weight, log_det = flow.invertible_matrix(
@@ -518,7 +518,7 @@ class ScaleTestCase(unittest.TestCase):
 
         x = T.random.randn([2, 3, 4])
         scale = ExpScale()
-        scale = T.jit_compile(scale)
+        scale = tk.layers.jit_compile(scale)
 
         for pre_scale in [T.random.randn([4]),
                           T.random.randn([3, 1]),
@@ -541,7 +541,7 @@ class ScaleTestCase(unittest.TestCase):
             if pre_scale_bias is None:
                 pre_scale_bias = 0.
             self.assertIn(f'pre_scale_bias={pre_scale_bias}', repr(scale))
-            scale = T.jit_compile(scale)
+            scale = tk.layers.jit_compile(scale)
 
             for pre_scale in [T.random.randn([4]),
                               T.random.randn([3, 1]),
@@ -558,7 +558,7 @@ class ScaleTestCase(unittest.TestCase):
         x = T.random.randn([2, 3, 4])
         scale = LinearScale(epsilon=T.EPSILON)
         self.assertIn('epsilon=', repr(scale))
-        scale = T.jit_compile(scale)
+        scale = tk.layers.jit_compile(scale)
 
         for pre_scale in [T.random.randn([4]),
                           T.random.randn([3, 1]),

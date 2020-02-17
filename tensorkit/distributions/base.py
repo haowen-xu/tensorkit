@@ -70,6 +70,9 @@ class Distribution(metaclass=DocInherit):
     ``value_shape == batch_shape + event_shape``.
     """
 
+    device: str
+    """Device, where the parameters of this distribution is placed."""
+
     validate_tensors: bool
     """
     Whether or not to perform time-consuming validation on argument tensors
@@ -85,6 +88,7 @@ class Distribution(metaclass=DocInherit):
                  reparameterized: Optional[bool] = None,
                  event_ndims: Optional[int] = None,
                  min_event_ndims: Optional[int] = None,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         # either `value_shape` or `batch_shape` should be specified, but not both.
         if value_shape is None and batch_shape is None:
@@ -158,6 +162,7 @@ class Distribution(metaclass=DocInherit):
         self.batch_shape = batch_shape
         self.event_shape = event_shape
         self.event_ndims = event_ndims
+        self.device = device or T.current_device()
         self.validate_tensors = (
             settings.validate_tensors if validate_tensors is None
             else bool(validate_tensors)
@@ -251,7 +256,8 @@ class Distribution(metaclass=DocInherit):
         Returns:
             The computed log-prob or log-density.
         """
-        given = T.as_tensor(given)
+        if not isinstance(given, T.Tensor):
+            given = T.as_tensor(given, device=self.device)
         reduce_ndims = get_prob_reduce_ndims(
             # here `given` might have lower rank than `len(value_shape)`,
             # in which case `given` should be broadcasted to match `value_shape`.

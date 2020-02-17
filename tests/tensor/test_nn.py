@@ -24,7 +24,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertTrue(np.any(x < 0))
         self.assertTrue(np.any(x > 0))
         self.assertTrue(np.any(x == 0))
-        x_t = T.as_tensor_backend(x)
+        x_t = T.as_tensor(x)
 
         # test relu
         assert_allclose(T.nn.relu(x_t), x * (x >= 0))
@@ -126,7 +126,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1})
 
-        _f = T.as_tensor_backend
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -193,7 +193,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4, 5))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1, 2, 3, 4, 5})
 
-        _f = T.as_tensor_backend
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:

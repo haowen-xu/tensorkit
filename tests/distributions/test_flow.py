@@ -10,7 +10,7 @@ from tensorkit import tensor as T
 from tensorkit.distributions import Categorical, FlowDistribution, UnitNormal
 from tensorkit.distributions.utils import copy_distribution
 from tensorkit.flows import ReshapeFlow, ActNorm
-from tensorkit.tensor import Tensor, as_tensor_backend, int_range
+from tensorkit.tensor import Tensor, float_scalar_like, int_range
 from tests.helper import *
 
 
@@ -31,9 +31,9 @@ class _MyFlow(tk.flows.Flow):
 
         if compute_log_det:
             if inverse:
-                output_log_det = as_tensor_backend(-math.log(2.))
+                output_log_det = float_scalar_like(-math.log(2.), output)
             else:
-                output_log_det = as_tensor_backend(math.log(2.))
+                output_log_det = float_scalar_like(math.log(2.), output)
 
             for axis in int_range(-event_ndims, 0):
                 output_log_det = output_log_det * output.shape[axis]

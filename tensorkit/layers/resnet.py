@@ -130,6 +130,7 @@ class ResBlockNd(BaseLayer):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         """
         Construct a new resnet block.
@@ -189,6 +190,7 @@ class ResBlockNd(BaseLayer):
             weight_init: The weight initializer for the convolutional layers.
             bias_init: The bias initializer for the convolutional layers.
             data_init: The data-dependent initializer for the convolutional layers.
+            device: The device where to place new tensors and variables.
         """
         def use_bias_or_else(default_val: bool):
             if use_bias is None:
@@ -204,6 +206,7 @@ class ResBlockNd(BaseLayer):
                 return Sequential(layers)
 
         spatial_ndims = self._get_spatial_ndims()
+        is_deconv = self._is_deconv()
 
         # validate arguments
         in_channels = int(in_channels)
@@ -212,13 +215,11 @@ class ResBlockNd(BaseLayer):
         kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
         stride = validate_conv_size('strides', stride, spatial_ndims)
         dilation = validate_conv_size('dilation', dilation, spatial_ndims)
-        is_half_padding = padding == PaddingMode.HALF.value
         padding = validate_padding(padding, kernel_size, dilation, spatial_ndims)
 
-        if output_padding != 0 and \
-                self._add_output_padding_to_kwargs(output_padding, {}) == {}:
+        if output_padding != 0 and not is_deconv:
             raise ValueError(f'The `output_padding` argument is not allowed '
-                             f'by a {self.__class__.__qualname__} layer.')
+                             f'by {self.__class__.__qualname__}.')
         output_padding = validate_output_padding(
             output_padding, stride, dilation, spatial_ndims)
 
@@ -244,7 +245,8 @@ class ResBlockNd(BaseLayer):
         if use_shortcut is None:
             use_shortcut = (
                 any(s != 1 for s in stride) or
-                (not is_half_padding and any(k != 1 for k in stride)) or
+                any(p[0] + p[1] != (k - 1) * d
+                    for p, k, d in zip(padding, kernel_size, dilation)) or
                 in_channels != out_channels)
 
         if activation is not None:
@@ -270,7 +272,7 @@ class ResBlockNd(BaseLayer):
             )
 
         kwargs = {'weight_init': weight_init, 'bias_init': bias_init,
-                  'data_init': data_init}
+                  'data_init': data_init, 'device': device}
 
         # build the shortcut path
         if use_shortcut:
@@ -392,8 +394,11 @@ class ResBlockNd(BaseLayer):
     def _default_conv_factory(self) -> LayerFactory:
         raise NotImplementedError()
 
+    def _is_deconv(self) -> bool:
+        raise NotImplementedError()
+
     def _add_output_padding_to_kwargs(self, output_padding, kwargs):
-        return kwargs
+        raise NotImplementedError()
 
     def forward(self,
                 input: Tensor,
@@ -422,7 +427,16 @@ class ResBlockNd(BaseLayer):
         return output
 
 
-class ResBlock1d(ResBlockNd):
+class ResBlockConvNd(ResBlockNd):
+
+    def _add_output_padding_to_kwargs(self, output_padding, kwargs):
+        return kwargs
+
+    def _is_deconv(self) -> bool:
+        return False
+
+
+class ResBlock1d(ResBlockConvNd):
     """1D ResNet convolution block."""
 
     def _get_spatial_ndims(self) -> int:
@@ -432,7 +446,7 @@ class ResBlock1d(ResBlockNd):
         return LinearConv1d
 
 
-class ResBlock2d(ResBlockNd):
+class ResBlock2d(ResBlockConvNd):
     """2D ResNet convolution block."""
 
     def _get_spatial_ndims(self) -> int:
@@ -442,7 +456,7 @@ class ResBlock2d(ResBlockNd):
         return LinearConv2d
 
 
-class ResBlock3d(ResBlockNd):
+class ResBlock3d(ResBlockConvNd):
     """3D ResNet convolution block."""
 
     def _get_spatial_ndims(self) -> int:
@@ -458,6 +472,9 @@ class ResBlockTransposeNd(ResBlockNd):
         kwargs = dict(kwargs or {})
         kwargs['output_padding'] = output_padding
         return kwargs
+
+    def _is_deconv(self) -> bool:
+        return True
 
 
 class ResBlockTranspose1d(ResBlockTransposeNd):

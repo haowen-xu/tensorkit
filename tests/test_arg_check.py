@@ -20,7 +20,7 @@ class ArgCheckTestCase(unittest.TestCase):
 
     def test_validate_layer(self):
         layer = tk.layers.Linear(5, 3)
-        for v in [layer, T.jit_compile(layer)]:
+        for v in [layer, tk.layers.jit_compile(layer)]:
             self.assertIs(validate_layer('v', v), v)
 
         with pytest.raises(TypeError,
@@ -40,7 +40,7 @@ class ArgCheckTestCase(unittest.TestCase):
         factory = lambda in_features, out_features: \
             tk.layers.Linear(in_features, out_features)
         layer = factory(5, 3)
-        for v in [layer, T.jit_compile(layer),
+        for v in [layer, tk.layers.jit_compile(layer),
                   tk.layers.Linear, factory]:
             out = get_layer_from_layer_or_factory(
                 'v', v, args=(5,), kwargs=dict(out_features=3))

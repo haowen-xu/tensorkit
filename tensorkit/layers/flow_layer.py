@@ -1,5 +1,5 @@
 from ..backend.flows import Flow
-from ..tensor import Tensor, Module, is_jit_layer
+from ..tensor import Tensor, Module
 from .core import *
 
 __all__ = [

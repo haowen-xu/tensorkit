@@ -129,7 +129,7 @@ class PixelCNNTestCase(unittest.TestCase):
                     1, 1, kernel_size=kernel_size, add_ones_channel=False,
                     weight_init=tk.init.ones,
                 )
-                input_layer = T.jit_compile(input_layer)
+                input_layer = tk.layers.jit_compile(input_layer)
 
                 with pytest.raises(Exception,
                                    match='`input` is expected to be .*d'):
@@ -157,7 +157,7 @@ class PixelCNNTestCase(unittest.TestCase):
                 resblock_layer = resblock_layer_cls(
                     1, 1, kernel_size=kernel_size, weight_init=tk.init.ones
                 )
-                resblock_layer = T.jit_compile(resblock_layer)
+                resblock_layer = tk.layers.jit_compile(resblock_layer)
 
                 with pytest.raises(Exception):
                     _ = resblock_layer([T.zeros([])] * (spatial_ndims - 1))
@@ -167,7 +167,7 @@ class PixelCNNTestCase(unittest.TestCase):
                 # the down-sampling and up-sampling layer
                 down_sample_cls = getattr(tk.layers, f'PixelCNNConv{spatial_ndims}d')
                 down_sample_layer = down_sample_cls(1, 1, kernel_size, stride=2)
-                down_sample_layer = T.jit_compile(down_sample_layer)
+                down_sample_layer = tk.layers.jit_compile(down_sample_layer)
 
                 down_sample_output_size = T.shape(down_sample_layer(
                     [T.zeros(make_conv_shape([1], 1, size))] * spatial_ndims)[0])
@@ -183,13 +183,13 @@ class PixelCNNTestCase(unittest.TestCase):
                         padding='half',  # sum of the both sides == (kernel_size - 1) * dilation
                     )
                 )
-                up_sample_layer = T.jit_compile(up_sample_layer)
+                up_sample_layer = tk.layers.jit_compile(up_sample_layer)
 
                 # the output layer
                 output_layer_cls = getattr(
                     tk.layers, f'PixelCNNOutput{spatial_ndims}d')
                 output_layer = output_layer_cls()
-                output_layer = T.jit_compile(output_layer)
+                output_layer = tk.layers.jit_compile(output_layer)
 
                 with pytest.raises(Exception,
                                    match=r'`len\(inputs\)` is expected to be .*'):
@@ -256,7 +256,7 @@ class PixelCNNTestCase(unittest.TestCase):
                     tk.layers, f'PixelCNNInput{spatial_ndims}d')
                 input_layer = input_layer_cls(
                     in_channels, out_channels, kernel_size=kernel_size)
-                input_layer = T.jit_compile(input_layer)
+                input_layer = tk.layers.jit_compile(input_layer)
 
                 # the pixelcnn layers
                 resblock_layer_cls = getattr(
@@ -294,7 +294,7 @@ class PixelCNNTestCase(unittest.TestCase):
                         data_init=tk.init.StdDataInit,
                     ),
                 ]
-                pixelcnn_layers = [T.jit_compile(l) for l in pixelcnn_layers]
+                pixelcnn_layers = [tk.layers.jit_compile(l) for l in pixelcnn_layers]
 
                 # the pixelcnn network
                 network_cls = getattr(tk.layers, f'PixelCNN{spatial_ndims}d')

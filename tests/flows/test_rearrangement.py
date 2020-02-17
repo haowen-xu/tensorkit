@@ -23,7 +23,7 @@ def check_shuffling_flow(ctx,
         inv_permutation = tk.layers.get_parameter(flow, 'inv_permutation')
         assert_equal(T.argsort(permutation), inv_permutation)
         assert_equal(T.argsort(inv_permutation), permutation)
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         # prepare for the answer
         x = T.random.randn(shape)

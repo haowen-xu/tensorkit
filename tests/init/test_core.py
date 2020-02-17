@@ -377,7 +377,7 @@ class DataDependentInitializerTestCase(unittest.TestCase):
         # also `set_initialized` will affect layers with `set_initialized()`
         # method, e.g., `ActNorm`
         x = T.random.randn([2, 3, 5])
-        layer = T.jit_compile(tk.layers.ActNorm(5))
+        layer = tk.layers.jit_compile(tk.layers.ActNorm(5))
         self.assertFalse(layer.flow.initialized)
 
         tk.init.set_initialized(layer)

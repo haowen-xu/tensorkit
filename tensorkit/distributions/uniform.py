@@ -19,10 +19,10 @@ class Uniform(Distribution):
     _shape: Optional[List[int]]
     """The original `shape` argument for constructor."""
 
-    low: Union[T.Tensor]
+    low: T.Tensor
     """The lower-bound of the uniform distribution."""
 
-    high: Union[T.Tensor]
+    high: T.Tensor
     """The upper-bound of the uniform distribution (exclusive)."""
 
     log_zero: float
@@ -37,6 +37,7 @@ class Uniform(Distribution):
                  dtype: str = T.float_x(),
                  reparameterized: bool = True,
                  event_ndims: int = 0,
+                 device: Optional[str] = None,
                  log_zero: float = T.random.LOG_ZERO_VALUE,
                  validate_tensors: Optional[bool] = None):
         """
@@ -55,6 +56,7 @@ class Uniform(Distribution):
             reparameterized: Whether the distribution should be reparameterized?
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
+            device: The device where to place new tensors and variables.
             log_zero: The value to represent ``log(0)`` in the result of
                 :meth:`log_prob()`, instead of using ``-math.inf``, to avoid
                 potential numerical issues.
@@ -79,7 +81,9 @@ class Uniform(Distribution):
                 range_checked = True
 
             low, high = check_tensor_arg_types(
-                ('low', low), ('high', high), default_dtype=dtype)
+                ('low', low), ('high', high), default_dtype=dtype,
+                device=device,
+            )
 
             dtype = T.get_dtype(low)
             value_shape = (value_shape +
@@ -90,6 +94,7 @@ class Uniform(Distribution):
             value_shape=value_shape,
             reparameterized=reparameterized,
             event_ndims=event_ndims,
+            device=device or T.get_device(low),
             validate_tensors=validate_tensors,
         )
 
@@ -118,7 +123,7 @@ class Uniform(Distribution):
                 reparameterized: bool) -> StochasticTensor:
         sample_shape = ([n_samples] + self.value_shape if n_samples is not None
                         else self.value_shape)
-        samples = T.random.rand(sample_shape, dtype=self.dtype)
+        samples = T.random.rand(sample_shape, dtype=self.dtype, device=self.device)
         if self.low is not None and self.high is not None:
             scale = self.high - self.low
             samples = samples * scale + self.low
@@ -157,6 +162,6 @@ class Uniform(Distribution):
             base=self,
             attrs=(('shape', '_shape'), 'low', 'high', 'dtype',
                    'reparameterized', 'event_ndims', 'log_zero',
-                   'validate_tensors'),
+                   'device', 'validate_tensors'),
             overrided_params=overrided_params,
         )

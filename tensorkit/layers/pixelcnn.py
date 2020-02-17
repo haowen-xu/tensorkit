@@ -1,13 +1,13 @@
 from functools import partial
 from typing import *
 
-from . import resnet, core, composed
-from .core import *
-from .utils import flatten_nested_layers
 from .. import tensor as T
 from ..arg_check import *
 from ..tensor import Tensor, Module, rank, shift, shape, concat, ones_like
 from ..typing_ import *
+from . import resnet, core, composed
+from .core import *
+from .utils import flatten_nested_layers
 
 __all__ = [
     'PixelCNNInput1d', 'PixelCNNInput2d', 'PixelCNNInput3d',
@@ -250,7 +250,8 @@ class PixelCNNInputNd(BaseLayer):
                  weight_norm: WeightNormArgType = False,
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
-                 data_init: Optional[DataInitArgType] = None):
+                 data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None):
         """
         Construct a new pixelcnn input layer.
 
@@ -274,6 +275,7 @@ class PixelCNNInputNd(BaseLayer):
             weight_init: The weight initializer for the convolutional layers.
             bias_init: The bias initializer for the convolutional layers.
             data_init: The data-dependent initializer for the convolutional layers.
+            device: The device where to place new tensors and variables.
         """
         super().__init__()
 
@@ -314,6 +316,7 @@ class PixelCNNInputNd(BaseLayer):
                             weight_init=weight_init,
                             bias_init=bias_init,
                             data_init=data_init,
+                            device=device,
                         ),
                         SpatialShift(spatial_shift)
                     )
@@ -453,6 +456,7 @@ class PixelCNNResBlockNd(BaseLayer):
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
                  data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
                  ):
         """
         Construct a new PixelCNN resnet block.
@@ -490,6 +494,7 @@ class PixelCNNResBlockNd(BaseLayer):
             weight_init: The weight initializer for the convolutional layers.
             bias_init: The bias initializer for the convolutional layers.
             data_init: The data-dependent initializer for the convolutional layers.
+            device: The device where to place new tensors and variables.
         """
         spatial_ndims = self._get_spatial_ndims()
 
@@ -551,6 +556,7 @@ class PixelCNNResBlockNd(BaseLayer):
                     weight_init=weight_init,
                     bias_init=bias_init,
                     data_init=data_init,
+                    device=device,
                 )
             )
 
@@ -618,7 +624,9 @@ class PixelCNNConvNd(BaseLayer):
                  gate_bias: float = DEFAULT_GATE_BIAS,
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
-                 data_init: Optional[DataInitArgType] = None):
+                 data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
+                 ):
         spatial_ndims = self._get_spatial_ndims()
 
         # validate the arguments
@@ -658,6 +666,7 @@ class PixelCNNConvNd(BaseLayer):
                     weight_init=weight_init,
                     bias_init=bias_init,
                     data_init=data_init,
+                    device=device,
                 )
             )
 
@@ -739,7 +748,9 @@ class PixelCNNConvTransposeNd(BaseLayer):
                  gate_bias: float = DEFAULT_GATE_BIAS,
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
-                 data_init: Optional[DataInitArgType] = None):
+                 data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
+                 ):
         spatial_ndims = self._get_spatial_ndims()
 
         # validate the arguments
@@ -781,6 +792,7 @@ class PixelCNNConvTransposeNd(BaseLayer):
                     weight_init=weight_init,
                     bias_init=bias_init,
                     data_init=data_init,
+                    device=device,
                 )
             )
 
@@ -865,7 +877,7 @@ class PixelCNNNd(BaseLayer):
 
         input_cls_name = f'PixelCNNInput{spatial_ndims}d'
         if not isinstance(input_layer, global_dict[input_cls_name]) and \
-                not T.is_jit_layer(input_layer):
+                not is_jit_layer(input_layer):
             raise TypeError(
                 f'`input_layer` must be an instance of `{input_cls_name}`: '
                 f'got {input_layer!r}.'

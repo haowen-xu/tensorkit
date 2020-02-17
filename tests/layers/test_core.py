@@ -174,7 +174,7 @@ class UtilsAndConstantsTestCase(unittest.TestCase):
 class IdentityTestCase(unittest.TestCase):
 
     def test_identity(self):
-        layer = T.jit_compile(Identity())
+        layer = tk.layers.jit_compile(Identity())
         x = T.random.randn([2, 3, 4])
         assert_equal(x, layer(x))
 
@@ -234,7 +234,7 @@ class _AutoRepr(BaseLayer):
 class BaseLayersTestCase(unittest.TestCase):
 
     def test_single_variate_layer(self):
-        layer = T.jit_compile(_MySingleVariateLayer())
+        layer = tk.layers.jit_compile(_MySingleVariateLayer())
         x = T.random.randn([2, 3, 4])
         np_offset = T.from_numpy(np.array([0., 1., 2., 3.]))
         assert_allclose(layer(x), x * 11. + np_offset)
@@ -242,7 +242,7 @@ class BaseLayersTestCase(unittest.TestCase):
         assert_allclose(layer(x), x * 11. + 7. + np_offset)
 
     def test_multi_variate_layer(self):
-        layer = T.jit_compile(_MyMultiVariateLayer())
+        layer = tk.layers.jit_compile(_MyMultiVariateLayer())
         x = T.random.randn([2, 3, 4])
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
@@ -251,7 +251,7 @@ class BaseLayersTestCase(unittest.TestCase):
         assert_allclose(b, y + z)
 
     def test_split_layer(self):
-        layer = T.jit_compile(_MySplitLayer())
+        layer = tk.layers.jit_compile(_MySplitLayer())
         x = T.random.randn([2, 3, 4])
         a, b, c = layer(x)
         assert_allclose(a, x)
@@ -259,7 +259,7 @@ class BaseLayersTestCase(unittest.TestCase):
         assert_allclose(c, x + 2)
 
     def test_merge_layer(self):
-        layer = T.jit_compile(_MyMergeLayer())
+        layer = tk.layers.jit_compile(_MyMergeLayer())
         x = T.random.randn([2, 3, 4])
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
@@ -287,7 +287,7 @@ class SequentialTestCase(unittest.TestCase):
 
         s = Sequential(layers[0], layers[1:2], [layers[2], [layers[3], layers[4]]])
         self.assertEqual(list(s), layers)
-        y = T.jit_compile(s)(x)
+        y = tk.layers.jit_compile(s)(x)
 
         y2 = x
         for layer in layers:
@@ -305,7 +305,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
     ctx.assertIsInstance(layer.weight_store, SimpleParamStore)
     weight = T.to_numpy(layer.weight_store())
     bias = T.to_numpy(layer.bias_store())
-    assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+    assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                     numpy_fn(input, weight=weight, bias=bias),
                     rtol=1e-4, atol=1e-6)
     ctx.assertNotIn('use_bias=', repr(layer))
@@ -314,7 +314,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
     layer = layer_factory(use_bias=False)
     ctx.assertIsInstance(layer.weight_store, SimpleParamStore)
     weight = T.to_numpy(layer.weight_store())
-    assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+    assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                     numpy_fn(input, weight=weight, bias=None),
                     rtol=1e-4, atol=1e-6)
     ctx.assertIn('use_bias=False', repr(layer))
@@ -325,7 +325,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         ctx.assertIsInstance(layer.weight_store, NormedAndScaledWeightStore,
                              msg=f'weight_norm={wn}')
         weight = T.to_numpy(layer.weight_store())
-        assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+        assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                         numpy_fn(input, weight=weight, bias=None),
                         rtol=1e-4, atol=1e-6)
 
@@ -334,7 +334,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         ctx.assertIsInstance(layer.weight_store, NormedWeightStore,
                              msg=f'weight_norm={wn}')
         weight = T.to_numpy(layer.weight_store())
-        assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+        assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                         numpy_fn(input, weight=weight, bias=None),
                         rtol=1e-4, atol=1e-6)
 
@@ -503,7 +503,7 @@ class BatchNormTestCase(unittest.TestCase):
                                       else f'BatchNorm{spatial_ndims}d'))
             layer = cls(5, momentum=0.1, epsilon=eps)
             self.assertIn('BatchNorm', repr(layer))
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             # layer output
             x = T.random.randn(make_conv_shape(
@@ -551,7 +551,7 @@ class DropoutTestCase(unittest.TestCase):
             layer = cls(p=0.3)
             self.assertIn('p=0.3', repr(layer))
             self.assertIn('Dropout', repr(layer))
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             x = 1. + T.random.rand(
                 make_conv_shape([1], n_samples, [2, 2, 2][:spatial_ndims])

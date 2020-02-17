@@ -33,7 +33,7 @@ def check_split_flow(ctx,
             ctx.assertIn(f'y_sections={y_sections}', repr(flow))
             ctx.assertIn(f'x_axis={x_axis}', repr(flow))
             ctx.assertIn(f'y_axis={y_axis}', repr(flow))
-            flow = T.jit_compile(flow)
+            flow = tk.layers.jit_compile(flow)
 
             x1, x2 = T.split(x, x_sections, axis=x_axis)
             y1, expected_log_det = left(x1, compute_log_det=True)
@@ -45,7 +45,7 @@ def check_split_flow(ctx,
 
         # with right
         flow = cls(x_sections, left, right, **kwargs)
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         x1, x2 = T.split(x, x_sections, axis=x_axis)
         y1, expected_log_det = left(x1, compute_log_det=True)
@@ -91,8 +91,8 @@ class SplitFlowTestCase(unittest.TestCase):
         T.random.seed(1234)
 
         # x and y with the same event ndims
-        left = T.jit_compile(InvertibleDense(2))
-        right = T.jit_compile(InvertibleDense(3))
+        left = tk.layers.jit_compile(InvertibleDense(2))
+        right = tk.layers.jit_compile(InvertibleDense(3))
 
         check_split_flow(
             ctx=self,
@@ -159,8 +159,8 @@ class SplitFlowTestCase(unittest.TestCase):
             cls = getattr(tk.flows, f'SplitFlow{spatial_ndims}d')
             sub_cls = getattr(tk.flows, f'InvertibleConv{spatial_ndims}d')
 
-            left = T.jit_compile(sub_cls(2))
-            right = T.jit_compile(sub_cls(3))
+            left = tk.layers.jit_compile(sub_cls(2))
+            right = tk.layers.jit_compile(sub_cls(3))
 
             check_split_flow(
                 ctx=self,

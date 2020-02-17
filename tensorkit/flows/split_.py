@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..layers import is_jit_layer
 from ..tensor import Tensor, Module, split, concat
 from .core import *
 
@@ -79,13 +80,13 @@ class SplitFlow(Flow):
                                  f'two positive integers: got {y_sections!r}.')
             y_sections = list(map(int, y_sections))
 
-        if not isinstance(left, Flow) and not T.is_jit_layer(left):
+        if not isinstance(left, Flow) and not is_jit_layer(left):
             raise TypeError(f'`left` is not a flow: got {left!r}.')
         x_event_ndims = left.get_x_event_ndims()
         y_event_ndims = left.get_y_event_ndims()
 
         if right is not None:
-            if not isinstance(right, Flow) and not T.is_jit_layer(right):
+            if not isinstance(right, Flow) and not is_jit_layer(right):
                 raise TypeError(f'`right` is not a flow: got {right!r}.')
             if right.get_x_event_ndims() != x_event_ndims or \
                     right.get_y_event_ndims() != y_event_ndims:

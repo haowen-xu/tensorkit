@@ -347,16 +347,13 @@ class SequentialBuilder(object):
         self.out_shape = out_shape
         return self
 
-    def build(self,
-              flatten_to_ndims: bool = True,
-              disable_jit: bool = False) -> T.Module:
+    def build(self, flatten_to_ndims: bool = True) -> T.Module:
         """
         Build the sequential layer.
 
         Args:
             flatten_to_ndims: Whether or not to wrap the sequential layer
                 with a :class:`FlattenToNDims` layer?
-            disable_jit: Whether or not to disable JIT?
 
         Returns:
             The built sequential layer.
@@ -370,8 +367,6 @@ class SequentialBuilder(object):
 
         if flatten_to_ndims:
             layer = FlattenToNDims(layer, ndims=len(self.in_shape) + 1)
-        if not disable_jit:
-            layer = T.jit_compile(layer)
         return layer
 
     # ---- activation ----

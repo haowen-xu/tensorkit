@@ -17,7 +17,7 @@ class BranchTestCase(unittest.TestCase):
         for k in range(len(branches) + 1):
             # without shared module
             layer = tk.layers.Branch(branches[:k])
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             out = layer(x)
             self.assertIsInstance(out, list)
@@ -28,7 +28,7 @@ class BranchTestCase(unittest.TestCase):
 
             # with shared module
             layer = tk.layers.Branch(branches[:k], shared=shared)
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             out = layer(x)
             self.assertIsInstance(out, list)

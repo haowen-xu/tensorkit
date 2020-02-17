@@ -1,6 +1,6 @@
 from typing import *
 
-from ..tensor import Tensor, reshape_tail, as_tensor_backend, jit_method
+from ..tensor import Tensor, reshape_tail, float_scalar_like, jit_method
 from ..tensor.nn import *
 from .core import *
 
@@ -84,7 +84,7 @@ class ReshapeFlow(Flow):
 
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:
-            output_log_det = as_tensor_backend(0., dtype=input.dtype)
+            output_log_det = float_scalar_like(0., input)
         return output, output_log_det
 
 
@@ -133,7 +133,7 @@ class SpaceDepthTransformFlow(Flow):
 
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:
-            output_log_det = as_tensor_backend(0., dtype=input.dtype)
+            output_log_det = float_scalar_like(0., input)
 
         return output, output_log_det
 

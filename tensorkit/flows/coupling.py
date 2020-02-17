@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..layers import is_jit_layer
 from ..tensor import Tensor, Module, concat, split
 from .core import (FeatureMappingFlow, Scale, ExpScale, SigmoidScale,
                    LinearScale)
@@ -106,11 +107,13 @@ class CouplingLayer(FeatureMappingFlow):
                 scale = INVALID
 
         if isinstance(scale, Module):
-            if not isinstance(scale, Scale) and not T.is_jit_layer(scale):
+            if not isinstance(scale, Scale) and not is_jit_layer(scale):
                 scale = INVALID
         elif isinstance(scale, type) or callable(scale):
             if scale is SigmoidScale:
                 scale = scale(pre_scale_bias=sigmoid_scale_bias)
+            elif scale is LinearScale:
+                scale = scale(epsilon=epsilon)
             else:
                 scale = scale()
         else:

@@ -2,6 +2,7 @@ from typing import *
 
 from .. import tensor as T
 from ..flows import Flow
+from ..layers import is_jit_layer
 from ..stochastic import StochasticTensor
 from .base import Distribution
 from .utils import copy_distribution, get_overrided_parameterized
@@ -34,7 +35,7 @@ class FlowDistribution(Distribution):
         if not isinstance(distribution, Distribution):
             raise TypeError(f'`distribution` is not an instance of '
                             f'`Distribution`: got {distribution!r}')
-        if not isinstance(flow, Flow) and not T.is_jit_layer(flow):
+        if not isinstance(flow, Flow) and not is_jit_layer(flow):
             raise TypeError(f'`flow` is not a flow: {flow!r}')
 
         # `distribution` is required to be continuous and have float dtype.
@@ -93,7 +94,8 @@ class FlowDistribution(Distribution):
         super(FlowDistribution, self).__init__(
             dtype=dtype, batch_shape=batch_shape, continuous=continuous,
             reparameterized=reparameterized, event_ndims=event_ndims,
-            min_event_ndims=min_event_ndims, validate_tensors=validate_tensors,
+            min_event_ndims=min_event_ndims, device=distribution.device,
+            validate_tensors=validate_tensors,
         )
         self._base_distribution = distribution
         self.flow = flow

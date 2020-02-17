@@ -4,7 +4,7 @@ from typing import *
 from .. import init, tensor as T
 from ..tensor import (Tensor, Module, reshape, shape, int_range,
                       calculate_mean_and_var, assert_finite,
-                      as_tensor_backend, maximum, log, sqrt)
+                      float_scalar_like, maximum, log, sqrt)
 from ..layers import *
 from ..typing_ import *
 from .core import *
@@ -43,8 +43,9 @@ class ActNorm(FeatureMappingFlow):
                  event_ndims: int = 1,
                  scale: Union[str, ActNormScaleType] = 'exp',
                  initialized: bool = False,
-                 epsilon: float = T.EPSILON,
-                 dtype: str = T.float_x()):
+                 dtype: str = T.float_x(),
+                 device: Optional[str] = None,
+                 epsilon: float = T.EPSILON):
         """
         Construct a new :class:`ActNorm` instance.
 
@@ -64,9 +65,10 @@ class ActNorm(FeatureMappingFlow):
             initialized: Whether or not the variables have been
                 initialized?  Defaults to :obj:`False`, where the first input
                 `x` in the forward pass will be used to initialize the variables.
+            dtype: Dtype of the parameters.
+            device: The device where to place new tensors and variables.
             epsilon: The infinitesimal constant to avoid dividing by zero or
                 taking logarithm of zero.
-            dtype: Dtype of the parameters.
         """
         # validate the arguments
         scale_type = ActNormScaleType(scale)
@@ -81,6 +83,8 @@ class ActNorm(FeatureMappingFlow):
         else:  # pragma: no cover
             raise ValueError(f'Unsupported `scale_type`: {scale_type}')
 
+        device = device or T.current_device()
+
         # construct the layer
         super().__init__(axis=axis,
                          event_ndims=event_ndims,
@@ -94,11 +98,13 @@ class ActNorm(FeatureMappingFlow):
 
         add_parameter(
             self, 'pre_scale',
-            T.variable([num_features], dtype=dtype, initializer=pre_scale_init),
+            T.variable([num_features], dtype=dtype, initializer=pre_scale_init,
+                       device=device),
         )
         add_parameter(
             self, 'bias',
-            T.variable([num_features], dtype=dtype, initializer=init.zeros),
+            T.variable([num_features], dtype=dtype, initializer=init.zeros,
+                       device=device),
         )
 
     @T.jit_method
@@ -133,7 +139,7 @@ class ActNorm(FeatureMappingFlow):
         bias = -input_mean
 
         # calculate the initial value for `pre_scale`
-        epsilon = as_tensor_backend(self.epsilon, dtype=input_var.dtype)
+        epsilon = float_scalar_like(self.epsilon, input_var)
         if self.scale_type == 'exp':
             pre_scale = -0.5 * log(maximum(input_var, epsilon))
         else:
@@ -142,12 +148,13 @@ class ActNorm(FeatureMappingFlow):
         return bias, pre_scale
 
     @T.jit_ignore
-    def _initialize_act_norm(self, input: Tensor) -> None:
+    def _initialize_act_norm(self, input: Tensor) -> bool:
         bias, pre_scale = self.calculate_bias_and_pre_scale_for_init(input)
         with T.no_grad():
-            T.assign(get_parameter(self, 'bias'), bias)
-            T.assign(get_parameter(self, 'pre_scale'), pre_scale)
+            T.assign(self.bias, bias)
+            T.assign(self.pre_scale, pre_scale)
         self.set_initialized(True)
+        return False
 
     @T.jit_method
     def _transform(self,
@@ -199,8 +206,9 @@ class ActNormNd(ActNorm):
                  num_features: int,
                  scale: Union[str, ActNormScaleType] = 'exp',
                  initialized: bool = False,
-                 epsilon: float = T.EPSILON,
-                 dtype: str = T.float_x()):
+                 dtype: str = T.float_x(),
+                 device: Optional[str] = None,
+                 epsilon: float = T.EPSILON):
         """
         Construct a new convolutional :class:`ActNorm` instance.
 
@@ -213,9 +221,10 @@ class ActNormNd(ActNorm):
             initialized: Whether or not the variables have been
                 initialized?  Defaults to :obj:`False`, where the first input
                 `x` in the forward pass will be used to initialize the variables.
+            dtype: Dtype of the parameters.
+            device: The device where to place new tensors and variables.
             epsilon: The infinitesimal constant to avoid dividing by zero or
                 taking logarithm of zero.
-            dtype: Dtype of the parameters.
         """
         spatial_ndims = self._get_spatial_ndims()
         feature_axis = -1 if T.IS_CHANNEL_LAST else -(spatial_ndims + 1)
@@ -226,8 +235,9 @@ class ActNormNd(ActNorm):
             event_ndims=spatial_ndims + 1,
             scale=scale,
             initialized=initialized,
-            epsilon=epsilon,
             dtype=dtype,
+            device=device,
+            epsilon=epsilon,
         )
 
     def _get_spatial_ndims(self) -> int:

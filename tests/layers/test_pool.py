@@ -83,7 +83,7 @@ class PoolTestCase(unittest.TestCase):
                         f'padding={padding})'
                     )
 
-                layer = T.jit_compile(layer)
+                layer = tk.layers.jit_compile(layer)
                 assert_allclose(
                     layer(x),
                     fn(x, kernel_size=kernel_size, stride=stride,
@@ -108,7 +108,7 @@ class PoolTestCase(unittest.TestCase):
                 f'GlobalAvgPool{spatial_ndims}d(keepdims={keepdims})'
             )
 
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             x = T.random.randn(make_conv_shape([4, 5], 6, [7, 8, 9][:spatial_ndims]))
             assert_allclose(layer(x), fn(T.to_numpy(x)), rtol=1e-4, atol=1e-6)
 

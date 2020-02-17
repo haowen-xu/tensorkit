@@ -27,7 +27,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
         ctx.assertIsInstance(layer[0], linear_cls)
         ctx.assertEqual(layer[0].use_bias, expected_use_bias)
         assert_allclose(
-            T.jit_compile(layer)(input),
+            tk.layers.jit_compile(layer)(input),
             linear(input)
         )
 
@@ -52,7 +52,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
             ctx.assertEqual(layer[0].use_bias, expected_use_bias)
             ctx.assertIsInstance(layer[1], normalizer_cls)
             assert_allclose(
-                T.jit_compile(layer)(input),
+                tk.layers.jit_compile(layer)(input),
                 normalizer(linear(input)),
             )
 
@@ -72,7 +72,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
         ctx.assertIsInstance(layer[0], linear_cls)
         ctx.assertIsInstance(layer[1], tk.layers.Tanh)
         assert_allclose(
-            T.jit_compile(layer)(input),
+            tk.layers.jit_compile(layer)(input),
             activation_cls()(linear(input)),
         )
 
@@ -90,7 +90,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
     ctx.assertIsInstance(layer[0], linear_cls)
     out = linear(input)
     assert_allclose(
-        T.jit_compile(layer)(input),
+        tk.layers.jit_compile(layer)(input),
         T.nn.sigmoid(out[:, out_features:] + 2.0) * out[:, :out_features],
     )
 
@@ -109,7 +109,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
     ctx.assertIsInstance(layer[0], linear_cls)
     out = linear(input)
     assert_allclose(
-        T.jit_compile(layer)(input),
+        tk.layers.jit_compile(layer)(input),
         (T.nn.sigmoid(out[:, out_features:] + 2.0) *
          activation(out[:, :out_features])),
     )
@@ -131,7 +131,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
     ctx.assertIsInstance(layer[0], linear_cls)
     out = normalizer(linear(input))
     assert_allclose(
-        T.jit_compile(layer)(input),
+        tk.layers.jit_compile(layer)(input),
         (T.nn.sigmoid(out[:, out_features:] + 2.0) *
          activation(out[:, :out_features])),
     )

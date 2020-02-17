@@ -50,7 +50,7 @@ class StdDataInitTestCase(unittest.TestCase):
         if not tk.settings.disable_jit:
             with pytest.raises(TypeError,
                                match='JIT compiled layer is not supported'):
-                layer = T.jit_compile(tk.layers.Linear(5, 3))
+                layer = tk.layers.jit_compile(tk.layers.Linear(5, 3))
                 tk.init.StdDataInit()(layer, [T.random.randn([3, 5])])
 
         with pytest.raises(TypeError, match='`layer` is not a core linear layer'):
