@@ -32,10 +32,9 @@ class _MyBaseCategorical(BaseCategorical):
         super().__init__(**kwargs)
 
 
-class CategoricalTestCase(unittest.TestCase):
+class CategoricalTestCase(TestCase):
 
     def test_construct_base(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
         probs = softmax(logits)
         logits = np.log(probs)
@@ -101,7 +100,6 @@ class CategoricalTestCase(unittest.TestCase):
                     )
 
     def test_copy(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
         logits_t = T.as_tensor(logits)
         cat = _MyBaseCategorical(logits=logits_t, probs=None, event_ndims=1,
@@ -116,7 +114,7 @@ class CategoricalTestCase(unittest.TestCase):
             self.assertEqual(f_copy.call_args, ((), {
                 'cls': _MyBaseCategorical,
                 'base': cat,
-                'attrs': ('dtype', 'event_ndims', 'validate_tensors', 'epsilon'),
+                'attrs': ('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
                 'mutual_attrs': (('logits', 'probs'),),
                 'compute_deps': {'logits': ('epsilon',)},
                 'original_mutual_params': {'logits': cat.logits},
@@ -124,7 +122,6 @@ class CategoricalTestCase(unittest.TestCase):
             }))
 
     def test_Categorical_and_OneHotCategorical(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
 
         def do_test(dtype, float_dtype, is_one_hot):

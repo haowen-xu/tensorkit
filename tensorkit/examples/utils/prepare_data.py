@@ -4,7 +4,6 @@ import mltk
 import numpy as np
 
 import tensorkit as tk
-from tensorkit import tensor as T
 
 __all__ = [
     'get_mnist_streams'
@@ -48,10 +47,10 @@ def get_mnist_streams(batch_size: int,
 
     # split train & valid set, and construct the streams
     def make_stream(arrays, **kwargs):
-        stream = mltk.DataStream.arrays(arrays, **kwargs)
+        ret = mltk.DataStream.arrays(arrays, **kwargs)
         if as_tensor_stream:
-            stream = tk.utils.as_tensor_stream(stream, prefetch=prefetch)
-        return stream
+            ret = tk.utils.as_tensor_stream(ret, prefetch=prefetch)
+        return ret
 
     if val_portion is not None:
         (train_x, train_y), (val_x, val_y) = \

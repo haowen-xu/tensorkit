@@ -10,11 +10,9 @@ from tests.helper import *
 from tests.ops import *
 
 
-class PoolTestCase(unittest.TestCase):
+class PoolTestCase(TestCase):
 
     def test_AvgPool_and_MaxPool(self):
-        T.random.seed(1234)
-
         def is_valid_padding(padding, kernel_size):
             for p, k in zip(padding, kernel_size):
                 if isinstance(p, int):

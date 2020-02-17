@@ -85,7 +85,7 @@ def check_coupling_layer(ctx,
             _ = cls(shift_and_pre_scale, scale=scale)
 
 
-class CouplingLayerTestCase(unittest.TestCase):
+class CouplingLayerTestCase(TestCase):
 
     @slow_test
     def test_CouplingLayer(self):

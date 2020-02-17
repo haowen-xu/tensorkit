@@ -88,13 +88,16 @@ class Uniform(Distribution):
             dtype = T.get_dtype(low)
             value_shape = (value_shape +
                            T.broadcast_shape(T.shape(low), T.shape(high)))
+            device = device or T.get_device(low)
+        else:
+            device = T.current_device()
 
         super().__init__(
             dtype=dtype,
             value_shape=value_shape,
             reparameterized=reparameterized,
             event_ndims=event_ndims,
-            device=device or T.get_device(low),
+            device=device,
             validate_tensors=validate_tensors,
         )
 

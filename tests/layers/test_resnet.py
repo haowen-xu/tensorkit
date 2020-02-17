@@ -320,10 +320,9 @@ def check_resblock(ctx,
     ctx.assertIsInstance(layer.conv1.weight_store, tk.layers.NormedAndScaledWeightStore)
 
 
-class ResBlockTestCase(unittest.TestCase):
+class ResBlockTestCase(TestCase):
 
     def test_resblock(self):
-        T.random.seed(1234)
         for spatial_ndims in (1, 2, 3):
             resblock_cls = getattr(tk.layers, f'ResBlock{spatial_ndims}d')
             check_resblock(
@@ -340,7 +339,6 @@ class ResBlockTestCase(unittest.TestCase):
                                  output_padding=1)
 
     def test_resblock_transpose(self):
-        T.random.seed(1234)
         for spatial_ndims, output_padding in product((1, 2, 3), (0, 1)):
             check_resblock(
                 ctx=self,

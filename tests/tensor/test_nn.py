@@ -11,14 +11,13 @@ from tests.helper import *
 from tests.ops import *
 
 
-class TensorNNTestCase(unittest.TestCase):
+class TensorNNTestCase(TestCase):
 
     def test_constants(self):
         self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
         self.assertFalse(T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS)
 
     def test_activation_functions(self):
-        np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
         x = np.concatenate([x, np.zeros([2, 3, 1])], axis=-1)
         self.assertTrue(np.any(x < 0))
@@ -115,8 +114,6 @@ class TensorNNTestCase(unittest.TestCase):
                 out = -out
             return out
 
-        np.random.seed(1234)
-
         logits = np.random.randn(2, 3, 4)
         sparse_labels = sigmoid(np.random.randn(3, 4))
         labels = (sparse_labels < 0.5).astype(np.int32)
@@ -182,8 +179,6 @@ class TensorNNTestCase(unittest.TestCase):
             sparse_labels = np.eye(k, dtype=logits.dtype)[labels]
             return sparse_cross_entropy(
                 logits, sparse_labels, reduction, negative)
-
-        np.random.seed(1234)
 
         logits = np.random.randn(2, 3, 4, 5, 6)
         sparse_labels = softmax(np.random.randn(3, 4, 5, 6), axis=-1)
@@ -429,7 +424,6 @@ class TensorNNTestCase(unittest.TestCase):
                         f'count_padded_zeros={count_padded_zeros}'
             )
 
-        np.random.seed(1234)
         spatial_shape = [12, 13, 14]
         for spatial_ndims in (1, 2):
             x = np.random.uniform(

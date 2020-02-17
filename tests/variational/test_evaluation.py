@@ -10,7 +10,6 @@ from tests.helper import *
 
 
 def prepare_test_payload():
-    np.random.seed(1234)
     log_p = T.as_tensor(np.random.normal(size=[13]))
     log_q = T.as_tensor(np.random.normal(size=[7, 13]))
     return log_p, log_q
@@ -19,7 +18,7 @@ def prepare_test_payload():
 assert_allclose_ = partial(assert_allclose, atol=1e-4)
 
 
-class ImportanceSamplingLogLikelihoodTestCase(unittest.TestCase):
+class ImportanceSamplingLogLikelihoodTestCase(TestCase):
 
     def test_error(self):
         log_p, log_q = prepare_test_payload()

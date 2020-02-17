@@ -5,9 +5,10 @@ import pytest
 import tensorkit as tk
 from tensorkit import tensor as T
 from tensorkit.arg_check import *
+from tests.helper import *
 
 
-class ArgCheckTestCase(unittest.TestCase):
+class ArgCheckTestCase(TestCase):
 
     def test_validate_positive_int(self):
         for v in [1, 2, 3]:

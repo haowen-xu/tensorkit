@@ -8,7 +8,7 @@ from tests.helper import *
 from tests.ops import make_conv_shape
 
 
-class FlattenToNDimsTestCase(unittest.TestCase):
+class FlattenToNDimsTestCase(TestCase):
 
     def test_FlattenToNDims(self):
         x = T.random.randn(make_conv_shape([3, 4], 6, [5]))
@@ -23,7 +23,7 @@ class FlattenToNDimsTestCase(unittest.TestCase):
             _ = layer(T.random.randn([1, 1]))
 
 
-class ConstantPadTestCase(unittest.TestCase):
+class ConstantPadTestCase(TestCase):
 
     def test_ConstantPad(self):
         for value_arg in [{}, {'value': 123.0}]:
@@ -106,7 +106,7 @@ class ConstantPadTestCase(unittest.TestCase):
                         _ = layer_factory(0, 1, 2, 3)
 
 
-class ChannelSwapTestCase(unittest.TestCase):
+class ChannelSwapTestCase(TestCase):
 
     def test_channel_last_to_first(self):
         for spatial_ndims in (1, 2, 3):

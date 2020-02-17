@@ -10,7 +10,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class ReshapeFlowTestCase(unittest.TestCase):
+class ReshapeFlowTestCase(TestCase):
 
     def test_ReshapeFlow(self):
         flow = ReshapeFlow([4, -1], [-1])
@@ -48,11 +48,9 @@ class ReshapeFlowTestCase(unittest.TestCase):
             _ = ReshapeFlow([-1], [-1, -2])
 
 
-class SpaceDepthTransformFlowTestCase(unittest.TestCase):
+class SpaceDepthTransformFlowTestCase(TestCase):
 
     def test_space_depth_transform(self):
-        T.random.seed(1234)
-
         for spatial_ndims, batch_shape, block_size in product(
                     (1, 2, 3),
                     ([2], [2, 3]),

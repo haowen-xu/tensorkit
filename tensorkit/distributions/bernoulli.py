@@ -65,9 +65,11 @@ class Bernoulli(Distribution):
         if logits is not None:
             value_shape = T.shape(logits)
             mutual_params = {'logits': logits}
+            device = device or T.get_device(logits)
         else:
             value_shape = T.shape(probs)
             mutual_params = {'probs': probs}
+            device = device or T.get_device(probs)
         epsilon = float(epsilon)
 
         # construct the object
@@ -75,7 +77,7 @@ class Bernoulli(Distribution):
             dtype=dtype,
             value_shape=value_shape,
             event_ndims=event_ndims,
-            device=device or T.get_device(logits),
+            device=device,
             validate_tensors=validate_tensors,
         )
         for k, v in mutual_params.items():
@@ -134,8 +136,7 @@ class Bernoulli(Distribution):
         return copy_distribution(
             cls=Bernoulli,
             base=self,
-            attrs=('dtype', 'device', 'event_ndims', 'validate_tensors',
-                   'epsilon'),
+            attrs=('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
             mutual_attrs=(('logits', 'probs'),),
             compute_deps={'logits': ('epsilon',)},
             original_mutual_params=self._mutual_params,

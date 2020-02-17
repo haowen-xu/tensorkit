@@ -28,7 +28,7 @@ class _MyWrapper(BaseLayer):
         return self.wrapped(input)
 
 
-class UtilsAndConstantsTestCase(unittest.TestCase):
+class UtilsAndConstantsTestCase(TestCase):
 
     def test_constants(self):
         self.assertEqual(tk.layers.DEFAULT_GATE_BIAS, 2.0)
@@ -171,7 +171,7 @@ class UtilsAndConstantsTestCase(unittest.TestCase):
         self.assertIsNone(store)
 
 
-class IdentityTestCase(unittest.TestCase):
+class IdentityTestCase(TestCase):
 
     def test_identity(self):
         layer = tk.layers.jit_compile(Identity())
@@ -231,15 +231,15 @@ class _AutoRepr(BaseLayer):
     b: float
 
 
-class BaseLayersTestCase(unittest.TestCase):
+class BaseLayersTestCase(TestCase):
 
     def test_single_variate_layer(self):
         layer = tk.layers.jit_compile(_MySingleVariateLayer())
         x = T.random.randn([2, 3, 4])
         np_offset = T.from_numpy(np.array([0., 1., 2., 3.]))
-        assert_allclose(layer(x), x * 11. + np_offset)
+        assert_allclose(layer(x), x * 11. + np_offset, rtol=1e-4, atol=1e-6)
         layer.set_bias(7.)
-        assert_allclose(layer(x), x * 11. + 7. + np_offset)
+        assert_allclose(layer(x), x * 11. + 7. + np_offset, rtol=1e-4, atol=1e-6)
 
     def test_multi_variate_layer(self):
         layer = tk.layers.jit_compile(_MyMultiVariateLayer())
@@ -247,16 +247,16 @@ class BaseLayersTestCase(unittest.TestCase):
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
         a, b = layer([x, y, z])
-        assert_allclose(a, x + y)
-        assert_allclose(b, y + z)
+        assert_allclose(a, x + y, rtol=1e-4, atol=1e-6)
+        assert_allclose(b, y + z, rtol=1e-4, atol=1e-6)
 
     def test_split_layer(self):
         layer = tk.layers.jit_compile(_MySplitLayer())
         x = T.random.randn([2, 3, 4])
         a, b, c = layer(x)
-        assert_allclose(a, x)
-        assert_allclose(b, x + 1)
-        assert_allclose(c, x + 2)
+        assert_allclose(a, x, rtol=1e-4, atol=1e-6)
+        assert_allclose(b, x + 1, rtol=1e-4, atol=1e-6)
+        assert_allclose(c, x + 2, rtol=1e-4, atol=1e-6)
 
     def test_merge_layer(self):
         layer = tk.layers.jit_compile(_MyMergeLayer())
@@ -264,7 +264,7 @@ class BaseLayersTestCase(unittest.TestCase):
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
         out = layer([x, y, z])
-        assert_allclose(out, x + y + z)
+        assert_allclose(out, x + y + z, rtol=1e-4, atol=1e-6)
 
     def test_auto_repr(self):
         layer = _AutoRepr()
@@ -279,7 +279,7 @@ class BaseLayersTestCase(unittest.TestCase):
         self.assertNotIn('weight=', repr(layer))
 
 
-class SequentialTestCase(unittest.TestCase):
+class SequentialTestCase(TestCase):
 
     def test_sequential(self):
         x = T.random.randn([4, 5])
@@ -297,8 +297,6 @@ class SequentialTestCase(unittest.TestCase):
 
 
 def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
-    T.random.seed(1234)
-
     # test with bias
     layer = layer_factory(use_bias=True)
     ctx.assertIn(layer_name, repr(layer))
@@ -362,11 +360,9 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         _ = layer_factory(data_init=lambda: 'hello')
 
 
-class CoreLinearTestCase(unittest.TestCase):
+class CoreLinearTestCase(TestCase):
 
     def test_linear(self):
-        np.random.seed(1234)
-
         layer = Linear(5, 3)
         self.assertEqual(
             repr(layer),
@@ -390,8 +386,6 @@ class CoreLinearTestCase(unittest.TestCase):
 
     @slow_test
     def test_conv_nd(self):
-        np.random.seed(1234)
-
         def do_check(spatial_ndims, kernel_size, stride,
                      dilation, padding):
             cls_name = f'LinearConv{spatial_ndims}d'
@@ -430,8 +424,6 @@ class CoreLinearTestCase(unittest.TestCase):
 
     @slow_test
     def test_conv_transpose_nd(self):
-        np.random.seed(1234)
-
         def is_valid_output_padding(spatial_ndims, output_padding, stride, dilation):
             if not hasattr(output_padding, '__iter__'):
                 output_padding = [output_padding] * spatial_ndims
@@ -492,11 +484,9 @@ class CoreLinearTestCase(unittest.TestCase):
         do_check(3, (3, 2, 1), (3, 2, 1), (3, 2, 1), PaddingMode.HALF, 0)
 
 
-class BatchNormTestCase(unittest.TestCase):
+class BatchNormTestCase(TestCase):
 
     def test_batch_norm(self):
-        T.random.seed(1234)
-
         eps = T.EPSILON
         for spatial_ndims in (0, 1, 2, 3):
             cls = getattr(tk.layers, ('BatchNorm' if not spatial_ndims
@@ -539,12 +529,10 @@ class BatchNormTestCase(unittest.TestCase):
                 )
 
 
-class DropoutTestCase(unittest.TestCase):
+class DropoutTestCase(TestCase):
 
     def test_dropout(self):
         n_samples = 10000
-        T.random.seed(1234)
-
         for spatial_ndims in (0, 1, 2, 3):
             cls = getattr(tk.layers, ('Dropout' if not spatial_ndims
                                       else f'Dropout{spatial_ndims}d'))

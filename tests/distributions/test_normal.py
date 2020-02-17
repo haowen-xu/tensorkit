@@ -14,11 +14,9 @@ from tensorkit.distributions.utils import copy_distribution
 from tests.helper import *
 
 
-class UnitNormalTestCase(unittest.TestCase):
+class UnitNormalTestCase(TestCase):
 
     def test_construct(self):
-        np.random.seed(1234)
-
         for shape, event_ndims, dtype in \
                 product(([], [2, 3]), range(0, 3), float_dtypes):
             if event_ndims > len(shape):
@@ -34,7 +32,6 @@ class UnitNormalTestCase(unittest.TestCase):
             assert_equal(normal.logstd, np.zeros(shape))
 
     def test_copy(self):
-        np.random.seed(1234)
         shape = [2, 3]
         normal = UnitNormal(shape=[2, 3], event_ndims=1, dtype=T.float32)
 
@@ -71,8 +68,6 @@ class UnitNormalTestCase(unittest.TestCase):
             self.assertIsNot(getattr(normal2, key), getattr(normal, key))
 
     def test_sample_and_log_prob(self):
-        np.random.seed(1234)
-
         for dtype in float_dtypes:
             normal = UnitNormal(shape=[2, 3, 4], event_ndims=1, dtype=dtype)
 
@@ -122,19 +117,19 @@ class _MyBaseNormal(BaseNormal):
                  logstd: Optional[T.Tensor] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None,
                  xyz: int = 0):
         super().__init__(
-            mean=mean, std=std, logstd=logstd,  reparameterized=reparameterized,
-            event_ndims=event_ndims, validate_tensors=validate_tensors
+            mean=mean, std=std, logstd=logstd, reparameterized=reparameterized,
+            event_ndims=event_ndims, device=device, validate_tensors=validate_tensors
         )
         self.xyz = xyz
 
 
-class NormalTestCase(unittest.TestCase):
+class NormalTestCase(TestCase):
 
     def test_construct(self):
-        np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
         std = np.exp(logstd)
@@ -202,7 +197,6 @@ class NormalTestCase(unittest.TestCase):
                 _ = normal.logstd
 
     def test_copy(self):
-        np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
         mean_t = T.as_tensor(mean)
@@ -224,14 +218,13 @@ class NormalTestCase(unittest.TestCase):
                 'cls': _MyBaseNormal,
                 'base': normal,
                 'attrs': ('mean', 'reparameterized', 'event_ndims',
-                          'validate_tensors', 'xyz'),
+                          'device', 'validate_tensors', 'xyz'),
                 'mutual_attrs': (('std', 'logstd'),),
                 'original_mutual_params': {'logstd': normal.logstd},
                 'overrided_params': {'event_ndims': 2},
             }))
 
     def test_Normal(self):
-        np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
         mean_t = T.as_tensor(mean)
@@ -280,7 +273,6 @@ class NormalTestCase(unittest.TestCase):
             )
 
     def test_TruncatedNormal(self):
-        np.random.seed(1234)
         mean = np.random.randn(3, 4)
         logstd = np.random.randn(2, 3, 4)
         std = np.exp(logstd)

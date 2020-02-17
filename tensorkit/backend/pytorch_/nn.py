@@ -56,8 +56,8 @@ def sigmoid(x: Tensor) -> Tensor:
 def log_sigmoid(x: Tensor) -> Tensor:
     # using `neg_x` and `pos_x` separately can avoid having NaN or Infinity
     # on either of the path.
-    neg_x = torch.min(x, torch.as_tensor(0., dtype=x.dtype))
-    pos_x = torch.max(x, torch.as_tensor(0., dtype=x.dtype))
+    neg_x = torch.min(x, torch.as_tensor(0., dtype=x.dtype, device=x.device))
+    pos_x = torch.max(x, torch.as_tensor(0., dtype=x.dtype, device=x.device))
     return torch.where(
         x < 0.,
         neg_x - log1p(exp(neg_x)),  # log(exp(x) / (1 + exp(x)))

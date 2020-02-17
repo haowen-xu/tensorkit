@@ -84,12 +84,10 @@ def check_split_flow(ctx,
         _ = cls([2, 3], left, tk.layers.Linear(2, 3))
 
 
-class SplitFlowTestCase(unittest.TestCase):
+class SplitFlowTestCase(TestCase):
 
     @slow_test
     def test_SplitFlow(self):
-        T.random.seed(1234)
-
         # x and y with the same event ndims
         left = tk.layers.jit_compile(InvertibleDense(2))
         right = tk.layers.jit_compile(InvertibleDense(3))
@@ -153,8 +151,6 @@ class SplitFlowTestCase(unittest.TestCase):
 
     @slow_test
     def test_SplitFlowNd(self):
-        T.random.seed(1234)
-
         for spatial_ndims in (1, 2, 3):
             cls = getattr(tk.flows, f'SplitFlow{spatial_ndims}d')
             sub_cls = getattr(tk.flows, f'InvertibleConv{spatial_ndims}d')

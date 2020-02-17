@@ -69,7 +69,7 @@ class _MyBadFlow(Flow):
         return output, output_log_det
 
 
-class BaseFlowTestCase(unittest.TestCase):
+class BaseFlowTestCase(TestCase):
 
     def test_constructor(self):
         flow = Flow(x_event_ndims=1,
@@ -132,7 +132,7 @@ class BaseFlowTestCase(unittest.TestCase):
             _ = flow(x, inverse=True)
 
 
-class FeatureMappingFlowTestCase(unittest.TestCase):
+class FeatureMappingFlowTestCase(TestCase):
 
     def test_constructor(self):
         flow = FeatureMappingFlow(axis=-1,
@@ -160,7 +160,7 @@ class FeatureMappingFlowTestCase(unittest.TestCase):
             _ = FeatureMappingFlow(axis=0, event_ndims=1, explicitly_invertible=True)
 
 
-class InverseFlowTestCase(unittest.TestCase):
+class InverseFlowTestCase(TestCase):
 
     def test_InverseFlow(self):
         original_flow = tk.layers.jit_compile(_MyFlow())
@@ -226,7 +226,7 @@ class _MyFlow1(Flow):
         return output, output_log_det
 
 
-class SequentialFlowTestCase(unittest.TestCase):
+class SequentialFlowTestCase(TestCase):
 
     def test_constructor(self):
         flows = [tk.layers.jit_compile(_MyFlow1()), tk.layers.jit_compile(_MyFlow())]
@@ -304,7 +304,7 @@ def check_invertible_matrix(ctx, m, size):
                     rtol=1e-4, atol=1e-6)
 
 
-class InvertibleMatrixTestCase(unittest.TestCase):
+class InvertibleMatrixTestCase(TestCase):
 
     def test_invertible_matrices(self):
         for cls in (LooseInvertibleMatrix, StrictInvertibleMatrix):
@@ -378,10 +378,9 @@ def check_invertible_linear(ctx,
                             T.random.randn(batch_shape))
 
 
-class InvertibleLinearTestCase(unittest.TestCase):
+class InvertibleLinearTestCase(TestCase):
 
     def test_invertible_dense(self):
-        T.random.seed(1234)
         for strict in (True, False):
             check_invertible_linear(
                 self,
@@ -392,7 +391,6 @@ class InvertibleLinearTestCase(unittest.TestCase):
             )
 
     def test_invertible_conv_nd(self):
-        T.random.seed(1234)
         for spatial_ndims in (1, 2, 3):
             for strict in (True, False):
                 check_invertible_linear(
@@ -511,11 +509,9 @@ class _BadScale2(Scale):
         return scale, log_scale
 
 
-class ScaleTestCase(unittest.TestCase):
+class ScaleTestCase(TestCase):
 
     def test_ExpScale(self):
-        T.random.seed(1234)
-
         x = T.random.randn([2, 3, 4])
         scale = ExpScale()
         scale = tk.layers.jit_compile(scale)
@@ -529,8 +525,6 @@ class ScaleTestCase(unittest.TestCase):
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
     def test_SigmoidScale(self):
-        T.random.seed(1234)
-
         x = T.random.randn([2, 3, 4])
 
         for pre_scale_bias in [None, 0., 1.5]:
@@ -553,8 +547,6 @@ class ScaleTestCase(unittest.TestCase):
                 check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
     def test_LinearScale(self):
-        T.random.seed(1234)
-
         x = T.random.randn([2, 3, 4])
         scale = LinearScale(epsilon=T.EPSILON)
         self.assertIn('epsilon=', repr(scale))
@@ -570,7 +562,6 @@ class ScaleTestCase(unittest.TestCase):
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
     def test_bad_output(self):
-        T.random.seed(1234)
         x = T.random.randn([2, 3, 1])
 
         scale = _BadScale1()

@@ -27,7 +27,7 @@ class _MyFlow(tk.flows.Flow):
         return output, input_log_det
 
 
-class FlowLayerTestCase(unittest.TestCase):
+class FlowLayerTestCase(TestCase):
 
     def test_FlowLayer(self):
         flow = tk.layers.jit_compile(_MyFlow(
@@ -41,7 +41,7 @@ class FlowLayerTestCase(unittest.TestCase):
             _ = tk.layers.FlowLayer(object())
 
 
-class ActNormLayerTestCase(unittest.TestCase):
+class ActNormLayerTestCase(TestCase):
 
     def test_ActNorm(self):
         layer = tk.layers.ActNorm(5)

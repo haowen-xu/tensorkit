@@ -304,7 +304,7 @@ class NormedAndScaledWeightStore(ParamStore):
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             v, g = weight_norm_decompose(
-                as_tensor(value, dtype=get_dtype(self.v), device=get_dtype(self.v)),
+                as_tensor(value, dtype=get_dtype(self.v), device=get_device(self.v)),
                 self.norm_axis,
                 self.epsilon,
             )

@@ -123,11 +123,9 @@ def check_flow_distribution(ctx,
         fn(None, None, validate_tensors)
 
 
-class FlowDistributionTestCase(unittest.TestCase):
+class FlowDistributionTestCase(TestCase):
 
     def test_FlowDistribution(self):
-        T.random.seed(1234)
-
         check_flow_distribution(
             self,
             UnitNormal([], event_ndims=0),

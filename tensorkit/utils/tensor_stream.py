@@ -45,6 +45,9 @@ class TensorStream(mltk.DataStream):
         finally:
             g.close()
 
+    def _concat_arrays(self, arrays: Sequence[T.Tensor]) -> T.Tensor:
+        return T.concat(list(arrays), axis=0)
+
 
 def as_tensor_stream(source: mltk.DataStream,
                      device: Optional[str] = None,

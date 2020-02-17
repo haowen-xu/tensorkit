@@ -9,7 +9,7 @@ from .nn import *
 from ...settings_ import settings
 
 __all__ = [
-    'seed',
+    'seed', 'set_deterministic',
 
     # uniform
     'rand', 'uniform',
@@ -39,6 +39,13 @@ def seed(seed: int):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+
+def set_deterministic(deterministic: bool = True):
+    if hasattr(torch, 'backends') and hasattr(torch.backends, 'cudnn'):
+        torch.backends.cudnn.enabled = not deterministic
+        torch.backends.cudnn.benchmark = not deterministic
+        torch.backends.cudnn.deterministic = deterministic
 
 
 # ---- uniform distribution ----

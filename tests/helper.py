@@ -1,4 +1,7 @@
 import os
+import random
+import unittest
+from functools import wraps
 
 import numpy as np
 import pytest
@@ -15,6 +18,8 @@ __all__ = [
     'slow_test',
 
     'check_distribution_instance', 'flow_standard_check',
+
+    'TestCase',
 ]
 
 
@@ -216,3 +221,35 @@ def flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
     x, log_det = flow(y, inverse=True, compute_log_det=False)
     assert_allclose(x, expected_x, rtol=1e-4, atol=1e-6)
     ctx.assertIsNone(log_det)
+
+
+class TestCaseMeta(type):
+
+    def __new__(cls, name, parents, dct):
+        def make_wrapper(method):
+            @wraps(method)
+            def wrapper(*args, **kwargs):
+                T.random.set_deterministic(True)
+                T.random.seed(1234)
+                np.random.seed(1234)
+                random.seed(1234)
+
+                try:
+                    with T.use_device(T.first_gpu_device()):
+                        return method(*args, **kwargs)
+                finally:
+                    T.random.set_deterministic(False)
+            return wrapper
+
+        keys = list(dct)
+        for key in keys:
+            val = dct[key]
+            if key.startswith('test_'):
+                val = make_wrapper(val)
+            dct[key] = val
+
+        return super().__new__(cls, name, parents, dct)
+
+
+class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+    pass

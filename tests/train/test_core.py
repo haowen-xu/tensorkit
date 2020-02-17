@@ -1,17 +1,16 @@
 import os
-import unittest
 from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
 import torch
-
 from mltk import SimpleStatefulObject
 
 import tensorkit as tk
+from tests.helper import *
 
 
-class TorchCheckpointTestCase(unittest.TestCase):
+class TorchCheckpointTestCase(TestCase):
 
     def test_invalid_type(self):
         with pytest.raises(TypeError,

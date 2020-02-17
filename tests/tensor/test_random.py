@@ -18,7 +18,7 @@ def do_check_log_prob(given, batch_ndims, Z_log_prob_fn, np_log_prob):
         assert_allclose(
             Z_log_prob_fn(given, group_ndims=group_ndims),
             np.sum(np_log_prob, axis=tuple(range(-group_ndims, 0))),
-            rtol=1e-2
+            rtol=1e-2, atol=1e-5,
         )
     with pytest.raises(Exception, match='`group_ndims` is too large'):
         _ = Z_log_prob_fn(given, group_ndims=batch_ndims + 1)
@@ -28,7 +28,7 @@ def normal_cdf(x):
     return norm.cdf(x)
 
 
-class TensorRandomTestCase(unittest.TestCase):
+class TensorRandomTestCase(TestCase):
 
     def test_seed(self):
         T.random.seed(1234)
@@ -41,9 +41,6 @@ class TensorRandomTestCase(unittest.TestCase):
         assert_allclose(x, z)
 
     def test_rand(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             # test sample dtype and shape
             t = T.random.rand([n_samples, 2, 3, 4], dtype=dtype)
@@ -60,9 +57,6 @@ class TensorRandomTestCase(unittest.TestCase):
             )
 
     def test_uniform(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for low, high in [(-1., 2.), (3.5, 7.5)]:
             for dtype in float_dtypes:
                 # test sample dtype and shape
@@ -85,7 +79,6 @@ class TensorRandomTestCase(unittest.TestCase):
             _ = T.random.uniform([2, 3, 4], low=2., high=1.)
 
     def test_shuffle_and_random_permutation(self):
-        T.random.seed(1234)
         x = np.arange(24).reshape([2, 3, 4])
 
         # shuffle
@@ -113,9 +106,6 @@ class TensorRandomTestCase(unittest.TestCase):
                     self.assertLess(equal_count, 100)
 
     def test_randn(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             # test sample dtype and shape
             t = T.random.randn([n_samples, 2, 3, 4], dtype=dtype)
@@ -138,8 +128,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 np_log_prob=np.log(np.exp(-x ** 2 / 2.) / np.sqrt(2 * np.pi)))
 
     def test_truncated_randn(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
         log_zero = -1e6
 
         def log_prob(given, low, high):
@@ -208,9 +196,6 @@ class TensorRandomTestCase(unittest.TestCase):
         )
 
     def test_normal(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         mean = np.random.randn(2, 3, 4)
         logstd = np.random.randn(3, 4)
         std = np.exp(logstd)
@@ -238,7 +223,7 @@ class TensorRandomTestCase(unittest.TestCase):
             x_mean = np.mean(x, axis=0)
             np.testing.assert_array_less(
                 np.abs(x_mean - mean),
-                np.tile(np.expand_dims(3 * std / np.sqrt(n_samples), axis=0),
+                np.tile(np.expand_dims(5 * std / np.sqrt(n_samples), axis=0),
                         [2, 1, 1])
             )
 
@@ -265,7 +250,7 @@ class TensorRandomTestCase(unittest.TestCase):
             x_mean = np.mean(x, axis=0)
             np.testing.assert_array_less(
                 np.abs(x_mean - mean),
-                np.tile(np.expand_dims(3 * std / np.sqrt(n_samples), axis=0),
+                np.tile(np.expand_dims(5 * std / np.sqrt(n_samples), axis=0),
                         [2, 1, 1])
             )
 
@@ -349,9 +334,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 t, mean_t, logstd_t, validate_tensors=True)
 
     def test_truncated_normal(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         mean = np.random.randn(2, 3, 4)
         logstd = np.random.randn(3, 4)
         std = np.exp(logstd)
@@ -542,9 +524,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 (1 - given) * log_sigmoid(-logits)
             )
 
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         logits = np.random.randn(2, 3, 4)
         probs = sigmoid(logits)
 
@@ -631,9 +610,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 given = one_hot(given, n_classes)
             # return np.log(np.prod(element_pow(probs, one-hot-given), axis=-1))
             return np.sum(given * np.log(probs), axis=-1)
-
-        np.random.seed(1234)
-        T.random.seed(1234)
 
         n_classes = 5
         logits = np.clip(np.random.randn(2, 3, 4, n_classes) / 10.,
@@ -768,7 +744,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 _ = Z_sample_fn(probs=T.as_tensor(probs[0, 0, 0, 0]))
 
     def test_discretized_logistic(self):
-        np.random.seed(1234)
         next_seed_val = [1234]
 
         def next_seed():
@@ -980,9 +955,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 given_t, mean_t, log_scale_t, 1 / 255., max_val=2.)
 
     def test_random_init(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             t = T.variable([n_samples, 2, 3], dtype=dtype)
             for fn, mean, std in [

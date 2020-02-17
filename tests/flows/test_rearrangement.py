@@ -40,7 +40,7 @@ def check_shuffling_flow(ctx,
                             T.random.randn(batch_shape))
 
 
-class RearrangementTestCase(unittest.TestCase):
+class RearrangementTestCase(TestCase):
 
     def test_FeatureShuffleFlow(self):
         check_shuffling_flow(self, 0, FeatureShufflingFlow)

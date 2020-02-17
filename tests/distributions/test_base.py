@@ -11,7 +11,7 @@ from tensorkit.distributions import *
 from tests.helper import *
 
 
-class BaseDistributionTestCase(unittest.TestCase):
+class BaseDistributionTestCase(TestCase):
 
     def test_construct(self):
         def check_all_specified_by_constructor(cls):
@@ -239,7 +239,6 @@ class BaseDistributionTestCase(unittest.TestCase):
                      (group_ndims, 1 + group_ndims))
 
     def test_prob(self):
-        np.random.seed(1234)
         t00 = np.random.randn(2, 3)
         t0 = T.as_tensor(t00)
         d = Distribution(

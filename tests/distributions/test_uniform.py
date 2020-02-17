@@ -12,11 +12,9 @@ from tensorkit.distributions.utils import copy_distribution
 from tests.helper import *
 
 
-class UniformTestCase(unittest.TestCase):
+class UniformTestCase(TestCase):
 
     def test_construct(self):
-        np.random.seed(1234)
-
         for dtype in float_dtypes:
             # specify no args
             uniform = Uniform(dtype=dtype, event_ndims=0)
@@ -127,9 +125,6 @@ class UniformTestCase(unittest.TestCase):
                         validate_tensors=True)
 
     def test_copy(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             low_t = T.full([2, 1], -1., dtype=dtype)
             high_t = T.full([1, 3], 2., dtype=dtype)
@@ -159,14 +154,11 @@ class UniformTestCase(unittest.TestCase):
                     'base': uniform,
                     'attrs': (('shape', '_shape'), 'low', 'high', 'dtype',
                               'reparameterized', 'event_ndims', 'log_zero',
-                              'validate_tensors'),
+                              'device', 'validate_tensors'),
                     'overrided_params': {'event_ndims': 2},
                 }))
 
     def test_sample_and_log_prob(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         array_low = np.random.randn(2, 1)
         array_high = np.exp(np.random.randn(1, 3)) + 1.
         log_zero = -1e6

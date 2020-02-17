@@ -137,7 +137,7 @@ def check_composed_layer(ctx, input, layer_cls, linear_cls, normalizer_cls,
     )
 
 
-class ComposedTestCase(unittest.TestCase):
+class ComposedTestCase(TestCase):
 
     def test_dense(self):
         check_composed_layer(

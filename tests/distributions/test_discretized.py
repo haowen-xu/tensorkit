@@ -11,11 +11,9 @@ from tensorkit.distributions.utils import copy_distribution
 from tests.helper import *
 
 
-class DiscretizedLogisticTestCase(unittest.TestCase):
+class DiscretizedLogisticTestCase(TestCase):
 
     def test_discretized_logsitic(self):
-        T.random.seed(1234)
-
         mean = T.random.randn([3, 1, 4])
         log_scale = T.random.randn([2, 1])
 
@@ -90,8 +88,6 @@ class DiscretizedLogisticTestCase(unittest.TestCase):
             _ = DiscretizedLogistic(mean, T.zeros([7]), 1./32)
 
     def test_copy(self):
-        T.random.seed(1234)
-
         mean = T.random.randn([3, 1, 4])
         log_scale = T.random.randn([2, 1])
 
@@ -118,7 +114,8 @@ class DiscretizedLogisticTestCase(unittest.TestCase):
                 'attrs': (
                     'mean', 'log_scale', 'bin_size', 'min_val', 'max_val',
                     'biased_edges', 'discretize_given', 'discretize_sample',
-                    'reparameterized', 'event_ndims', 'epsilon', 'validate_tensors'
+                    'reparameterized', 'event_ndims', 'epsilon', 'device',
+                    'validate_tensors'
                 ),
                 'overrided_params': {'event_ndims': 2,
                                      'discretize_sample': False,

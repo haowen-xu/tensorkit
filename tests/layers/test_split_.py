@@ -5,7 +5,7 @@ from tensorkit import tensor as T
 from tests.helper import *
 
 
-class BranchTestCase(unittest.TestCase):
+class BranchTestCase(TestCase):
 
     def test_branch(self):
         shared = tk.layers.Linear(5, 5)

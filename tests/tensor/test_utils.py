@@ -6,9 +6,10 @@ import pytest
 import tensorkit as tk
 from tensorkit import tensor as T
 from tests.ops import *
+from tests.helper import *
 
 
-class UtilsTestCase(unittest.TestCase):
+class UtilsTestCase(TestCase):
 
     def test_split_channel_spatial_shape(self):
         for spatial_ndims in (1, 2, 3):

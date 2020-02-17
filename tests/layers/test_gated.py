@@ -7,7 +7,7 @@ from tensorkit import tensor as T
 from tests.helper import *
 
 
-class GatedTestCase(unittest.TestCase):
+class GatedTestCase(TestCase):
 
     def test_Gated(self):
         gated = tk.layers.Gated(feature_axis=-2, num_features=3,

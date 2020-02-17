@@ -261,7 +261,7 @@ def as_tensor(data,
             another tensor, a :class:`~tensorkit.StochasticTensor`, or anything
             else that the backend supports.
         dtype: The expected dtype of the constructed tensor.
-        device: Where to put the new tensor.
+        device: The device where to place new tensors and variables.
         force_copy: Force to copy `data` even if it is not necessary.
             The gradient propagation will not be stopped from the copied tensor
             to the original tensor.  The caller may need to use `T.stop_grad()`
@@ -1443,9 +1443,9 @@ def maybe_clip(x: Tensor,
     if x_min is not None and x_max is not None:
         return clip(x, x_min, x_max)
     elif x_min is not None:
-        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype))
+        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype, device=x.device))
     elif x_max is not None:
-        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype))
+        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype, device=x.device))
     else:
         return x
 

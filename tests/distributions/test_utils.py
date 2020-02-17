@@ -47,7 +47,7 @@ class Sink2(BaseSink):
     pass
 
 
-class DistributionUtilsTestCase(unittest.TestCase):
+class DistributionUtilsTestCase(TestCase):
 
     def test_get_overrided_parameterized(self):
         cls = Mock(__qualname__='xyz')
@@ -110,8 +110,6 @@ class DistributionUtilsTestCase(unittest.TestCase):
                 _ = get_tail_size([], len(shape) + 1)
 
     def test_log_pdf_mask(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
         x = np.random.randn(3, 4, 5)
 
         for dtype in float_dtypes:
@@ -139,6 +137,7 @@ class DistributionUtilsTestCase(unittest.TestCase):
                 for t, v in [(a, 1.0), (b, 2.0), (e, e_orig), (f, f_orig.tensor)]:
                     self.assertIsInstance(t, T.Tensor)
                     self.assertEqual(T.get_dtype(t), dtype)
+                    self.assertEqual(T.get_device(t), T.current_device())
                     if isinstance(v, float):
                         assert_equal(t, v)
                     else:
@@ -171,6 +170,28 @@ class DistributionUtilsTestCase(unittest.TestCase):
                                    match=f'`b.dtype` != `a.dtype`: '
                                          f'{T.float32} vs {dtype}'):
                     _ = check_tensor_arg_types(('a', a_orig), ('b', b_orig))
+
+            # check `device` and `default_device`
+            if T.current_device() != T.CPU_DEVICE:
+                [a] = check_tensor_arg_types(('a', [1., 2., 3.]), device=T.CPU_DEVICE)
+                self.assertEqual(T.get_device(a), T.CPU_DEVICE)
+
+                [a] = check_tensor_arg_types(('a', [1., 2., 3.]), default_device=T.CPU_DEVICE)
+                self.assertEqual(T.get_device(a), T.CPU_DEVICE)
+
+                [a] = check_tensor_arg_types(('a', [1., 2., 3.]), device=T.CPU_DEVICE,
+                                             default_device=T.current_device())
+                self.assertEqual(T.get_device(a), T.CPU_DEVICE)
+
+                a = T.as_tensor([1., 2., 3.], device=T.current_device())
+                with pytest.raises(ValueError,
+                                   match=f'`a.device` != `device`'):
+                    _ = check_tensor_arg_types(('a', a), device=T.CPU_DEVICE)
+
+                b = T.as_tensor([1., 2., 3.], device=T.CPU_DEVICE)
+                with pytest.raises(ValueError,
+                                   match=f'`b.device` != `a.device`'):
+                    _ = check_tensor_arg_types(('a', a), ('b', b))
 
             # check tensor cannot be None
             with pytest.raises(ValueError,

@@ -15,7 +15,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class TensorCoreTestCase(unittest.TestCase):
+class TensorCoreTestCase(TestCase):
 
     def test_backend_info(self):
         self.assertEqual(T.backend_name, settings.backend)
@@ -29,10 +29,10 @@ class TensorCoreTestCase(unittest.TestCase):
         else:
             self.assertFalse(tk.layers.is_jit_layer(layer2))
 
-        # not supported object
-        with pytest.raises(TypeError,
-                           match='Not supported by `jit_compile`'):
-            _ = tk.layers.jit_compile(object())
+    def test_device(self):
+        # ensure we're using GPU if GPU is available
+        if T.gpu_device_list():
+            self.assertEqual(T.current_device(), T.gpu_device_list()[0])
 
     def test_utilities(self):
         self.assertEqual(T.int_range(0, 10), list(range(10)))
@@ -88,8 +88,6 @@ class TensorCoreTestCase(unittest.TestCase):
             assert_equal(t3, x)
 
     def test_tensor_constructors(self):
-        np.random.seed(1234)
-
         # # as_tensor
         # for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
         #     t = T.as_tensor(x)
@@ -926,8 +924,6 @@ class TensorCoreTestCase(unittest.TestCase):
                 _ = T.shift_axis(x_t, axis, 0)
 
     def test_math_univariate_op(self):
-        np.random.seed(1234)
-
         x = np.random.randn(2, 3)
         u = np.random.rand(2, 3)
         x_t = T.as_tensor(x)
@@ -956,7 +952,6 @@ class TensorCoreTestCase(unittest.TestCase):
         assert_allclose(T.erfinv(u_t), erfinv(u))
 
     def test_math_bivariate_op(self):
-        np.random.seed(1234)
         x = np.random.randn(2, 3)
         y = np.random.randn(3)
         t1 = T.as_tensor(x)
@@ -1049,7 +1044,6 @@ class TensorCoreTestCase(unittest.TestCase):
         log_mean_exp = partial(log_f_exp, np.mean)
 
         # prepare for the data
-        np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
         t = T.as_tensor(x)
 
@@ -1265,7 +1259,6 @@ class TensorCoreTestCase(unittest.TestCase):
             self.assertEqual(T.get_dtype(t), T.boolean)
             return T.to_numpy(t)
 
-        np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
         y = np.random.randn(1, 3, 4)
         x = np.concatenate([y, x], axis=0)
@@ -1332,8 +1325,6 @@ class TensorCoreTestCase(unittest.TestCase):
             )
 
     def test_matrix_ops(self):
-        np.random.seed(1234)
-
         for k in [1, 5]:
             x = np.random.randn(4, k)
             y = np.random.randn(k, k)

@@ -17,10 +17,9 @@ def sigmoid(x):
                     np.exp(x) / (1 + np.exp(x)))
 
 
-class BernoulliTestCase(unittest.TestCase):
+class BernoulliTestCase(TestCase):
 
     def test_construct(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
         probs = sigmoid(logits)
 
@@ -68,7 +67,6 @@ class BernoulliTestCase(unittest.TestCase):
                         **{key: T.as_tensor(np.nan, dtype=float_dtype)})
 
     def test_copy(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
         logits_t = T.as_tensor(logits)
         bernoulli = Bernoulli(logits=logits_t, event_ndims=1)
@@ -82,7 +80,7 @@ class BernoulliTestCase(unittest.TestCase):
             self.assertEqual(f_copy.call_args, ((), {
                 'cls': Bernoulli,
                 'base': bernoulli,
-                'attrs': ('dtype', 'event_ndims', 'validate_tensors', 'epsilon'),
+                'attrs': ('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
                 'mutual_attrs': (('logits', 'probs'),),
                 'compute_deps': {'logits': ('epsilon',)},
                 'original_mutual_params': {'logits': bernoulli.logits},
@@ -90,7 +88,6 @@ class BernoulliTestCase(unittest.TestCase):
             }))
 
     def test_sample_and_log_prob(self):
-        np.random.seed(1234)
         logits = np.random.randn(2, 3, 4)
         logits_t = T.as_tensor(logits)
 

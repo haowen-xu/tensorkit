@@ -5,7 +5,7 @@ from tensorkit import tensor as T
 from tests.helper import *
 
 
-class ContextualTestCase(unittest.TestCase):
+class ContextualTestCase(TestCase):
 
     def test_IgnoreContext(self):
         x = T.random.randn([2, 3, 4])

@@ -114,7 +114,7 @@ class _MyAddContext(tk.layers.BaseLayer):
             raise ValueError('Expected context to have 0 or 1 element.')
 
 
-class PixelCNNTestCase(unittest.TestCase):
+class PixelCNNTestCase(TestCase):
 
     def test_causality_and_receptive_field(self):
         for size in [[12], [12, 11], [12, 11, 10]]:
@@ -242,7 +242,6 @@ class PixelCNNTestCase(unittest.TestCase):
                 )
 
     def test_pixelcnn_network(self):
-        T.random.seed(1234)
         in_channels = 3
         out_channels = 5
 

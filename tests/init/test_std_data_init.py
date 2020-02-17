@@ -9,7 +9,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class StdDataInitTestCase(unittest.TestCase):
+class StdDataInitTestCase(TestCase):
 
     def test_repr(self):
         data_init = tk.init.StdDataInit()

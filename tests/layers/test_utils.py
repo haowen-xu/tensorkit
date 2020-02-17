@@ -10,7 +10,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class UtilsTestCase(unittest.TestCase):
+class UtilsTestCase(TestCase):
 
     def test_flatten_nested_layers(self):
         layers = [tk.layers.Linear(5, 5) for _ in range(5)]

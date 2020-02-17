@@ -8,6 +8,7 @@ class Config(mltk.Config):
     max_epoch: int = 10
     batch_size: int = 32
     test_batch_size: int = 64
+    init_batch_count: int = 10
     lr: float = 0.01
     lr_anneal_ratio: float = 0.5
     lr_anneal_epochs: int = 2
@@ -40,6 +41,15 @@ def main(exp: mltk.Experiment[Config]):
         linear(10). \
         log_softmax(). \
         build()
+
+    # initialize the network with first few batches of train data
+    init_x, _ = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
+    _ = net(T.as_tensor(init_x))
+    mltk.print_with_time('Network initialized')
+
+    # we have initialized the network, now we can compile the net with JIT engine
+    net = tk.layers.jit_compile(net)
+    mltk.print_with_time('Network compiled to JIT module')
 
     # the train, test and validate functions
     def train_step(x, y):

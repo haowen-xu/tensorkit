@@ -6,11 +6,10 @@ import pytest
 
 from tensorkit import tensor as T
 from tensorkit.variational import *
-from tests.helper import assert_allclose
+from tests.helper import *
 
 
 def prepare_test_payload(reparameterized):
-    np.random.seed(1234)
     x = T.as_tensor(np.random.normal(size=[7, 13]))  # input
     y = T.requires_grad(T.as_tensor(np.random.normal(size=[13])))  # param
     if reparameterized:
@@ -23,7 +22,7 @@ def prepare_test_payload(reparameterized):
     return x, y, z, f, log_f, log_q
 
 
-class SGVBEstimatorTestCase(unittest.TestCase):
+class SGVBEstimatorTestCase(TestCase):
 
     def test_sgvb(self):
         assert_allclose_ = functools.partial(assert_allclose, rtol=1e-5, atol=1e-6)
@@ -59,7 +58,7 @@ class SGVBEstimatorTestCase(unittest.TestCase):
         )
 
 
-class IWAEEstimatorTestCase(unittest.TestCase):
+class IWAEEstimatorTestCase(TestCase):
 
     def test_error(self):
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)

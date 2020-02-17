@@ -44,9 +44,11 @@ class BaseCategorical(Distribution):
         if logits is not None:
             param_shape = T.shape(logits)
             mutual_params = {'logits': logits}
+            device = device or T.get_device(logits)
         else:
             param_shape = T.shape(probs)
             mutual_params = {'probs': probs}
+            device = device or T.get_device(probs)
         epsilon = float(epsilon)
 
         if len(param_shape) < 1:
@@ -61,7 +63,7 @@ class BaseCategorical(Distribution):
             dtype=dtype,
             value_shape=value_shape,
             event_ndims=event_ndims,
-            device=device or T.get_device(logits),
+            device=device,
             validate_tensors=validate_tensors,
         )
         for k, v in mutual_params.items():
