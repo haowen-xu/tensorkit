@@ -43,7 +43,7 @@ def main(exp: mltk.Experiment[Config]):
 
     # we have initialized the network, now we can compile the net with JIT engine
     net = tk.layers.jit_compile(net)
-    mltk.print_with_time('Network compiled to JIT module')
+    mltk.print_with_time('Network compiled with JIT')
 
     # define the train and evaluate functions
     def train_step(x, y):

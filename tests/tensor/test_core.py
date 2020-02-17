@@ -32,7 +32,30 @@ class TensorCoreTestCase(TestCase):
     def test_device(self):
         # ensure we're using GPU if GPU is available
         if T.gpu_device_list():
-            self.assertEqual(T.current_device(), T.gpu_device_list()[0])
+            gpu_list = T.gpu_device_list()
+            self.assertEqual(T.current_device(), gpu_list[0])
+            self.assertEqual(T.first_gpu_device(), gpu_list[0])
+        else:
+            self.assertEqual(T.first_gpu_device(), T.CPU_DEVICE)
+            with pytest.raises(RuntimeError, match='No GPU is available.'):
+                _ = T.first_gpu_device(fallback_to_cpu=False)
+
+        # test `get_device`
+        t = T.random.randn([2, 3, 4], dtype=T.float32)
+        self.assertEqual(T.get_device(t), T.current_device())
+
+        # test `to_device`
+        if T.current_device() != T.CPU_DEVICE:
+            t = T.random.randn([2, 3, 4], dtype=T.float32)
+            t2 = T.to_device(t, T.CPU_DEVICE)
+            self.assertEqual(T.get_device(t2), T.CPU_DEVICE)
+            assert_allclose(t, t2)
+
+        # test `use_device`
+        with T.use_device(T.CPU_DEVICE):
+            self.assertEqual(T.current_device(), T.CPU_DEVICE)
+            t = T.random.randn([2, 3, 4], dtype=T.float32)
+            self.assertEqual(T.get_device(t), T.CPU_DEVICE)
 
     def test_utilities(self):
         self.assertEqual(T.int_range(0, 10), list(range(10)))
@@ -72,35 +95,42 @@ class TensorCoreTestCase(TestCase):
         self.assertIsInstance(t, T.Tensor)
         assert_equal(t, x)
 
-        # cast
-        for dtype in number_dtypes:
-            t2 = T.cast(t, dtype)
+    def test_cast(self):
+        x = np.asarray([1, 2, 3])
+        t = T.as_tensor(x)
+
+        # cast dtype
+        for dtype, device in itertools.product(
+                number_dtypes, [None, T.CPU_DEVICE]):
+            t2 = T.cast(t, dtype=dtype, device=device)
             self.assertIsInstance(t2, T.Tensor)
             self.assertEqual(T.get_dtype(t2), dtype)
+            self.assertEqual(T.get_device(t2), device or T.current_device())
             assert_equal(t2, x)
 
-        # cast_like
-        for like in (t, t2):
-            t3 = T.cast_like(t, like)
-            self.assertIsInstance(t3, T.Tensor)
-            self.assertEqual(T.get_dtype(t3), T.get_dtype(like))
-            self.assertEqual(T.get_device(t3), T.get_device(like))
-            assert_equal(t3, x)
+            # cast_like
+            for like in (t, t2):
+                t3 = T.cast_like(t, like)
+                self.assertIsInstance(t3, T.Tensor)
+                self.assertEqual(T.get_dtype(t3), T.get_dtype(like))
+                self.assertEqual(T.get_device(t3), T.get_device(like))
+                assert_equal(t3, x)
+
+        # only device
+        for device in [None, T.CPU_DEVICE]:
+            t2 = T.cast(t, device=device)
+            self.assertIsInstance(t2, T.Tensor)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), device or T.current_device())
+            assert_equal(t2, x)
+
+        # null cast
+        t2 = T.cast(t)
+        self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+        self.assertEqual(T.get_device(t2), T.get_device(t))
+        assert_equal(t2, x)
 
     def test_tensor_constructors(self):
-        # # as_tensor
-        # for x in [1., 1, [1., 2., 3.], np.array([1., 2., 3.])]:
-        #     t = T.as_tensor(x)
-        #     self.assertIsInstance(t, T.Tensor)
-        #     assert_equal(t, x)
-        # 
-        # x = T.as_tensor(np.asarray([1, 2, 3], dtype=np.int32))
-        # t = T.as_tensor(x)
-        # self.assertIs(t, x)
-        # 
-        # with pytest.raises(Exception):
-        #     _ = T.as_tensor(object())  # not a tensor, should raise error
-
         # as_tensor
         def copy_tensor(o):
             if isinstance(o, StochasticTensor):
@@ -128,135 +158,187 @@ class TensorCoreTestCase(TestCase):
                 x_value = copy.copy(x)
 
             for should_copy in [True, False]:
-                for dtype in (None,) + number_dtypes:
+                for dtype, device in itertools.product(
+                        (None,) + number_dtypes, [None, T.CPU_DEVICE]):
                     xx = copy_tensor(x)
                     self.assertIsInstance(xx, type(x))
-                    dtype_kwargs = {'dtype': dtype} if dtype is not None else {}
+                    kwargs = {'dtype': dtype} if dtype is not None else {}
+                    if device is not None:
+                        kwargs['device'] = device
 
-                    t = T.as_tensor(xx, force_copy=should_copy, **dtype_kwargs)
+                    t = T.as_tensor(xx, force_copy=should_copy, **kwargs)
                     self.assertIsInstance(t, T.Tensor)
+                    self.assertEqual(T.get_device(t), device or T.current_device())
                     if should_copy:
                         if hasattr(xx, '__setitem__'):
                             xx[0] = 12345.
                     assert_equal(t, x_value,
-                                 err_msg=f'{x}, {should_copy}, {dtype}')
+                                 err_msg=f'{x}, {should_copy}, {dtype}, {device}')
 
         with pytest.raises(Exception):
             _ = T.as_tensor(object())  # not a tensor, should raise error
 
         # from numpy: force copied
         for x in [np.array([1., 2., 3.])]:
-            for dtype in (None,) + number_dtypes:
+            for dtype, device in itertools.product(
+                    (None,) + number_dtypes, [None, T.CPU_DEVICE]):
                 xx = copy.copy(x)
                 self.assertIsInstance(xx, type(x))
-                dtype_kwargs = {'dtype': dtype} if dtype is not None else {}
-                t = T.from_numpy(xx, **dtype_kwargs)
+                kwargs = {'dtype': dtype} if dtype is not None else {}
+                if device is not None:
+                    kwargs['device'] = device
+                t = T.from_numpy(xx, **kwargs)
                 self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_device(t), device or T.current_device())
                 xx[0] = 12345.
-                assert_equal(t, x, err_msg=f'{x}, {dtype}')
+                assert_equal(t, x, err_msg=f'{x}, {dtype}, {device}')
 
         with pytest.raises(Exception):
             _ = T.from_numpy(object())  # not a tensor, should raise error
 
         # float_scalar
-        for value in (1.25, 125):
-            for dtype in (T.float16, T.float32, T.float64):
-                t = T.float_scalar(value, dtype=dtype)
-                self.assertEqual(T.get_dtype(t), dtype)
-                assert_equal(t, value)
-        self.assertEqual(T.get_dtype(T.float_scalar(1.25)), T.float_x())
+        for value, dtype, device in itertools.product(
+                (1.25, 125),
+                (T.float16, T.float32, T.float64),
+                (None, T.CPU_DEVICE)):
+            t = T.float_scalar(value, dtype=dtype, device=device)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, value)
+
+            # float_scalar_like
+            t2 = T.float_scalar_like(value, t)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+
+        t = T.float_scalar(1.25)
+        assert_equal(t, 1.25)
+        self.assertEqual(T.get_dtype(t), T.float_x())
+        self.assertEqual(T.get_device(t), T.current_device())
 
         # int_scalar
-        for value in (2, 125):
-            for dtype in (T.int8, T.int16, T.int32, T.int64):
-                t = T.int_scalar(value, dtype=dtype)
-                self.assertEqual(T.get_dtype(t), dtype)
-                assert_equal(t, value)
-        self.assertEqual(T.get_dtype(T.int_scalar(125)), T.int32)
+        for value, dtype, device in itertools.product(
+                (2, 125),
+                (T.int8, T.int16, T.int32, T.int64),
+                (None, T.CPU_DEVICE)):
+            t = T.int_scalar(value, dtype=dtype)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, value)
+
+            # int_scalar_like
+            t2 = T.float_scalar_like(value, t)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+
+        t = T.int_scalar(125)
+        self.assertEqual(T.get_dtype(t), T.int32)
+        self.assertEqual(T.get_device(t), T.current_device())
 
         # zeros
-        for shape in ([1, 2, 3], []):
-            for dtype in number_dtypes:
-                t = T.zeros(shape, dtype=dtype)
-                self.assertIsInstance(t, T.Tensor)
-                self.assertEqual(T.get_dtype(t), dtype)
-                assert_equal(t, np.zeros(shape))
+        for shape, dtype, device in itertools.product(
+                ([1, 2, 3], []),
+                number_dtypes,
+                (None, T.CPU_DEVICE)):
+            t = T.zeros(shape, dtype=dtype, device=device)
+            self.assertIsInstance(t, T.Tensor)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, np.zeros(shape))
 
-                # zeros_like
-                t2 = T.zeros_like(t)
-                self.assertIsInstance(t2, T.Tensor)
-                self.assertEqual(T.get_dtype(t2), dtype)
-                assert_equal(t, np.zeros(shape))
+            # zeros_like
+            t2 = T.zeros_like(t)
+            self.assertIsInstance(t2, T.Tensor)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+            assert_equal(t, np.zeros(shape))
 
-                for dtype2 in (None,) + number_dtypes:
-                    for shape2 in (None, [7, 8]):
-                        t2 = T.zeros_like(t, dtype=dtype2, shape=shape2)
-                        self.assertIsInstance(t2, T.Tensor)
-                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
-                        assert_equal(t2, np.zeros(shape2 or shape))
+            for dtype2 in (None,) + number_dtypes:
+                for shape2 in (None, [7, 8]):
+                    t2 = T.zeros_like(t, dtype=dtype2, shape=shape2)
+                    self.assertIsInstance(t2, T.Tensor)
+                    self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
+                    self.assertEqual(T.get_device(t2), T.get_device(t))
+                    assert_equal(t2, np.zeros(shape2 or shape))
 
         # ones
-        for shape in ([1, 2, 3], []):
-            for dtype in number_dtypes:
-                t = T.ones(shape, dtype=dtype)
-                self.assertIsInstance(t, T.Tensor)
-                self.assertEqual(T.get_dtype(t), dtype)
-                assert_equal(t, np.ones(shape))
+        for shape, dtype, device in itertools.product(
+                ([1, 2, 3], []),
+                number_dtypes,
+                (None, T.CPU_DEVICE)):
+            t = T.ones(shape, dtype=dtype)
+            self.assertIsInstance(t, T.Tensor)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, np.ones(shape))
 
-                # ones_like
-                t2 = T.ones_like(t)
-                self.assertIsInstance(t2, T.Tensor)
-                self.assertEqual(T.get_dtype(t2), dtype)
-                assert_equal(t, np.ones(shape))
+            # ones_like
+            t2 = T.ones_like(t)
+            self.assertIsInstance(t2, T.Tensor)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+            assert_equal(t, np.ones(shape))
 
-                for dtype2 in (None,) + number_dtypes:
-                    for shape2 in (None, [7, 8]):
-                        t2 = T.ones_like(t, dtype=dtype2, shape=shape2)
-                        self.assertIsInstance(t2, T.Tensor)
-                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
-                        assert_equal(t2, np.ones(shape2 or shape))
+            for dtype2 in (None,) + number_dtypes:
+                for shape2 in (None, [7, 8]):
+                    t2 = T.ones_like(t, dtype=dtype2, shape=shape2)
+                    self.assertIsInstance(t2, T.Tensor)
+                    self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
+                    self.assertEqual(T.get_device(t2), T.get_device(t))
+                    assert_equal(t2, np.ones(shape2 or shape))
 
         # full
         fill_value = 123
-        for shape in ([1, 2, 3], []):
-            for dtype in number_dtypes:
-                t = T.full(shape, fill_value, dtype=dtype)
-                self.assertIsInstance(t, T.Tensor)
-                self.assertEqual(T.get_dtype(t), dtype)
-                assert_equal(t, np.full(shape, fill_value))
-
-                # zeros_like
-                t2 = T.full_like(t, fill_value)
-                self.assertIsInstance(t2, T.Tensor)
-                self.assertEqual(T.get_dtype(t2), dtype)
-                assert_equal(t, np.full(shape, fill_value))
-
-                for dtype2 in (None,) + number_dtypes:
-                    for shape2 in (None, [7, 8]):
-                        t2 = T.full_like(t, fill_value, dtype=dtype2,
-                                         shape=shape2)
-                        self.assertIsInstance(t2, T.Tensor)
-                        self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
-                        assert_equal(t2, np.full(shape2 or shape, fill_value))
-
-        # arange
-        for start, end in [(1, 10), (0, 10)]:
-            t = T.arange(start, end)
-            self.assertIsInstance(t, T.Tensor)
-            self.assertEqual(T.get_dtype(t), T.int32)
-            assert_equal(t, np.arange(start, end))
-
-        for start, end, step in [(0, 10, 2), (-2, -15, -3)]:
-            t = T.arange(start, end, step)
-            self.assertIsInstance(t, T.Tensor)
-            self.assertEqual(T.get_dtype(t), T.int32)
-            assert_equal(t, np.arange(start, end, step))
-
-        for dtype in number_dtypes:
-            t = T.arange(0, 10, dtype=dtype)
+        for shape, dtype, device in itertools.product(
+                ([1, 2, 3], []),
+                number_dtypes,
+                (None, T.CPU_DEVICE)):
+            t = T.full(shape, fill_value, dtype=dtype, device=device)
             self.assertIsInstance(t, T.Tensor)
             self.assertEqual(T.get_dtype(t), dtype)
-            assert_equal(t, np.arange(10))
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, np.full(shape, fill_value))
+
+            # full_like
+            t2 = T.full_like(t, fill_value)
+            self.assertIsInstance(t2, T.Tensor)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+            assert_equal(t, np.full(shape, fill_value))
+
+            for dtype2 in (None,) + number_dtypes:
+                for shape2 in (None, [7, 8]):
+                    t2 = T.full_like(t, fill_value, dtype=dtype2,
+                                     shape=shape2)
+                    self.assertIsInstance(t2, T.Tensor)
+                    self.assertEqual(T.get_dtype(t2), dtype2 or dtype)
+                    self.assertEqual(T.get_device(t2), T.get_device(t))
+                    assert_equal(t2, np.full(shape2 or shape, fill_value))
+
+        # arange
+        for device in [None, T.current_device()]:
+            expected_device = device or T.current_device()
+
+            for start, end in [(1, 10), (0, 10)]:
+                t = T.arange(start, end, device=device)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), T.int32)
+                self.assertEqual(T.get_device(t), expected_device)
+                assert_equal(t, np.arange(start, end))
+
+            for start, end, step in [(0, 10, 2), (-2, -15, -3)]:
+                t = T.arange(start, end, step, device=device)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), T.int32)
+                self.assertEqual(T.get_device(t), expected_device)
+                assert_equal(t, np.arange(start, end, step))
+
+            for dtype in number_dtypes:
+                t = T.arange(0, 10, dtype=dtype, device=device)
+                self.assertIsInstance(t, T.Tensor)
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.get_device(t), expected_device)
+                assert_equal(t, np.arange(10))
 
         # one_hot
         for n_classes in [1, 5]:
@@ -265,6 +347,7 @@ class TensorCoreTestCase(TestCase):
                 x = np.random.randint(0, n_classes, size=shape)
 
                 t = T.one_hot(T.as_tensor(x), n_classes)
+                self.assertEqual(T.get_device(t), T.current_device())
                 assert_equal(t, I[x])
 
                 for dtype in number_dtypes:
@@ -312,51 +395,61 @@ class TensorCoreTestCase(TestCase):
             except Exception:
                 return False
 
-        for dtype in number_dtypes:
-            t = T.variable([3], dtype=dtype, requires_grad=False)
-            self.assertIsInstance(t, T.Variable)
-            self.assertEqual(T.get_dtype(t), dtype)
-            self.assertEqual(T.shape(t), [3])
+        for device in [None, T.CPU_DEVICE]:
+            for dtype in number_dtypes:
+                t = T.variable([3], dtype=dtype, device=device, requires_grad=False)
+                self.assertIsInstance(t, T.Variable)
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.get_device(t), device or T.current_device())
+                self.assertEqual(T.shape(t), [3])
 
-            t = T.variable([2, 3], dtype=t.dtype, requires_grad=False)
-            self.assertIsInstance(t, T.Variable)
-            self.assertEqual(T.get_dtype(t), dtype)
-            self.assertEqual(T.shape(t), [2, 3])
+                t = T.variable([2, 3], dtype=t.dtype, device=device, requires_grad=False)
+                self.assertIsInstance(t, T.Variable)
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.get_device(t), device or T.current_device())
+                self.assertEqual(T.shape(t), [2, 3])
 
-        for dtype in float_dtypes:
-            # scalar initializer
-            for v in (123, 123., np.array(123.)):
+            for dtype in float_dtypes:
+                # scalar initializer
+                for v in (123, 123., np.array(123.)):
+                    for requires_grad in (True, False):
+                        t = T.variable(
+                            [3], dtype=dtype, device=device,
+                            requires_grad=requires_grad, initializer=v)
+                        self.assertIsInstance(t, T.Variable)
+                        self.assertEqual(T.get_dtype(t), dtype)
+                        self.assertEqual(T.get_device(t), device or T.current_device())
+                        self.assertEqual(is_requires_grad(t), requires_grad)
+                        assert_equal(t, np.array([v] * 3))
+
+                # array initializer
                 for requires_grad in (True, False):
-                    t = T.variable([3], dtype=dtype, requires_grad=requires_grad,
-                                   initializer=v)
+                    t = T.variable(
+                        [3], dtype=dtype, device=device,
+                        requires_grad=requires_grad, initializer=np.array([1., 2., 3.]))
                     self.assertIsInstance(t, T.Variable)
                     self.assertEqual(T.get_dtype(t), dtype)
+                    self.assertEqual(T.get_device(t), device or T.current_device())
                     self.assertEqual(is_requires_grad(t), requires_grad)
-                    assert_equal(t, np.array([v] * 3))
+                    assert_equal(t, [1., 2., 3.])
 
-            # array initializer
-            for requires_grad in (True, False):
-                t = T.variable([3], dtype=dtype, requires_grad=requires_grad,
-                               initializer=np.array([1., 2., 3.]))
-                self.assertIsInstance(t, T.Variable)
-                self.assertEqual(T.get_dtype(t), dtype)
-                self.assertEqual(is_requires_grad(t), requires_grad)
-                assert_equal(t, [1., 2., 3.])
+                with pytest.raises(ValueError,
+                                   match=r'`initializer.shape` != `shape`: '
+                                         r'\[3\] vs \[4\]'):
+                    _ = T.variable(
+                        [4], dtype=dtype, device=device, requires_grad=False,
+                        initializer=np.array([1., 2., 3.]))
 
-            with pytest.raises(ValueError,
-                               match=r'`initializer.shape` != `shape`: '
-                                     r'\[3\] vs \[4\]'):
-                _ = T.variable([4], dtype=dtype, requires_grad=False,
-                               initializer=np.array([1., 2., 3.]))
-
-            # callable initializer
-            for requires_grad in (True, False):
-                t = T.variable([3], dtype=dtype, requires_grad=requires_grad,
-                               initializer=partial(T.fill, fill_value=123.))
-                self.assertIsInstance(t, T.Variable)
-                self.assertEqual(T.get_dtype(t), dtype)
-                self.assertEqual(is_requires_grad(t), requires_grad)
-                assert_equal(t, [123.] * 3)
+                # callable initializer
+                for requires_grad in (True, False):
+                    t = T.variable(
+                        [3], dtype=dtype, device=device, requires_grad=requires_grad,
+                        initializer=partial(T.fill, fill_value=123.))
+                    self.assertIsInstance(t, T.Variable)
+                    self.assertEqual(T.get_dtype(t), dtype)
+                    self.assertEqual(T.get_device(t), device or T.current_device())
+                    self.assertEqual(is_requires_grad(t), requires_grad)
+                    assert_equal(t, [123.] * 3)
 
         # unsupported initializer
         with pytest.raises(TypeError, match='Unsupported initializer'):

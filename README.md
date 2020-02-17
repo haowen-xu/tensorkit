@@ -2,5 +2,5 @@
 
 ### Requirements
 
-* PyTorch >= 1.4.0
+* PyTorch: 1.3.1
 

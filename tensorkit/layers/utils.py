@@ -54,6 +54,7 @@ _activation_classes: Dict[str, Optional[Type[Module]]] = {
     'leakyrelu': LeakyReLU,
     'sigmoid': Sigmoid,
     'tanh': Tanh,
+    'logsoftmax': LogSoftmax,
 }
 
 

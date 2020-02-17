@@ -27,9 +27,11 @@ __all__ = [
     # utilities
     'int_range', 'identity',
 
+    # cast
+    'cast', 'cast_like',
+
     # dtypes
-    'cast', 'cast_like', 'get_dtype', 'is_floating_point',
-    'is_floating_point_dtype',
+    'get_dtype', 'is_floating_point', 'is_floating_point_dtype',
 
     # tensor constructors
     'as_tensor', 'from_numpy',
@@ -191,33 +193,39 @@ else:
         return ret
 
 
-# ---- dtypes ----
+# ---- cast dtype and device ----
 @jit
-def cast(input: Tensor, dtype: str, device: Optional[str] = None) -> Tensor:
-    if dtype == 'float32':
-        target_dtype = torch.float32
-    elif dtype == 'int32':
-        target_dtype = torch.int32
+def cast(input: Tensor,
+         dtype: Optional[str] = None,
+         device: Optional[str] = None) -> Tensor:
+    if dtype is None:
+        target_dtype = input.dtype
     else:
-        target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+        if dtype == 'float32':
+            target_dtype = torch.float32
+        elif dtype == 'int32':
+            target_dtype = torch.int32
+        else:
+            target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
 
     if target_dtype != input.dtype and device is not None:
-        input = input.to(dtype=target_dtype, device=device)
+        output = input.to(dtype=target_dtype, device=device)
     elif target_dtype != input.dtype:
-        input = input.to(dtype=target_dtype)
+        output = input.to(dtype=target_dtype)
     elif device is not None:
-        input = input.to(device=device)
+        output = input.to(device=device)
+    else:
+        output = input
 
-    return input
+    return output
 
 
 @jit
 def cast_like(input: Tensor, like: Tensor) -> Tensor:
-    if like.dtype != input.dtype:
-        input = input.to(dtype=like.dtype, device=like.device)
-    return input
+    return input.to(dtype=like.dtype, device=like.device)
 
 
+# ---- dtypes ----
 @jit
 def get_dtype(input: Tensor) -> str:
     if input.dtype == torch.float32:

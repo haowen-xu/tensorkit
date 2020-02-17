@@ -28,6 +28,12 @@ class _MyWrapper(BaseLayer):
         return self.wrapped(input)
 
 
+class _MyGetTraining(BaseLayer):
+
+    def forward(self) -> bool:
+        return self.training
+
+
 class UtilsAndConstantsTestCase(TestCase):
 
     def test_constants(self):
@@ -81,6 +87,44 @@ class UtilsAndConstantsTestCase(TestCase):
         self.assertListEqual(list(get_buffers(seq, recursive=False)), [])
         self.assertDictEqual(dict(get_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
         self.assertDictEqual(dict(get_named_buffers(seq, recursive=False)), {})
+
+    def test_layer_to_device(self):
+        for device in [None, T.CPU_DEVICE]:
+            layer = ResBlock2d(3, 4, kernel_size=2, device=device)
+            for param in tk.layers.get_parameters(layer):
+                self.assertEqual(T.get_device(param), device or T.current_device())
+
+            for device2 in [None, T.CPU_DEVICE]:
+                layer2 = tk.layers.layer_to_device(layer, device=device2)
+                for param in tk.layers.get_parameters(layer2):
+                    self.assertEqual(T.get_device(param), device2 or T.current_device())
+
+    def test_set_train_mode(self):
+        layers = [tk.layers.jit_compile(_MyGetTraining())
+                  for _ in range(3)]
+        layer = layers[0]
+
+        # set_train_mode
+        self.assertIs(tk.layers.set_train_mode(layer, True), layer)
+        self.assertEqual(layer(), True)
+        self.assertIs(tk.layers.set_train_mode(layer, False), layer)
+        self.assertEqual(layer(), False)
+
+        # set_eval_mode
+        tk.layers.set_train_mode(layer, True)
+        self.assertEqual(layer(), True)
+        self.assertIs(tk.layers.set_eval_mode(layer), layer)
+        self.assertEqual(layer(), False)
+
+        # scoped_eval_mode
+        for l in layers:
+            tk.layers.set_train_mode(l, True)
+            self.assertEqual(l(), True)
+        with tk.layers.scoped_eval_mode(layers[0], layers[1:]):
+            for l in layers:
+                self.assertEqual(l(), False)
+        for l in layers:
+            self.assertEqual(l(), True)
 
     def test_SimpleParamStore(self):
         initial_value = np.random.randn(2, 3, 4)
@@ -504,6 +548,9 @@ class BatchNormTestCase(TestCase):
             _ = layer(x)
             set_train_mode(layer, False)
             y = layer(x)
+            set_train_mode(layer, True)
+            set_eval_mode(layer)
+            y2 = layer(x)
 
             # manually compute the expected output
             if T.backend_name == 'PyTorch':
@@ -519,6 +566,7 @@ class BatchNormTestCase(TestCase):
 
             # check output
             assert_allclose(y, expected, rtol=1e-4, atol=1e-6)
+            assert_allclose(y2, expected, rtol=1e-4, atol=1e-6)
 
             # check invalid dimensions
             with pytest.raises(Exception, match='only supports .d input'):
@@ -568,6 +616,12 @@ class DropoutTestCase(TestCase):
 
             # ---- eval mode ----
             set_train_mode(layer, False)
+            y = layer(x)
+            self.assertTrue(np.all(T.to_numpy(y) != 0))
+            assert_allclose(y, x, rtol=1e-4, atol=1e-6)
+
+            set_train_mode(layer, True)
+            set_eval_mode(layer)
             y = layer(x)
             self.assertTrue(np.all(T.to_numpy(y) != 0))
             assert_allclose(y, x, rtol=1e-4, atol=1e-6)
