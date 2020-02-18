@@ -2,8 +2,6 @@ from contextlib import contextmanager
 from typing import *
 
 import torch
-from torch.optim import (adam, adadelta, adagrad, adamax,
-                         rmsprop, sgd)
 from torch.optim.optimizer import Optimizer as TorchOptimizer
 
 from .core import *
@@ -22,7 +20,7 @@ class Optimizer(object):
     def set_lr(self, lr: float):
         raise NotImplementedError()
 
-    def add_params(self, params: List[Variable]):
+    def add_param_group(self, params: Iterator[Variable]):
         raise NotImplementedError()
 
     def clear_grad(self):
@@ -56,6 +54,7 @@ class BackendOptimizer(Optimizer):
         self.torch_optimizer = torch_optimizer
         self.set_lr(lr)
 
+    @property
     def lr(self) -> float:
         return self._lr
 
@@ -65,7 +64,7 @@ class BackendOptimizer(Optimizer):
                 group['lr'] = lr
         self._lr = lr
 
-    def add_params(self, params: Sequence[Variable]):
+    def add_param_group(self, params: Iterator[Variable]):
         self.torch_optimizer.add_param_group({
             'params': list(params),
             'lr': self._lr,
@@ -91,6 +90,13 @@ class BackendOptimizer(Optimizer):
     def load_state_dict(self, state_dict: Dict[str, Any]):
         self.torch_optimizer.load_state_dict(state_dict)
 
+        # ensure that we've got all state on the same device as the parameters.
+        device = self.torch_optimizer.param_groups[0]['params'][0].device
+        for state in self.torch_optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device=device)
+
 
 class SGD(BackendOptimizer):
 
@@ -99,9 +105,18 @@ class SGD(BackendOptimizer):
                  lr: float,
                  momentum: float = 0.,
                  nesterov: bool = False):
+        """
+        Construct a new :class:`SGD` optimizer.
+
+        Args:
+            params: The parameters to be optimized.
+            lr: The learning rate.
+            momentum: The momentum.  Typically 0.9 for momentum SGD optimization.
+            nesterov: Whether or not to use Nesterov momentum optimizer?
+        """
         super().__init__(
             lr=lr,
-            torch_optimizer=torch.optim.sgd.SGD(
+            torch_optimizer=torch.optim.SGD(
                 params=params,
                 lr=lr,
                 momentum=momentum,
@@ -121,7 +136,7 @@ class Adam(BackendOptimizer):
                  amsgrad: bool = False):
         super().__init__(
             lr=lr,
-            torch_optimizer=adam.Adam(
+            torch_optimizer=torch.optim.Adam(
                 params=params,
                 lr=lr,
                 betas=(beta_1, beta_2),

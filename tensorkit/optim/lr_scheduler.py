@@ -1,5 +1,3 @@
-from typing import *
-
 import mltk
 
 from .core import *
@@ -30,8 +28,8 @@ class LRScheduler(object):
         """Update the learning rate of the optimizer according to the loop."""
         raise NotImplementedError()
 
-    def close(self):
-        """Close this scheduler, such that it will no longer affect the optimizer."""
+    def unbind_events(self):
+        """Unregister this scheduler from the loop events."""
         self._unbind_events(self.loop)
 
     def _bind_events(self, loop: mltk.TrainLoop):
@@ -42,6 +40,10 @@ class LRScheduler(object):
 
 
 class AnnealingLR(LRScheduler):
+    """
+    Learning rate scheduler that anneals the learning rate after every few
+    `epochs`, by a specified `ratio`.
+    """
 
     initial_lr: float
     ratio: float

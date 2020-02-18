@@ -586,6 +586,8 @@ def variable(shape: List[int],
         if list(initializer.shape) != shape:
             raise ValueError(f'`initializer.shape` != `shape`: '
                              f'{list(initializer.shape)} vs {shape}')
+        if isinstance(initializer, Tensor):
+            initializer = to_numpy(initializer)
         ret = as_tensor(initializer, dtype=target_dtype,
                         device=device, force_copy=force_copy)
         if requires_grad:

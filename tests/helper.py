@@ -13,7 +13,7 @@ __all__ = [
     'int_dtypes', 'float_dtypes', 'number_dtypes',
     'n_samples',
 
-    'assert_allclose', 'assert_not_equal', 'assert_equal',
+    'assert_allclose', 'assert_not_allclose', 'assert_equal',  'assert_not_equal',
 
     'slow_test',
 
@@ -47,9 +47,9 @@ assert_allclose = wrap_numpy_testing_assertion_fn(np.testing.assert_allclose)
 
 
 @wrap_numpy_testing_assertion_fn
-def assert_not_equal(x, y, err_msg=''):
-    if np.all(np.equal(x, y)):
-        msg = f'`x != y` not hold'
+def assert_not_allclose(x, y, err_msg='', **kwargs):
+    if np.all(np.allclose(x, y, **kwargs)):
+        msg = f'`not allclose(x, y)` not hold'
         if err_msg:
             msg += f': {err_msg}'
         msg += f'\nx = {x}\ny = {y}'
@@ -57,6 +57,16 @@ def assert_not_equal(x, y, err_msg=''):
 
 
 assert_equal = wrap_numpy_testing_assertion_fn(np.testing.assert_equal)
+
+
+@wrap_numpy_testing_assertion_fn
+def assert_not_equal(x, y, err_msg=''):
+    if np.all(np.equal(x, y)):
+        msg = f'`x != y` not hold'
+        if err_msg:
+            msg += f': {err_msg}'
+        msg += f'\nx = {x}\ny = {y}'
+        raise AssertionError(msg)
 
 
 # decorate a test that is slow
