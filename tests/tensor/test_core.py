@@ -266,7 +266,7 @@ class TensorCoreTestCase(TestCase):
                 ([1, 2, 3], []),
                 number_dtypes,
                 (None, T.CPU_DEVICE)):
-            t = T.ones(shape, dtype=dtype)
+            t = T.ones(shape, dtype=dtype, device=device)
             self.assertIsInstance(t, T.Tensor)
             self.assertEqual(T.get_dtype(t), dtype)
             self.assertEqual(T.get_device(t), device or T.current_device())

@@ -1,5 +1,6 @@
 from typing import *
 
+from .. import tensor as T
 from ..tensor import (Tensor, Module, shape, rank, flatten_to_ndims,
                       unflatten_from_ndims, pad)
 from ..tensor.nn import *
@@ -10,19 +11,22 @@ __all__ = [
     'ConstantPad', 'ConstantPad1d', 'ConstantPad2d', 'ConstantPad3d',
     'ChannelFirstToLast1d', 'ChannelFirstToLast2d', 'ChannelFirstToLast3d',
     'ChannelLastToFirst1d', 'ChannelLastToFirst2d', 'ChannelLastToFirst3d',
+    'ChannelDefaultToLast1d', 'ChannelDefaultToLast2d', 'ChannelDefaultToLast3d',
+    'ChannelLastToDefault1d', 'ChannelLastToDefault2d', 'ChannelLastToDefault3d',
 ]
 
 
 # ---- FlattenToNDims ----
 class FlattenToNDims(BaseLayer):
 
-    __constants__ = ('layer', 'ndims')
+    __constants__ = ('wrapped', 'ndims')
 
+    wrapped: Module
     ndims: int
 
     def __init__(self, layer: Module, ndims: int):
         super().__init__()
-        self.layer = layer
+        self.wrapped = layer
         self.ndims = ndims
 
     def forward(self, input: Tensor) -> Tensor:
@@ -38,7 +42,7 @@ class FlattenToNDims(BaseLayer):
 
         # flatten, get output from the layer, and then unflatten
         output, front_shape = flatten_to_ndims(input, expected_rank)
-        output = self.layer(output)
+        output = self.wrapped(output)
         return unflatten_from_ndims(output, front_shape)
 
 
@@ -163,3 +167,20 @@ class ChannelLastToFirst3d(BaseLayer):
 
     def forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first3d(input)
+
+
+if T.IS_CHANNEL_LAST:
+    ChannelLastToDefault1d = \
+        ChannelLastToDefault2d = \
+        ChannelLastToDefault3d = \
+        ChannelDefaultToLast1d = \
+        ChannelDefaultToLast2d = \
+        ChannelDefaultToLast3d = \
+        Identity
+else:
+    ChannelLastToDefault1d = ChannelLastToFirst1d
+    ChannelLastToDefault2d = ChannelLastToFirst2d
+    ChannelLastToDefault3d = ChannelLastToFirst3d
+    ChannelDefaultToLast1d = ChannelFirstToLast1d
+    ChannelDefaultToLast2d = ChannelFirstToLast2d
+    ChannelDefaultToLast3d = ChannelFirstToLast3d

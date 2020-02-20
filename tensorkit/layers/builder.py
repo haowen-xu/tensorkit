@@ -1,4 +1,3 @@
-import re
 from contextlib import contextmanager
 from typing import *
 
@@ -14,7 +13,7 @@ from .. import tensor as T
 from ..arg_check import *
 from ..typing_ import *
 
-__all__ = ['SequentialBuilder']
+__all__ = ['LayerArgs', 'SequentialBuilder']
 
 
 def _get_layer_class(name: str) -> type:
@@ -64,7 +63,7 @@ def _calculate_deconv_output_size(in_size, kernel_size, stride, padding, output_
         if i is None:
             out_size.append(None)
         else:
-            l = T.utils.calculate_deconv_output_size(d[i], [k], [s], [p], [op], [d])[0]
+            l = T.utils.calculate_deconv_output_size([i], [k], [s], [p], [op], [d])[0]
             out_size.append(l)
     return out_size
 
@@ -157,6 +156,8 @@ class LayerArgs(object):
         Returns:
             The built layer object.
         """
+        if isinstance(type_, str):
+            type_ = _get_layer_class(type_)
         return type_(*args, **self.get_kwargs(type_, **kwargs))
 
 
@@ -176,7 +177,7 @@ class SequentialBuilder(object):
                  *,
                  in_shape: Sequence[Optional[int]] = NOT_SET,
                  in_channels: Optional[int] = NOT_SET,
-                 in_spatial_shape: List[int] = NOT_SET,
+                 in_size: Sequence[Optional[int]] = NOT_SET,
                  in_builder: 'SequentialBuilder' = NOT_SET):
         """
         Construct a new :class:`SequentialBuilder`.
@@ -188,7 +189,7 @@ class SequentialBuilder(object):
                 used as the `in_shape` of this :class:`SequentialBuilder`.
             in_shape: The input shape.
             in_channels: The number of input channels.
-            in_spatial_shape: The input spatial shape.  Can be specified
+            in_size: The input spatial size.  Can be specified
                 only if `in_channels` is specified, or `in_spec` is a int.
             in_builder: Explicitly specify the previous sequential builder.
         """
@@ -201,28 +202,30 @@ class SequentialBuilder(object):
                 '`in_builder` should be specified.'
             )
 
+        layer_args = None
         if isinstance(in_spec, SequentialBuilder):
             in_builder = in_spec
             layer_args = LayerArgs(in_builder.layer_args)
         elif hasattr(in_spec, '__iter__'):
             in_shape = in_spec
-            layer_args = LayerArgs()
-        else:
+        elif in_spec is not NOT_SET:
             in_channels = in_spec
+
+        if layer_args is None:
             layer_args = LayerArgs()
 
-        if in_spatial_shape is not NOT_SET and in_channels is NOT_SET:
+        if in_size is not NOT_SET and in_channels is NOT_SET:
             raise ValueError(
-                '`in_spatial_shape` can be specified only when `in_channels` '
+                '`in_size` can be specified only when `in_channels` '
                 'is specified, or `in_spec` is None or an integer.'
             )
 
         if in_shape is not NOT_SET:
             in_shape = list(in_shape)
         elif in_channels is not NOT_SET:
-            if in_spatial_shape is NOT_SET:
-                in_spatial_shape = []
-            in_shape = _unsplit_channel_spatial(in_channels, in_spatial_shape)
+            if in_size is NOT_SET:
+                in_size = []
+            in_shape = _unsplit_channel_spatial(in_channels, in_size)
         else:
             in_shape = list(in_builder.out_shape)
 
@@ -238,7 +241,7 @@ class SequentialBuilder(object):
                           spatial: Optional[Sequence[bool]] = None,
                           at_least: bool = False) -> List[Optional[int]]:
         if shape is None:
-            if channel is None:
+            if channel is None:  # pragma: no cover
                 raise ValueError('`channel` must be specified when `shape` is not.')
             shape = _unsplit_channel_spatial(channel, spatial or [])
 
@@ -315,7 +318,7 @@ class SequentialBuilder(object):
             out_shape: List[Optional[int]] = NOT_SET,
             *,
             out_channels: Optional[int] = NOT_SET,
-            out_spatial_shape: List[Optional[int]] = NOT_SET
+            out_size: List[Optional[int]] = NOT_SET
             ) -> 'SequentialBuilder':
         """
         Manually add a layer to this builder.
@@ -325,23 +328,23 @@ class SequentialBuilder(object):
             out_shape: The new output shape.
             out_channels: The new output channels.  Should be specified and
                 only be specified when `out_shape` is not.
-            out_spatial_shape: The new spatial shape.  Should only be specified
+            out_size: The new spatial shape.  Should only be specified
                 when `out_channels` is specified.
 
         Returns:
             This sequential builder object.
         """
+        if out_size is not NOT_SET and out_channels is NOT_SET:
+            raise ValueError('`out_size` can only be specified when '
+                             '`out_channels` is specified.')
         if (out_shape is NOT_SET) == (out_channels is NOT_SET):
             raise ValueError('Either `out_shape` or `out_channels` should be '
                              'specified, but not both.')
-        if out_spatial_shape is not NOT_SET and out_channels is NOT_SET:
-            raise ValueError('`out_spatial_shape` can only be specified when '
-                             '`out_channels` is specified.')
 
         if out_channels is not NOT_SET:
-            if out_spatial_shape is NOT_SET:
-                out_spatial_shape = []
-            out_shape = _unsplit_channel_spatial(out_channels, out_spatial_shape)
+            if out_size is NOT_SET:
+                out_size = []
+            out_shape = _unsplit_channel_spatial(out_channels, out_size)
 
         self.layers.append(layer)
         self.out_shape = out_shape
@@ -359,7 +362,7 @@ class SequentialBuilder(object):
             The built sequential layer.
         """
         if not self.layers:
-            raise RuntimeError('No layer has been added.')
+            return Identity()
         elif len(self.layers) == 1:
             layer = self.layers[0]
         else:
@@ -368,6 +371,10 @@ class SequentialBuilder(object):
         if flatten_to_ndims:
             layer = FlattenToNDims(layer, ndims=len(self.in_shape) + 1)
         return layer
+
+    # ---- identity layer (add no layer) ----
+    def identity(self):
+        return self
 
     # ---- activation ----
     def _make_activation(self, type_):
@@ -404,10 +411,13 @@ class SequentialBuilder(object):
 
     # ---- convolution layers ----
     def _conv_nd(self, spatial_ndims, conv_cls, out_channels, **kwargs):
+        kwargs = self.layer_args.get_kwargs(conv_cls, **kwargs)
+        if 'kernel_size' not in kwargs:
+            raise ValueError('The `kernel_size` argument is required.')
+
         in_channels, in_size = self._split_out_shape(True, [False] * spatial_ndims)
 
         # validate the arguments
-        kwargs = self.layer_args.get_kwargs(conv_cls, **kwargs)
         kernel_size = validate_conv_size('kernel_size', kwargs['kernel_size'], spatial_ndims)
         stride = validate_conv_size('stride', kwargs.get('stride', 1), spatial_ndims)
         dilation = validate_conv_size('dilation', kwargs.get('dilation', 1), spatial_ndims)
@@ -469,10 +479,17 @@ class SequentialBuilder(object):
 
     # ---- deconvolution layers ----
     def _deconv_nd(self, spatial_ndims, deconv_cls, out_channels, output_size, **kwargs):
+        kwargs = self.layer_args.get_kwargs(deconv_cls, **kwargs)
+        if 'kernel_size' not in kwargs:
+            raise ValueError('The `kernel_size` argument is required.')
+
+        if output_size is not NOT_SET:
+            kwargs.pop('output_size', None)
+        else:
+            output_size = kwargs.pop('output_size', NOT_SET)
         in_channels, in_size = self._split_out_shape(True, [False] * spatial_ndims)
 
         # validate the arguments
-        kwargs = self.layer_args.get_kwargs(deconv_cls, **kwargs)
         kernel_size = validate_conv_size('kernel_size', kwargs['kernel_size'], spatial_ndims)
         stride = validate_conv_size('stride', kwargs.get('stride', 1), spatial_ndims)
         dilation = validate_conv_size('dilation', kwargs.get('dilation', 1), spatial_ndims)
@@ -480,7 +497,7 @@ class SequentialBuilder(object):
             kwargs.get('padding', PaddingMode.DEFAULT), kernel_size, dilation, spatial_ndims)
 
         if 'output_padding' in kwargs and output_size is not NOT_SET:
-            raise ValueError('`output_padding` and `out_shape` cannot be both specified.')
+            raise ValueError('`output_padding` and `output_size` cannot be both specified.')
         elif output_size is not NOT_SET:
             if len(output_size) != spatial_ndims:
                 raise ValueError(
@@ -493,12 +510,9 @@ class SequentialBuilder(object):
                     f'is supported only when the previous output shape '
                     f'is all deterministic.'
                 )
+            output_padding = T.utils.calculate_deconv_output_padding(
+                in_size, output_size, kernel_size, stride, padding, dilation)
             out_size = output_size
-            output_padding = [
-                T.utils.calculate_deconv_output_padding(*args)
-                for args in zip(
-                    in_size, output_size, kernel_size, stride, padding, dilation)
-            ]
         elif 'output_padding' in kwargs:
             output_padding = validate_output_padding(
                 kwargs.get('output_padding', 0), stride, dilation, spatial_ndims)
@@ -523,63 +537,63 @@ class SequentialBuilder(object):
                                 output_size: List[int] = NOT_SET,
                                 **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            1, LinearConvTranspose1d, out_channels, output_size, **kwargs)
+            1, LinearConvTranspose1d, out_channels, output_size=output_size, **kwargs)
 
     def linear_conv_transpose2d(self,
                                 out_channels: int,
                                 output_size: List[int] = NOT_SET,
                                 **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            2, LinearConvTranspose2d, out_channels, output_size, **kwargs)
+            2, LinearConvTranspose2d, out_channels, output_size=output_size, **kwargs)
 
     def linear_conv_transpose3d(self,
                                 out_channels: int,
                                 output_size: List[int] = NOT_SET,
                                 **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            3, LinearConvTranspose3d, out_channels, output_size, **kwargs)
+            3, LinearConvTranspose3d, out_channels, output_size=output_size, **kwargs)
 
     def conv_transpose1d(self,
                          out_channels: int,
                          output_size: List[int] = NOT_SET,
                          **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            1, ConvTranspose1d, out_channels, output_size, **kwargs)
+            1, ConvTranspose1d, out_channels, output_size=output_size, **kwargs)
 
     def conv_transpose2d(self,
                          out_channels: int,
                          output_size: List[int] = NOT_SET,
                          **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            2, ConvTranspose2d, out_channels, output_size, **kwargs)
+            2, ConvTranspose2d, out_channels, output_size=output_size, **kwargs)
 
     def conv_transpose3d(self,
                          out_channels: int,
                          output_size: List[int] = NOT_SET,
                          **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            3, ConvTranspose3d, out_channels, output_size, **kwargs)
+            3, ConvTranspose3d, out_channels, output_size=output_size, **kwargs)
 
     def res_block_transpose1d(self,
                               out_channels: int,
                               output_size: List[int] = NOT_SET,
                               **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            1, ResBlockTranspose1d, out_channels, output_size, **kwargs)
+            1, ResBlockTranspose1d, out_channels, output_size=output_size, **kwargs)
 
     def res_block_transpose2d(self,
                               out_channels: int,
                               output_size: List[int] = NOT_SET,
                               **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            2, ResBlockTranspose2d, out_channels, output_size, **kwargs)
+            2, ResBlockTranspose2d, out_channels, output_size=output_size, **kwargs)
 
     def res_block_transpose3d(self,
                               out_channels: int,
                               output_size: List[int] = NOT_SET,
                               **kwargs) -> 'SequentialBuilder':
         return self._deconv_nd(
-            3, ResBlockTranspose3d, out_channels, output_size, **kwargs)
+            3, ResBlockTranspose3d, out_channels, output_size=output_size, **kwargs)
 
     # aliases for the deconvolution layers
     linear_deconv1d = linear_conv_transpose1d
@@ -591,10 +605,13 @@ class SequentialBuilder(object):
 
     # ---- pool layers ----
     def _pool_nd(self, spatial_ndims, pool_cls, **kwargs):
-        in_channels, in_size = self._split_out_shape(True, [False] * spatial_ndims)
+        kwargs = self.layer_args.get_kwargs(pool_cls, **kwargs)
+        if 'kernel_size' not in kwargs:
+            raise ValueError('The `kernel_size` argument is required.')
+
+        in_channels, in_size = self._split_out_shape(False, [False] * spatial_ndims)
 
         # validate the arguments
-        kwargs = self.layer_args.get_kwargs(pool_cls, **kwargs)
         kernel_size = validate_conv_size('kernel_size', kwargs['kernel_size'], spatial_ndims)
         stride = validate_conv_size('stride', kwargs.get('stride', kernel_size), spatial_ndims)
         dilation = [1] * spatial_ndims
@@ -627,13 +644,15 @@ class SequentialBuilder(object):
         return self._pool_nd(3, MaxPool3d, **kwargs)
 
     def _global_avg_pool_nd(self, spatial_ndims, pool_cls, **kwargs):
-        in_channels, in_size = self._split_out_shape(True, [False] * spatial_ndims)
+        kwargs = self.layer_args.get_kwargs(pool_cls, **kwargs)
         keepdims = kwargs.get('keepdims', False)
+
+        in_channels, in_size = self._split_out_shape(False, [False] * spatial_ndims)
         if keepdims:
             out_shape = _unsplit_channel_spatial(in_channels, [1] * spatial_ndims)
         else:
             out_shape = [in_channels]
-        layer = pool_cls(**self.layer_args.get_kwargs(pool_cls, **kwargs))
+        layer = pool_cls(**kwargs)
         return self.add(layer, out_shape)
 
     def global_avg_pool1d(self, **kwargs) -> 'SequentialBuilder':
@@ -644,3 +663,48 @@ class SequentialBuilder(object):
 
     def global_avg_pool3d(self, **kwargs) -> 'SequentialBuilder':
         return self._global_avg_pool_nd(3, GlobalAvgPool3d, **kwargs)
+
+    # ---- reshape layers ----
+    def _channel_first_to_last_nd(self, spatial_ndims, layer_cls):
+        in_shape = self._assert_out_shape([False] * (spatial_ndims + 1))
+        out_shape = in_shape[1:] + in_shape[:1]
+        return self.add(layer_cls(), out_shape)
+
+    def channel_first_to_last1d(self):
+        return self._channel_first_to_last_nd(1, ChannelFirstToLast1d)
+
+    def channel_first_to_last2d(self):
+        return self._channel_first_to_last_nd(2, ChannelFirstToLast2d)
+
+    def channel_first_to_last3d(self):
+        return self._channel_first_to_last_nd(3, ChannelFirstToLast3d)
+
+    def _channel_last_to_first_nd(self, spatial_ndims, layer_cls):
+        in_shape = self._assert_out_shape([False] * (spatial_ndims + 1))
+        out_shape = in_shape[-1:] + in_shape[:-1]
+        return self.add(layer_cls(), out_shape)
+
+    def channel_last_to_first1d(self):
+        return self._channel_last_to_first_nd(1, ChannelLastToFirst1d)
+
+    def channel_last_to_first2d(self):
+        return self._channel_last_to_first_nd(2, ChannelLastToFirst2d)
+
+    def channel_last_to_first3d(self):
+        return self._channel_last_to_first_nd(3, ChannelLastToFirst3d)
+
+    if T.IS_CHANNEL_LAST:
+        channel_last_to_default1d = \
+            channel_last_to_default2d = \
+            channel_last_to_default3d = \
+            channel_default_to_last1d = \
+            channel_default_to_last2d = \
+            channel_default_to_last3d = \
+            identity
+    else:
+        channel_last_to_default1d = channel_last_to_first1d
+        channel_last_to_default2d = channel_last_to_first2d
+        channel_last_to_default3d = channel_last_to_first3d
+        channel_default_to_last1d = channel_first_to_last1d
+        channel_default_to_last2d = channel_first_to_last2d
+        channel_default_to_last3d = channel_first_to_last3d
