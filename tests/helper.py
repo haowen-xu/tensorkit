@@ -1,4 +1,7 @@
 import os
+import random
+import unittest
+from functools import wraps
 
 import numpy as np
 import pytest
@@ -10,11 +13,13 @@ __all__ = [
     'int_dtypes', 'float_dtypes', 'number_dtypes',
     'n_samples',
 
-    'assert_allclose', 'assert_not_equal', 'assert_equal',
+    'assert_allclose', 'assert_not_allclose', 'assert_equal',  'assert_not_equal',
 
     'slow_test',
 
     'check_distribution_instance', 'flow_standard_check',
+
+    'TestCase',
 ]
 
 
@@ -42,9 +47,9 @@ assert_allclose = wrap_numpy_testing_assertion_fn(np.testing.assert_allclose)
 
 
 @wrap_numpy_testing_assertion_fn
-def assert_not_equal(x, y, err_msg=''):
-    if np.all(np.equal(x, y)):
-        msg = f'`x != y` not hold'
+def assert_not_allclose(x, y, err_msg='', **kwargs):
+    if np.all(np.allclose(x, y, **kwargs)):
+        msg = f'`not allclose(x, y)` not hold'
         if err_msg:
             msg += f': {err_msg}'
         msg += f'\nx = {x}\ny = {y}'
@@ -52,6 +57,16 @@ def assert_not_equal(x, y, err_msg=''):
 
 
 assert_equal = wrap_numpy_testing_assertion_fn(np.testing.assert_equal)
+
+
+@wrap_numpy_testing_assertion_fn
+def assert_not_equal(x, y, err_msg=''):
+    if np.all(np.equal(x, y)):
+        msg = f'`x != y` not hold'
+        if err_msg:
+            msg += f': {err_msg}'
+        msg += f'\nx = {x}\ny = {y}'
+        raise AssertionError(msg)
 
 
 # decorate a test that is slow
@@ -216,3 +231,35 @@ def flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
     x, log_det = flow(y, inverse=True, compute_log_det=False)
     assert_allclose(x, expected_x, rtol=1e-4, atol=1e-6)
     ctx.assertIsNone(log_det)
+
+
+class TestCaseMeta(type):
+
+    def __new__(cls, name, parents, dct):
+        def make_wrapper(method):
+            @wraps(method)
+            def wrapper(*args, **kwargs):
+                T.random.set_deterministic(True)
+                T.random.seed(1234)
+                np.random.seed(1234)
+                random.seed(1234)
+
+                try:
+                    with T.use_device(T.first_gpu_device()):
+                        return method(*args, **kwargs)
+                finally:
+                    T.random.set_deterministic(False)
+            return wrapper
+
+        keys = list(dct)
+        for key in keys:
+            val = dct[key]
+            if key.startswith('test_'):
+                val = make_wrapper(val)
+            dct[key] = val
+
+        return super().__new__(cls, name, parents, dct)
+
+
+class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+    pass

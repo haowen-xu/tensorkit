@@ -3,13 +3,12 @@ import unittest
 import numpy as np
 
 from tensorkit import tensor as T
-from tests.helper import assert_allclose
+from tests.helper import *
 
 
-class LinalgTestCase(unittest.TestCase):
+class LinalgTestCase(TestCase):
 
     def test_qr(self):
-        np.random.seed(1234)
         for k in [1, 5]:
             m = np.random.randn(k, k)
             q, r = T.linalg.qr(T.as_tensor(m))
@@ -18,7 +17,6 @@ class LinalgTestCase(unittest.TestCase):
             assert_allclose(r, expected_r)
 
     def test_slogdet(self):
-        np.random.seed(1234)
         for k in [1, 5]:
             m = np.random.randn(k, k)
             sign, logdet = T.linalg.slogdet(T.as_tensor(m))

@@ -48,10 +48,10 @@ def check_resblock(ctx,
     # force `use_bias` = False
     layer = resblock_cls(in_channels=5, out_channels=5, kernel_size=1,
                          use_bias=False)
-    ctx.assertIsNone(layer.conv0.bias_store)
-    ctx.assertIsNone(layer.conv1.bias_store)
+    ctx.assertFalse(layer.conv0.use_bias)
+    ctx.assertFalse(layer.conv1.use_bias)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         x + layer.conv1(layer.conv0(x)),
@@ -63,7 +63,7 @@ def check_resblock(ctx,
                          use_shortcut=True)
     ctx.assertIsInstance(layer.shortcut, linear_cls)
     ctx.assertIsInstance(layer.shortcut.weight_store, tk.layers.SimpleParamStore)
-    ctx.assertIsNone(layer.shortcut.bias_store)
+    ctx.assertFalse(layer.shortcut.use_bias)
     ctx.assertEqual(layer.shortcut.kernel_size, [1] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.stride, [1] * spatial_ndims)
     ctx.assertEqual(layer.shortcut.padding, [(0, 0)] * spatial_ndims)
@@ -71,7 +71,7 @@ def check_resblock(ctx,
     ctx.assertIsNotNone(layer.conv0.bias_store)
     ctx.assertIsNotNone(layer.conv1.bias_store)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         layer.shortcut(x) + layer.conv1(layer.conv0(x)),
@@ -101,7 +101,7 @@ def check_resblock(ctx,
         **output_padding_arg
     )
     ctx.assertIsInstance(layer.shortcut, linear_cls)
-    ctx.assertIsNone(layer.shortcut.bias_store)
+    ctx.assertFalse(layer.shortcut.use_bias)
     ctx.assertEqual(layer.shortcut.kernel_size, kernel_size)
     ctx.assertEqual(layer.shortcut.stride, stride)
     ctx.assertEqual(layer.shortcut.padding, padding)
@@ -122,7 +122,7 @@ def check_resblock(ctx,
     ctx.assertEqual(layer.conv1.dilation, dilation)
     ctx.assertEqual(layer.conv1.out_channels, 4)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(layer(x), layer.shortcut(x) + layer.conv1(layer.conv0(x)))
 
     # test resize_at_exit = True
@@ -141,7 +141,7 @@ def check_resblock(ctx,
     ctx.assertEqual(layer.conv1.padding, padding)
     ctx.assertEqual(layer.conv1.out_channels, 4)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         layer.shortcut(x) + layer.conv1(layer.conv0(x)),
@@ -158,7 +158,7 @@ def check_resblock(ctx,
     tk.layers.set_train_mode(layer, True)
     _ = layer(x)  # initialize the normalizers
     tk.layers.set_train_mode(layer, False)
-    ctx.assertIsNone(layer.conv0.bias_store)
+    ctx.assertFalse(layer.conv0.use_bias)
     ctx.assertIsInstance(layer.pre_conv0, tk.layers.Sequential)
     ctx.assertIsInstance(layer.pre_conv0[0], normalizer_cls)
     ctx.assertIsInstance(layer.pre_conv0[1], tk.layers.LeakyReLU)
@@ -168,7 +168,7 @@ def check_resblock(ctx,
     ctx.assertIsInstance(layer.pre_conv1[1], tk.layers.LeakyReLU)
     ctx.assertEqual(len(layer.pre_conv1), 2)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         (layer.shortcut(x) +
@@ -200,7 +200,7 @@ def check_resblock(ctx,
         _ = layer(x)
         tk.layers.set_train_mode(layer, False)
 
-        layer = T.jit_compile(layer)
+        layer = tk.layers.jit_compile(layer)
         assert_allclose(
             layer(x),
             (layer.shortcut(x) +
@@ -220,7 +220,7 @@ def check_resblock(ctx,
     ctx.assertIsInstance(layer.post_conv1, tk.layers.Gated)
     ctx.assertEqual(layer.post_conv1.gate_bias, 1.5)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         (layer.shortcut(x) + layer.post_conv1(
@@ -242,7 +242,7 @@ def check_resblock(ctx,
     ctx_shape = make_conv_shape([3], 5, [1] * spatial_ndims)
     context = [T.random.randn(ctx_shape), T.random.randn(ctx_shape)]
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x, context),
         (layer.shortcut(x) +
@@ -265,7 +265,7 @@ def check_resblock(ctx,
     ctx.assertIs(layer.conv0, conv0)
     ctx.assertIs(layer.conv1, conv1)
 
-    layer = T.jit_compile(layer)
+    layer = tk.layers.jit_compile(layer)
     assert_allclose(
         layer(x),
         layer.shortcut(x) + layer.conv1(layer.conv0(x)),
@@ -320,10 +320,9 @@ def check_resblock(ctx,
     ctx.assertIsInstance(layer.conv1.weight_store, tk.layers.NormedAndScaledWeightStore)
 
 
-class ResBlockTestCase(unittest.TestCase):
+class ResBlockTestCase(TestCase):
 
     def test_resblock(self):
-        T.random.seed(1234)
         for spatial_ndims in (1, 2, 3):
             resblock_cls = getattr(tk.layers, f'ResBlock{spatial_ndims}d')
             check_resblock(
@@ -340,7 +339,6 @@ class ResBlockTestCase(unittest.TestCase):
                                  output_padding=1)
 
     def test_resblock_transpose(self):
-        T.random.seed(1234)
         for spatial_ndims, output_padding in product((1, 2, 3), (0, 1)):
             check_resblock(
                 ctx=self,

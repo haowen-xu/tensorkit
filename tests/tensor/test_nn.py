@@ -11,20 +11,19 @@ from tests.helper import *
 from tests.ops import *
 
 
-class TensorNNTestCase(unittest.TestCase):
+class TensorNNTestCase(TestCase):
 
     def test_constants(self):
         self.assertEqual(T.nn.LEAKY_RELU_DEFAULT_SLOPE, 0.01)
         self.assertFalse(T.nn.AVG_POOL_DEFAULT_COUNT_PADDED_ZEROS)
 
     def test_activation_functions(self):
-        np.random.seed(1234)
         x = np.random.randn(2, 3, 4)
         x = np.concatenate([x, np.zeros([2, 3, 1])], axis=-1)
         self.assertTrue(np.any(x < 0))
         self.assertTrue(np.any(x > 0))
         self.assertTrue(np.any(x == 0))
-        x_t = T.as_tensor_backend(x)
+        x_t = T.as_tensor(x)
 
         # test relu
         assert_allclose(T.nn.relu(x_t), x * (x >= 0))
@@ -115,8 +114,6 @@ class TensorNNTestCase(unittest.TestCase):
                 out = -out
             return out
 
-        np.random.seed(1234)
-
         logits = np.random.randn(2, 3, 4)
         sparse_labels = sigmoid(np.random.randn(3, 4))
         labels = (sparse_labels < 0.5).astype(np.int32)
@@ -126,7 +123,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1})
 
-        _f = T.as_tensor_backend
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -183,8 +180,6 @@ class TensorNNTestCase(unittest.TestCase):
             return sparse_cross_entropy(
                 logits, sparse_labels, reduction, negative)
 
-        np.random.seed(1234)
-
         logits = np.random.randn(2, 3, 4, 5, 6)
         sparse_labels = softmax(np.random.randn(3, 4, 5, 6), axis=-1)
         labels = np.argmax(sparse_labels, axis=-1)
@@ -193,7 +188,7 @@ class TensorNNTestCase(unittest.TestCase):
         self.assertEqual(labels.shape, (3, 4, 5))
         self.assertEqual(set(labels.flatten().tolist()), {0, 1, 2, 3, 4, 5})
 
-        _f = T.as_tensor_backend
+        _f = T.as_tensor
 
         for reduction in ['none', 'mean', 'sum']:
             for negative in [False, True]:
@@ -201,6 +196,12 @@ class TensorNNTestCase(unittest.TestCase):
                 ans = cross_entropy(logits, labels, reduction, negative)
                 out = T.nn.cross_entropy_with_logits(
                     _f(logits), _f(labels), reduction, negative)
+                assert_allclose(ans, out)
+
+                # test cross_entropy with int32 labels
+                ans = cross_entropy(logits, labels, reduction, negative)
+                out = T.nn.cross_entropy_with_logits(
+                    _f(logits), T.cast(_f(labels), dtype=T.int32), reduction, negative)
                 assert_allclose(ans, out)
 
                 # test cross_entropy on 2d
@@ -423,7 +424,6 @@ class TensorNNTestCase(unittest.TestCase):
                         f'count_padded_zeros={count_padded_zeros}'
             )
 
-        np.random.seed(1234)
         spatial_shape = [12, 13, 14]
         for spatial_ndims in (1, 2):
             x = np.random.uniform(

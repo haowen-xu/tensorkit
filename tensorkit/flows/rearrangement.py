@@ -1,7 +1,7 @@
 from typing import *
 
 from .. import tensor as T
-from ..tensor import Tensor, argsort, index_select, as_tensor_backend
+from ..tensor import Tensor, argsort, index_select, float_scalar_like
 from ..tensor.random import random_permutation
 from ..layers import *
 from .core import *
@@ -30,7 +30,8 @@ class FeatureShufflingFlow(FeatureMappingFlow):
     def __init__(self,
                  num_features: int,
                  axis: int = -1, 
-                 event_ndims: int = 1):
+                 event_ndims: int = 1,
+                 device: Optional[str] = None):
         """
         Construct a new :class:`FeatureShufflingFlow`.
 
@@ -39,13 +40,15 @@ class FeatureShufflingFlow(FeatureMappingFlow):
             axis: The feature axis, to apply the transformation.
             event_ndims: Number of dimensions to be considered as the
                 event dimensions.  `x.ndims - event_ndims == log_det.ndims`.
+            device: The device where to place new tensors and variables.
         """
         super().__init__(axis=int(axis), event_ndims=event_ndims,
                          explicitly_invertible=True)
         self.num_features = num_features
 
         # initialize the permutation variable, and the inverse permutation
-        permutation = random_permutation(num_features, dtype=T.index_dtype)
+        permutation = random_permutation(num_features, dtype=T.index_dtype,
+                                         device=device)
         inv_permutation = argsort(permutation)
 
         # register the permutation as layer parameter, such that it could be
@@ -54,19 +57,19 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         add_parameter(self, 'inv_permutation', inv_permutation,
                       requires_grad=False)
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = index_select(input, self.inv_permutation, axis=self.axis)
         else:
             output = index_select(input, self.permutation, axis=self.axis)
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:
-            output_log_det = as_tensor_backend(0., dtype=input.dtype)
+            output_log_det = float_scalar_like(0., input)
         return output, output_log_det
 
 

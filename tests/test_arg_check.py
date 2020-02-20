@@ -5,9 +5,10 @@ import pytest
 import tensorkit as tk
 from tensorkit import tensor as T
 from tensorkit.arg_check import *
+from tests.helper import *
 
 
-class ArgCheckTestCase(unittest.TestCase):
+class ArgCheckTestCase(TestCase):
 
     def test_validate_positive_int(self):
         for v in [1, 2, 3]:
@@ -20,7 +21,7 @@ class ArgCheckTestCase(unittest.TestCase):
 
     def test_validate_layer(self):
         layer = tk.layers.Linear(5, 3)
-        for v in [layer, T.jit_compile(layer)]:
+        for v in [layer, tk.layers.jit_compile(layer)]:
             self.assertIs(validate_layer('v', v), v)
 
         with pytest.raises(TypeError,
@@ -40,7 +41,7 @@ class ArgCheckTestCase(unittest.TestCase):
         factory = lambda in_features, out_features: \
             tk.layers.Linear(in_features, out_features)
         layer = factory(5, 3)
-        for v in [layer, T.jit_compile(layer),
+        for v in [layer, tk.layers.jit_compile(layer),
                   tk.layers.Linear, factory]:
             out = get_layer_from_layer_or_factory(
                 'v', v, args=(5,), kwargs=dict(out_features=3))

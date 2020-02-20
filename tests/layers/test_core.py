@@ -14,7 +14,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class _MyWrapper(BaseSingleVariateLayer):
+class _MyWrapper(BaseLayer):
 
     __constants__ = ('wrapped',)
 
@@ -24,11 +24,17 @@ class _MyWrapper(BaseSingleVariateLayer):
         super().__init__()
         self.wrapped = wrapped
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return self.wrapped(input)
 
 
-class UtilsAndConstantsTestCase(unittest.TestCase):
+class _MyGetTraining(BaseLayer):
+
+    def forward(self) -> bool:
+        return self.training
+
+
+class UtilsAndConstantsTestCase(TestCase):
 
     def test_constants(self):
         self.assertEqual(tk.layers.DEFAULT_GATE_BIAS, 2.0)
@@ -67,14 +73,58 @@ class UtilsAndConstantsTestCase(unittest.TestCase):
         c = get_buffer(layer, 'c')
         c2 = get_buffer(layer, 'c2')
 
-        self.assertDictEqual(dict(get_parameters(layer)), {'w': w, 'w2': w2})
-        self.assertDictEqual(dict(get_buffers(layer)), {'c': c, 'c2': c2})
+        self.assertListEqual(list(get_parameters(layer)), [w, w2])
+        self.assertDictEqual(dict(get_named_parameters(layer)), {'w': w, 'w2': w2})
+        self.assertListEqual(list(get_buffers(layer)), [c, c2])
+        self.assertDictEqual(dict(get_named_buffers(layer)), {'c': c, 'c2': c2})
 
         seq = _MyWrapper(layer)
-        self.assertDictEqual(dict(get_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
-        self.assertDictEqual(dict(get_parameters(seq, recursive=False)), {})
-        self.assertDictEqual(dict(get_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
-        self.assertDictEqual(dict(get_buffers(seq, recursive=False)), {})
+        self.assertListEqual(list(get_parameters(seq)), [w, w2])
+        self.assertListEqual(list(get_parameters(seq, recursive=False)), [])
+        self.assertDictEqual(dict(get_named_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
+        self.assertDictEqual(dict(get_named_parameters(seq, recursive=False)), {})
+        self.assertListEqual(list(get_buffers(seq)), [c, c2])
+        self.assertListEqual(list(get_buffers(seq, recursive=False)), [])
+        self.assertDictEqual(dict(get_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
+        self.assertDictEqual(dict(get_named_buffers(seq, recursive=False)), {})
+
+    def test_layer_to_device(self):
+        for device in [None, T.CPU_DEVICE]:
+            layer = ResBlock2d(3, 4, kernel_size=2, device=device)
+            for param in tk.layers.get_parameters(layer):
+                self.assertEqual(T.get_device(param), device or T.current_device())
+
+            for device2 in [None, T.CPU_DEVICE]:
+                layer2 = tk.layers.layer_to_device(layer, device=device2)
+                for param in tk.layers.get_parameters(layer2):
+                    self.assertEqual(T.get_device(param), device2 or T.current_device())
+
+    def test_set_train_mode(self):
+        layers = [tk.layers.jit_compile(_MyGetTraining())
+                  for _ in range(3)]
+        layer = layers[0]
+
+        # set_train_mode
+        self.assertIs(tk.layers.set_train_mode(layer, True), layer)
+        self.assertEqual(layer(), True)
+        self.assertIs(tk.layers.set_train_mode(layer, False), layer)
+        self.assertEqual(layer(), False)
+
+        # set_eval_mode
+        tk.layers.set_train_mode(layer, True)
+        self.assertEqual(layer(), True)
+        self.assertIs(tk.layers.set_eval_mode(layer), layer)
+        self.assertEqual(layer(), False)
+
+        # scoped_eval_mode
+        for l in layers:
+            tk.layers.set_train_mode(l, True)
+            self.assertEqual(l(), True)
+        with tk.layers.scoped_eval_mode(layers[0], layers[1:]):
+            for l in layers:
+                self.assertEqual(l(), False)
+        for l in layers:
+            self.assertEqual(l(), True)
 
     def test_SimpleParamStore(self):
         initial_value = np.random.randn(2, 3, 4)
@@ -165,15 +215,15 @@ class UtilsAndConstantsTestCase(unittest.TestCase):
         self.assertIsNone(store)
 
 
-class IdentityTestCase(unittest.TestCase):
+class IdentityTestCase(TestCase):
 
     def test_identity(self):
-        layer = T.jit_compile(Identity())
+        layer = tk.layers.jit_compile(Identity())
         x = T.random.randn([2, 3, 4])
         assert_equal(x, layer(x))
 
 
-class _MySingleVariateLayer(BaseSingleVariateLayer):
+class _MySingleVariateLayer(BaseLayer):
 
     bias: float
 
@@ -190,29 +240,28 @@ class _MySingleVariateLayer(BaseSingleVariateLayer):
         return x + T.from_numpy(np.arange(x.shape[-1]),
                                 dtype=T.get_dtype(x))
 
-    @T.jit_method
-    def _forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         return self._add_numpy_array(x * 11. + self.bias)
 
 
-class _MyMultiVariateLayer(BaseMultiVariateLayer):
+class _MyMultiVariateLayer(BaseLayer):
 
-    def _forward(self, inputs: List[Tensor]) -> List[Tensor]:
+    def forward(self, inputs: List[Tensor]) -> List[Tensor]:
         ret: List[Tensor] = []
         for i in range(len(inputs) - 1):
             ret.append(inputs[i] + inputs[i + 1])
         return ret
 
 
-class _MySplitLayer(BaseSplitLayer):
+class _MySplitLayer(BaseLayer):
 
-    def _forward(self, input: Tensor) -> List[Tensor]:
+    def forward(self, input: Tensor) -> List[Tensor]:
         return [input, input + 1, input + 2]
 
 
-class _MyMergeLayer(BaseMergeLayer):
+class _MyMergeLayer(BaseLayer):
 
-    def _forward(self, inputs: List[Tensor]) -> Tensor:
+    def forward(self, inputs: List[Tensor]) -> Tensor:
         return T.add_n(inputs)
 
 
@@ -226,40 +275,40 @@ class _AutoRepr(BaseLayer):
     b: float
 
 
-class BaseLayersTestCase(unittest.TestCase):
+class BaseLayersTestCase(TestCase):
 
     def test_single_variate_layer(self):
-        layer = T.jit_compile(_MySingleVariateLayer())
+        layer = tk.layers.jit_compile(_MySingleVariateLayer())
         x = T.random.randn([2, 3, 4])
         np_offset = T.from_numpy(np.array([0., 1., 2., 3.]))
-        assert_allclose(layer(x), x * 11. + np_offset)
+        assert_allclose(layer(x), x * 11. + np_offset, rtol=1e-4, atol=1e-6)
         layer.set_bias(7.)
-        assert_allclose(layer(x), x * 11. + 7. + np_offset)
+        assert_allclose(layer(x), x * 11. + 7. + np_offset, rtol=1e-4, atol=1e-6)
 
     def test_multi_variate_layer(self):
-        layer = T.jit_compile(_MyMultiVariateLayer())
+        layer = tk.layers.jit_compile(_MyMultiVariateLayer())
         x = T.random.randn([2, 3, 4])
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
         a, b = layer([x, y, z])
-        assert_allclose(a, x + y)
-        assert_allclose(b, y + z)
+        assert_allclose(a, x + y, rtol=1e-4, atol=1e-6)
+        assert_allclose(b, y + z, rtol=1e-4, atol=1e-6)
 
     def test_split_layer(self):
-        layer = T.jit_compile(_MySplitLayer())
+        layer = tk.layers.jit_compile(_MySplitLayer())
         x = T.random.randn([2, 3, 4])
         a, b, c = layer(x)
-        assert_allclose(a, x)
-        assert_allclose(b, x + 1)
-        assert_allclose(c, x + 2)
+        assert_allclose(a, x, rtol=1e-4, atol=1e-6)
+        assert_allclose(b, x + 1, rtol=1e-4, atol=1e-6)
+        assert_allclose(c, x + 2, rtol=1e-4, atol=1e-6)
 
     def test_merge_layer(self):
-        layer = T.jit_compile(_MyMergeLayer())
+        layer = tk.layers.jit_compile(_MyMergeLayer())
         x = T.random.randn([2, 3, 4])
         y = T.random.randn([2, 3, 4])
         z = T.random.randn([2, 3, 4])
         out = layer([x, y, z])
-        assert_allclose(out, x + y + z)
+        assert_allclose(out, x + y + z, rtol=1e-4, atol=1e-6)
 
     def test_auto_repr(self):
         layer = _AutoRepr()
@@ -274,7 +323,7 @@ class BaseLayersTestCase(unittest.TestCase):
         self.assertNotIn('weight=', repr(layer))
 
 
-class SequentialTestCase(unittest.TestCase):
+class SequentialTestCase(TestCase):
 
     def test_sequential(self):
         x = T.random.randn([4, 5])
@@ -282,7 +331,7 @@ class SequentialTestCase(unittest.TestCase):
 
         s = Sequential(layers[0], layers[1:2], [layers[2], [layers[3], layers[4]]])
         self.assertEqual(list(s), layers)
-        y = T.jit_compile(s)(x)
+        y = tk.layers.jit_compile(s)(x)
 
         y2 = x
         for layer in layers:
@@ -292,15 +341,13 @@ class SequentialTestCase(unittest.TestCase):
 
 
 def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
-    T.random.seed(1234)
-
     # test with bias
     layer = layer_factory(use_bias=True)
     ctx.assertIn(layer_name, repr(layer))
     ctx.assertIsInstance(layer.weight_store, SimpleParamStore)
     weight = T.to_numpy(layer.weight_store())
     bias = T.to_numpy(layer.bias_store())
-    assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+    assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                     numpy_fn(input, weight=weight, bias=bias),
                     rtol=1e-4, atol=1e-6)
     ctx.assertNotIn('use_bias=', repr(layer))
@@ -309,7 +356,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
     layer = layer_factory(use_bias=False)
     ctx.assertIsInstance(layer.weight_store, SimpleParamStore)
     weight = T.to_numpy(layer.weight_store())
-    assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+    assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                     numpy_fn(input, weight=weight, bias=None),
                     rtol=1e-4, atol=1e-6)
     ctx.assertIn('use_bias=False', repr(layer))
@@ -320,7 +367,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         ctx.assertIsInstance(layer.weight_store, NormedAndScaledWeightStore,
                              msg=f'weight_norm={wn}')
         weight = T.to_numpy(layer.weight_store())
-        assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+        assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                         numpy_fn(input, weight=weight, bias=None),
                         rtol=1e-4, atol=1e-6)
 
@@ -329,7 +376,7 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         ctx.assertIsInstance(layer.weight_store, NormedWeightStore,
                              msg=f'weight_norm={wn}')
         weight = T.to_numpy(layer.weight_store())
-        assert_allclose(T.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
+        assert_allclose(tk.layers.jit_compile(layer)(T.as_tensor(input, dtype=T.float_x())),
                         numpy_fn(input, weight=weight, bias=None),
                         rtol=1e-4, atol=1e-6)
 
@@ -357,11 +404,9 @@ def check_core_linear(ctx, input, layer_factory, layer_name, numpy_fn):
         _ = layer_factory(data_init=lambda: 'hello')
 
 
-class CoreLinearTestCase(unittest.TestCase):
+class CoreLinearTestCase(TestCase):
 
     def test_linear(self):
-        np.random.seed(1234)
-
         layer = Linear(5, 3)
         self.assertEqual(
             repr(layer),
@@ -385,8 +430,6 @@ class CoreLinearTestCase(unittest.TestCase):
 
     @slow_test
     def test_conv_nd(self):
-        np.random.seed(1234)
-
         def do_check(spatial_ndims, kernel_size, stride,
                      dilation, padding):
             cls_name = f'LinearConv{spatial_ndims}d'
@@ -425,8 +468,6 @@ class CoreLinearTestCase(unittest.TestCase):
 
     @slow_test
     def test_conv_transpose_nd(self):
-        np.random.seed(1234)
-
         def is_valid_output_padding(spatial_ndims, output_padding, stride, dilation):
             if not hasattr(output_padding, '__iter__'):
                 output_padding = [output_padding] * spatial_ndims
@@ -487,18 +528,16 @@ class CoreLinearTestCase(unittest.TestCase):
         do_check(3, (3, 2, 1), (3, 2, 1), (3, 2, 1), PaddingMode.HALF, 0)
 
 
-class BatchNormTestCase(unittest.TestCase):
+class BatchNormTestCase(TestCase):
 
     def test_batch_norm(self):
-        T.random.seed(1234)
-
         eps = T.EPSILON
         for spatial_ndims in (0, 1, 2, 3):
             cls = getattr(tk.layers, ('BatchNorm' if not spatial_ndims
                                       else f'BatchNorm{spatial_ndims}d'))
             layer = cls(5, momentum=0.1, epsilon=eps)
             self.assertIn('BatchNorm', repr(layer))
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             # layer output
             x = T.random.randn(make_conv_shape(
@@ -509,6 +548,9 @@ class BatchNormTestCase(unittest.TestCase):
             _ = layer(x)
             set_train_mode(layer, False)
             y = layer(x)
+            set_train_mode(layer, True)
+            set_eval_mode(layer)
+            y2 = layer(x)
 
             # manually compute the expected output
             if T.backend_name == 'PyTorch':
@@ -524,6 +566,7 @@ class BatchNormTestCase(unittest.TestCase):
 
             # check output
             assert_allclose(y, expected, rtol=1e-4, atol=1e-6)
+            assert_allclose(y2, expected, rtol=1e-4, atol=1e-6)
 
             # check invalid dimensions
             with pytest.raises(Exception, match='only supports .d input'):
@@ -534,19 +577,17 @@ class BatchNormTestCase(unittest.TestCase):
                 )
 
 
-class DropoutTestCase(unittest.TestCase):
+class DropoutTestCase(TestCase):
 
     def test_dropout(self):
         n_samples = 10000
-        T.random.seed(1234)
-
         for spatial_ndims in (0, 1, 2, 3):
             cls = getattr(tk.layers, ('Dropout' if not spatial_ndims
                                       else f'Dropout{spatial_ndims}d'))
             layer = cls(p=0.3)
             self.assertIn('p=0.3', repr(layer))
             self.assertIn('Dropout', repr(layer))
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             x = 1. + T.random.rand(
                 make_conv_shape([1], n_samples, [2, 2, 2][:spatial_ndims])
@@ -575,6 +616,12 @@ class DropoutTestCase(unittest.TestCase):
 
             # ---- eval mode ----
             set_train_mode(layer, False)
+            y = layer(x)
+            self.assertTrue(np.all(T.to_numpy(y) != 0))
+            assert_allclose(y, x, rtol=1e-4, atol=1e-6)
+
+            set_train_mode(layer, True)
+            set_eval_mode(layer)
             y = layer(x)
             self.assertTrue(np.all(T.to_numpy(y) != 0))
             assert_allclose(y, x, rtol=1e-4, atol=1e-6)

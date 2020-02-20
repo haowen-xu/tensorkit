@@ -1,13 +1,15 @@
+from contextlib import contextmanager
 from typing import *
 
 from ..arg_check import *
 from ..tensor import Module
 from ..typing_ import *
 from .activation import *
+from .core import *
 
 __all__ = [
     'flatten_nested_layers', 'get_activation_class',
-    'get_deconv_output_padding',
+    'get_deconv_output_padding', 'scoped_eval_mode',
 ]
 
 
@@ -52,6 +54,7 @@ _activation_classes: Dict[str, Optional[Type[Module]]] = {
     'leakyrelu': LeakyReLU,
     'sigmoid': Sigmoid,
     'tanh': Tanh,
+    'logsoftmax': LogSoftmax,
 }
 
 
@@ -129,3 +132,22 @@ def get_deconv_output_padding(input_size: List[int],
 
     return [f(*args) for args in zip(
         input_size, output_size, kernel_size, stride, dilation, padding)]
+
+
+@contextmanager
+def scoped_eval_mode(*layer_or_layers: Union[Module, Sequence[Module]]):
+    """
+    Set the layers to evaluation mode when entering the context, and
+    set to training mode when exiting the context.
+
+    Args:
+        layer_or_layers: The layer or layers to be set.
+    """
+    layer_or_layers = flatten_nested_layers(layer_or_layers)
+    try:
+        for layer in layer_or_layers:
+            set_eval_mode(layer)
+        yield
+    finally:
+        for layer in layer_or_layers:
+            set_train_mode(layer)

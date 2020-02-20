@@ -1,12 +1,12 @@
 from typing import List
 
 from .. import tensor as T
+from ..backend import Module, Tensor
 from ..layers import *
 from .core import *
 
 __all__ = ['StdDataInit']
 
-from ..backend import Module, Tensor
 
 
 class StdDataInit(DataDependentInitializer):
@@ -21,8 +21,8 @@ class StdDataInit(DataDependentInitializer):
         super().__init__()
         self.epsilon = epsilon
 
-    def _forward(self, layer: Module, inputs: List[Tensor]) -> None:
-        if T.is_jit_layer(layer):
+    def _init(self, layer: Module, inputs: List[Tensor]) -> None:
+        if is_jit_layer(layer):
             raise TypeError(f'JIT compiled layer is not supported: got {layer!r}')
         if not isinstance(layer, CoreLinear):
             raise TypeError(f'`layer` is not a core linear layer: got {layer!r}')
@@ -31,8 +31,9 @@ class StdDataInit(DataDependentInitializer):
                              f'{inputs!r}')
 
         # get the weight and bias
+        use_bias = layer.use_bias
         weight = layer.weight_store()
-        bias = layer.bias_store() if layer.bias_store is not None else None
+        bias = layer.bias_store() if use_bias else None
         is_conv_transpose = isinstance(layer, (LinearConvTranspose1d,
                                                LinearConvTranspose2d,
                                                LinearConvTranspose3d))
@@ -61,7 +62,7 @@ class StdDataInit(DataDependentInitializer):
         out_std = T.sqrt(
             T.maximum(
                 out_var,
-                T.as_tensor_backend(self.epsilon, dtype=out_var.dtype)
+                T.float_scalar_like(self.epsilon, out_var)
             )
         )
         weight_scale = out_std

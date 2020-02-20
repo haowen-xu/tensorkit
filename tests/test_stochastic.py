@@ -8,7 +8,7 @@ from tensorkit.distributions import *
 from tests.helper import *
 
 
-class StochasticTensorTestCase(unittest.TestCase):
+class StochasticTensorTestCase(TestCase):
 
     def test_basic_interface(self):
         normal = UnitNormal(shape=[2, 3])

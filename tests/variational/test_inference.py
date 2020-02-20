@@ -7,7 +7,7 @@ from tensorkit.variational import *
 from tests.helper import *
 
 
-class VariationalInferenceTestCase(unittest.TestCase):
+class VariationalInferenceTestCase(TestCase):
 
     def test_construction(self):
         vi = VariationalInference(T.float_scalar(1.),

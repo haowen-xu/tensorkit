@@ -1,8 +1,9 @@
 from typing import *
 
 from .. import tensor as T
+from ..layers import is_jit_layer
 from ..tensor import Tensor, Module, concat, split
-from .core import (FeatureMappingFlow, BaseScale, ExpScale, SigmoidScale,
+from .core import (FeatureMappingFlow, Scale, ExpScale, SigmoidScale,
                    LinearScale)
 
 __all__ = [
@@ -53,8 +54,8 @@ class CouplingLayer(FeatureMappingFlow):
                  shift_and_pre_scale: Module,
                  axis: int = -1,
                  event_ndims: int = 1,
-                 scale: Union[str, BaseScale, Type[BaseScale],
-                              Callable[[], BaseScale]] = 'exp',
+                 scale: Union[str, Scale, Type[Scale],
+                              Callable[[], Scale]] = 'exp',
                  secondary: bool = False,
                  sigmoid_scale_bias: float = 2.,
                  epsilon: float = T.EPSILON):
@@ -106,11 +107,13 @@ class CouplingLayer(FeatureMappingFlow):
                 scale = INVALID
 
         if isinstance(scale, Module):
-            if not isinstance(scale, BaseScale) and not T.is_jit_layer(scale):
+            if not isinstance(scale, Scale) and not is_jit_layer(scale):
                 scale = INVALID
         elif isinstance(scale, type) or callable(scale):
             if scale is SigmoidScale:
                 scale = scale(pre_scale_bias=sigmoid_scale_bias)
+            elif scale is LinearScale:
+                scale = scale(epsilon=epsilon)
             else:
                 scale = scale()
         else:
@@ -131,12 +134,12 @@ class CouplingLayer(FeatureMappingFlow):
         self.sigmoid_scale_bias = sigmoid_scale_bias
         self.epsilon = epsilon
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         # split the tensor
         n_features = input.shape[self.axis]
         n1 = n_features // 2
@@ -152,7 +155,7 @@ class CouplingLayer(FeatureMappingFlow):
             y2, output_log_det = self.scale(
                 input=x2,
                 pre_scale=pre_scale,
-                event_ndims=self.event_ndims,
+                event_ndims=self.x_event_ndims,
                 input_log_det=input_log_det,
                 compute_log_det=compute_log_det,
                 inverse=True,
@@ -162,7 +165,7 @@ class CouplingLayer(FeatureMappingFlow):
             y2, output_log_det = self.scale(
                 input=x2 + shift,
                 pre_scale=pre_scale,
-                event_ndims=self.event_ndims,
+                event_ndims=self.x_event_ndims,
                 input_log_det=input_log_det,
                 compute_log_det=compute_log_det,
                 inverse=False,
@@ -180,8 +183,8 @@ class CouplingLayerNd(CouplingLayer):
 
     def __init__(self,
                  shift_and_pre_scale: Module,
-                 scale: Union[str, BaseScale, Type[BaseScale],
-                              Callable[[], BaseScale]] = 'exp',
+                 scale: Union[str, Scale, Type[Scale],
+                              Callable[[], Scale]] = 'exp',
                  secondary: bool = False,
                  sigmoid_scale_bias: float = 2.,
                  epsilon: float = T.EPSILON):

@@ -15,7 +15,7 @@ __all__ = [
 
 
 # ---- average pooling ----
-class AvgPoolNd(BaseSingleVariateLayer):
+class AvgPoolNd(BaseLayer):
 
     __constants__ = ('kernel_size', 'stride', 'padding', 'count_padded_zeros')
 
@@ -67,7 +67,7 @@ class AvgPool1d(AvgPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 1
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return avg_pool1d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding, count_padded_zeros=self.count_padded_zeros,
@@ -79,7 +79,7 @@ class AvgPool2d(AvgPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 2
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return avg_pool2d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding, count_padded_zeros=self.count_padded_zeros,
@@ -91,7 +91,7 @@ class AvgPool3d(AvgPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 3
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return avg_pool3d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding, count_padded_zeros=self.count_padded_zeros,
@@ -99,7 +99,7 @@ class AvgPool3d(AvgPoolNd):
 
 
 # ---- max pooling ----
-class MaxPoolNd(BaseSingleVariateLayer):
+class MaxPoolNd(BaseLayer):
 
     __constants__ = ('kernel_size', 'stride', 'padding')
 
@@ -146,7 +146,7 @@ class MaxPool1d(MaxPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 1
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return max_pool1d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding
@@ -158,7 +158,7 @@ class MaxPool2d(MaxPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 2
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return max_pool2d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding
@@ -170,7 +170,7 @@ class MaxPool3d(MaxPoolNd):
     def _get_spatial_ndims(self) -> int:
         return 3
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return max_pool3d(
             input, kernel_size=self.kernel_size, stride=self.stride,
             padding=self.padding
@@ -178,7 +178,7 @@ class MaxPool3d(MaxPoolNd):
 
 
 # ---- global average pooling ----
-class GlobalAvgPoolNd(BaseSingleVariateLayer):
+class GlobalAvgPoolNd(BaseLayer):
 
     __constants__ = ('spatial_ndims', 'reduce_axis', 'keepdims')
 
@@ -208,7 +208,7 @@ class GlobalAvgPoolNd(BaseSingleVariateLayer):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}(keepdims={self.keepdims})'
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         if len(input.shape) < self.spatial_ndims + 1:
             raise ValueError(
                 '`rank(input)` is too low: expected to be at least '

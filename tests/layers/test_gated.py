@@ -7,7 +7,7 @@ from tensorkit import tensor as T
 from tests.helper import *
 
 
-class GatedTestCase(unittest.TestCase):
+class GatedTestCase(TestCase):
 
     def test_Gated(self):
         gated = tk.layers.Gated(feature_axis=-2, num_features=3,
@@ -16,7 +16,7 @@ class GatedTestCase(unittest.TestCase):
             'feature_axis=-2, num_features=3, gate_bias=1.5',
             repr(gated)
         )
-        gated = T.jit_compile(gated)
+        gated = tk.layers.jit_compile(gated)
 
         x = T.random.randn([6, 5])
         assert_allclose(gated(x), x[:3, ...] * T.nn.sigmoid(x[3:, ...] + 1.5))
@@ -37,7 +37,7 @@ class GatedTestCase(unittest.TestCase):
             'feature_axis=-2, num_features=3, gate_bias=1.5',
             repr(gated)
         )
-        gated = T.jit_compile(gated)
+        gated = tk.layers.jit_compile(gated)
 
         x = T.random.randn([6, 5])
         assert_allclose(

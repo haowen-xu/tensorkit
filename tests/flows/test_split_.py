@@ -33,7 +33,7 @@ def check_split_flow(ctx,
             ctx.assertIn(f'y_sections={y_sections}', repr(flow))
             ctx.assertIn(f'x_axis={x_axis}', repr(flow))
             ctx.assertIn(f'y_axis={y_axis}', repr(flow))
-            flow = T.jit_compile(flow)
+            flow = tk.layers.jit_compile(flow)
 
             x1, x2 = T.split(x, x_sections, axis=x_axis)
             y1, expected_log_det = left(x1, compute_log_det=True)
@@ -45,7 +45,7 @@ def check_split_flow(ctx,
 
         # with right
         flow = cls(x_sections, left, right, **kwargs)
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         x1, x2 = T.split(x, x_sections, axis=x_axis)
         y1, expected_log_det = left(x1, compute_log_det=True)
@@ -84,17 +84,13 @@ def check_split_flow(ctx,
         _ = cls([2, 3], left, tk.layers.Linear(2, 3))
 
 
-class SplitFlowTestCase(unittest.TestCase):
+class SplitFlowTestCase(TestCase):
 
     @slow_test
     def test_SplitFlow(self):
-        T.random.seed(1234)
-
         # x and y with the same event ndims
-        left = T.jit_compile(ActNorm(2))
-        right = T.jit_compile(ActNorm(3))
-        _ = left(T.random.randn([5, 2]))
-        _ = right(T.random.randn([5, 3]))
+        left = tk.layers.jit_compile(InvertibleDense(2))
+        right = tk.layers.jit_compile(InvertibleDense(3))
 
         check_split_flow(
             ctx=self,
@@ -110,20 +106,20 @@ class SplitFlowTestCase(unittest.TestCase):
         with pytest.raises(ValueError,
                            match=f'`left` and `right` flows must have same '
                                  f'`x_event_ndims` and `y_event_ndims`: '
-                                 f'got `left.x_event_ndims` == {left.x_event_ndims}, '
-                                 f'`left.y_event_ndims` == {left.y_event_ndims}, '
-                                 f'`right.x_event_ndims` == {left.x_event_ndims}, '
+                                 f'got `left.x_event_ndims` == {left.get_x_event_ndims()}, '
+                                 f'`left.y_event_ndims` == {left.get_y_event_ndims()}, '
+                                 f'`right.x_event_ndims` == {left.get_x_event_ndims()}, '
                                  f'and `right.y_event_ndims` == 6'):
-            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * left.x_event_ndims, [1] * 6))
+            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * left.get_x_event_ndims(), [1] * 6))
 
         with pytest.raises(ValueError,
                            match=f'`left` and `right` flows must have same '
                                  f'`x_event_ndims` and `y_event_ndims`: '
-                                 f'got `left.x_event_ndims` == {left.x_event_ndims}, '
-                                 f'`left.y_event_ndims` == {left.y_event_ndims}, '
+                                 f'got `left.x_event_ndims` == {left.get_x_event_ndims()}, '
+                                 f'`left.y_event_ndims` == {left.get_y_event_ndims()}, '
                                  f'`right.x_event_ndims` == 6, '
-                                 f'and `right.y_event_ndims` == {left.y_event_ndims}'):
-            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * 6, [1] * left.y_event_ndims))
+                                 f'and `right.y_event_ndims` == {left.get_y_event_ndims()}'):
+            _ = SplitFlow([2, 3], left, ReshapeFlow([1] * 6, [1] * left.get_y_event_ndims()))
 
         # x and y with different event ndims
         left = ReshapeFlow([-1], [-1, 2])
@@ -155,18 +151,12 @@ class SplitFlowTestCase(unittest.TestCase):
 
     @slow_test
     def test_SplitFlowNd(self):
-        T.random.seed(1234)
-
         for spatial_ndims in (1, 2, 3):
             cls = getattr(tk.flows, f'SplitFlow{spatial_ndims}d')
-            sub_cls = getattr(tk.flows, f'ActNorm{spatial_ndims}d')
+            sub_cls = getattr(tk.flows, f'InvertibleConv{spatial_ndims}d')
 
-            left = T.jit_compile(sub_cls(2))
-            right = T.jit_compile(sub_cls(3))
-            _ = left(T.random.randn(
-                make_conv_shape([5], 2, [6, 7, 8][:spatial_ndims])))
-            _ = right(T.random.randn(
-                make_conv_shape([5], 3, [6, 7, 8][:spatial_ndims])))
+            left = tk.layers.jit_compile(sub_cls(2))
+            right = tk.layers.jit_compile(sub_cls(3))
 
             check_split_flow(
                 ctx=self,

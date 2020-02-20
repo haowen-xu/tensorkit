@@ -35,10 +35,11 @@ def truncated_randn(shape: List[int],
                     low: Optional[float] = None,
                     high: Optional[float] = None,
                     dtype: str = float_x(),
+                    device: Optional[str] = None,
                     epsilon: float = EPSILON) -> Tensor:
     # fast routine: low is None and high is None, use standard randn
     if low is None and high is None:
-        return randn(shape, dtype)
+        return randn(shape, dtype, device)
 
     # compute cdf(low) and cdf(high)
     if low is None:
@@ -52,7 +53,7 @@ def truncated_randn(shape: List[int],
         high_cdf = _unit_normal_cdf_float(high)
 
     # sample u ~ uniform(0, 1)
-    u = rand(shape, dtype)
+    u = rand(shape, dtype, device)
 
     # transform uniform random variable into truncated normal
     if low_cdf == 0.:
@@ -111,17 +112,17 @@ def truncated_randn_log_pdf(given: Tensor,
         log_pdf = where(
             logical_and(low <= given, given <= high),
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     elif low is not None:
         log_pdf = where(
             low <= given,
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     elif high is not None:
         log_pdf = where(
             given <= high,
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     else:
         log_pdf = log_pdf  # do nothing, but JIT requires this branch
 
@@ -145,10 +146,10 @@ def truncated_normal(mean: Tensor,
     if n_samples is not None:
         param_shape = [n_samples] + param_shape
     r = truncated_randn(param_shape, low=low, high=high, dtype=get_dtype(mean),
-                        epsilon=epsilon)
+                        epsilon=epsilon, device=get_device(mean))
     r = r * std + mean
     if not reparameterized:
-        r = r.detach()
+        r = stop_grad(r)
     return r
 
 
@@ -182,17 +183,17 @@ def truncated_normal_log_pdf(given: Tensor,
             logical_and((low * std + mean) <= given,
                         given <= (high * std + mean)),
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     elif low is not None:
         log_pdf = where(
             (low * std + mean) <= given,
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     elif high is not None:
         log_pdf = where(
             given <= (high * std + mean),
             log_pdf,
-            as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+            float_scalar_like(log_zero, log_pdf))
     else:
         log_pdf = log_pdf  # do nothing, but JIT requires this branch
 
@@ -244,7 +245,7 @@ def discretized_logistic(mean: Tensor,
                          format(mean_dtype, log_scale_dtype))
 
     u = uniform(shape=sample_shape, low=epsilon, high=1. - epsilon,
-                dtype=mean_dtype)
+                dtype=mean_dtype, device=get_device(mean))
 
     # inverse CDF of the logistic
     inverse_logistic_cdf = log(u) - log1p(-u)
@@ -318,7 +319,7 @@ def discretized_logistic_log_prob(given: Tensor,
     # the middle bins cases:
     #   log(sigmoid(x_high) - sigmoid(x_low))
     # middle_bins_pdf = tf.log(cdf_delta + self._epsilon)
-    epsilon_tensor = as_tensor_backend(epsilon, dtype=cdf_delta.dtype)
+    epsilon_tensor = float_scalar_like(epsilon, cdf_delta)
     middle_bins_pdf = log(maximum(cdf_delta, epsilon_tensor))
 
     # # but in extreme cases where `sigmoid(x_high) - sigmoid(x_low)`
@@ -328,7 +329,7 @@ def discretized_logistic_log_prob(given: Tensor,
     #     cdf_delta > epsilon_tensor,
     #     # to avoid NaNs pollute the select statement, we have to use
     #     # `maximum(cdf_delta, 1e-12)`
-    #     log(maximum(cdf_delta, as_tensor_backend(1e-12, dtype=cdf_delta.dtype))),
+    #     log(maximum(cdf_delta, float_scalar_like(1e-12, cdf_delta))),
     #     # the alternative form.  basically it can be derived by using
     #     # the mean value theorem for integration.
     #     x_mid + log_delta - 2. * softplus(x_mid)
@@ -345,7 +346,7 @@ def discretized_logistic_log_prob(given: Tensor,
 
             # the left-edge bin case
             #   log(sigmoid(x_high) - sigmoid(-infinity))
-            left_edge = as_tensor_backend(min_val + half_bin, dtype=broadcast_given.dtype)
+            left_edge = float_scalar_like(min_val + half_bin, broadcast_given)
             left_edge_pdf = -softplus(-x_high)
             if validate_tensors:
                 left_edge_pdf = assert_finite(left_edge_pdf, 'left_edge_pdf')
@@ -358,7 +359,7 @@ def discretized_logistic_log_prob(given: Tensor,
 
             # the right-edge bin case
             #   log(sigmoid(infinity) - sigmoid(x_low))
-            right_edge = as_tensor_backend(max_val - half_bin, dtype=broadcast_given.dtype)
+            right_edge = float_scalar_like(max_val - half_bin, broadcast_given)
             right_edge_pdf = -softplus(x_low)
             if validate_tensors:
                 right_edge_pdf = assert_finite(right_edge_pdf, 'right_edge_pdf')
@@ -376,7 +377,7 @@ def discretized_logistic_log_prob(given: Tensor,
                 logical_and(given >= min_val - half_bin,
                             given <= max_val + half_bin),
                 log_prob,
-                as_tensor_backend(log_zero, dtype=log_prob.dtype))
+                float_scalar_like(log_zero, log_prob))
 
     # now reduce the group_ndims
     if group_ndims > 0:

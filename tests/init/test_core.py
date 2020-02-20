@@ -13,7 +13,7 @@ from tensorkit import tensor as T
 from tests.helper import *
 
 
-class UtilitiesTestCase(unittest.TestCase):
+class UtilitiesTestCase(TestCase):
 
     def test_calculate_fan_in_and_fan_out(self):
         for layer, fan_in_and_out in [
@@ -160,7 +160,7 @@ class UtilitiesTestCase(unittest.TestCase):
                 tk.init.apply_initializer(weight, object())
 
 
-class TensorInitiailizersTestCase(unittest.TestCase):
+class TensorInitiailizersTestCase(TestCase):
 
     def test_zeros(self):
         for dtype in float_dtypes:
@@ -185,8 +185,6 @@ class TensorInitiailizersTestCase(unittest.TestCase):
             assert_equal(weight, T.full_like(weight, 123.))
 
     def test_uniform(self):
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             weight = T.variable([n_samples // 50, 50], dtype=dtype,
                                 initializer=0.)
@@ -208,8 +206,6 @@ class TensorInitiailizersTestCase(unittest.TestCase):
             )
 
     def test_normal(self):
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             weight = T.variable([n_samples // 50, 50], dtype=dtype,
                                 initializer=0.)
@@ -227,12 +223,10 @@ class TensorInitiailizersTestCase(unittest.TestCase):
                 weight, partial(tk.init.normal, mean=1., std=3.))
             self.assertLessEqual(
                 np.abs(T.to_numpy(T.reduce_mean(weight)) - 1.),
-                5.0 / 3. / np.sqrt(n_samples)
+                5.0 * 3. / np.sqrt(n_samples)
             )
 
     def test_xavier_initializer(self):
-        T.random.seed(1234)
-
         for dtype, initializer, mode in product(
                     float_dtypes,
                     (tk.init.xavier_normal, tk.init.xavier_uniform),
@@ -268,8 +262,6 @@ class TensorInitiailizersTestCase(unittest.TestCase):
             )
 
     def test_kaming_initializer(self):
-        T.random.seed(1234)
-
         for dtype, initializer, mode in product(
                     float_dtypes,
                     (tk.init.kaming_normal, tk.init.kaming_uniform),
@@ -325,12 +317,12 @@ class _MyDataDependentInitializer(tk.init.DataDependentInitializer):
     def __init__(self, watcher):
         self.watcher = watcher
 
-    def _forward(self, layer: T.Module, inputs: List[T.Tensor]) -> None:
+    def _init(self, layer: T.Module, inputs: List[T.Tensor]) -> None:
         _ = layer(inputs[0])
         self.watcher.append((layer, inputs))
 
 
-class DataDependentInitializerTestCase(unittest.TestCase):
+class DataDependentInitializerTestCase(TestCase):
 
     def test_data_dependent_initializer(self):
         data_init = _MyDataDependentInitializer([])
@@ -377,7 +369,7 @@ class DataDependentInitializerTestCase(unittest.TestCase):
         # also `set_initialized` will affect layers with `set_initialized()`
         # method, e.g., `ActNorm`
         x = T.random.randn([2, 3, 5])
-        layer = T.jit_compile(tk.layers.ActNorm(5))
+        layer = tk.layers.jit_compile(tk.layers.ActNorm(5))
         self.assertFalse(layer.flow.initialized)
 
         tk.init.set_initialized(layer)

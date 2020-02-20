@@ -1,7 +1,8 @@
 __version__ = '0.0.1'
 
 
-from . import backend, distributions, flows, init, layers, losses, variational
+from . import (backend, distributions, flows, init, layers, optim, train,
+               utils, variational)
 from .bayes import *
 # from .distributions import *
 # from .layers import *

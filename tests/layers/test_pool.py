@@ -10,11 +10,9 @@ from tests.helper import *
 from tests.ops import *
 
 
-class PoolTestCase(unittest.TestCase):
+class PoolTestCase(TestCase):
 
     def test_AvgPool_and_MaxPool(self):
-        T.random.seed(1234)
-
         def is_valid_padding(padding, kernel_size):
             for p, k in zip(padding, kernel_size):
                 if isinstance(p, int):
@@ -83,7 +81,7 @@ class PoolTestCase(unittest.TestCase):
                         f'padding={padding})'
                     )
 
-                layer = T.jit_compile(layer)
+                layer = tk.layers.jit_compile(layer)
                 assert_allclose(
                     layer(x),
                     fn(x, kernel_size=kernel_size, stride=stride,
@@ -108,7 +106,7 @@ class PoolTestCase(unittest.TestCase):
                 f'GlobalAvgPool{spatial_ndims}d(keepdims={keepdims})'
             )
 
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             x = T.random.randn(make_conv_shape([4, 5], 6, [7, 8, 9][:spatial_ndims]))
             assert_allclose(layer(x), fn(T.to_numpy(x)), rtol=1e-4, atol=1e-6)
 

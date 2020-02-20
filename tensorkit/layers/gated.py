@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-class BaseGated(BaseSingleVariateLayer):
+class BaseGated(BaseLayer):
 
     __constants__ = ('feature_axis', 'num_features', 'gate_bias', 'activation')
 
@@ -27,8 +27,7 @@ class BaseGated(BaseSingleVariateLayer):
     def _apply_activation(self, input: Tensor) -> Tensor:
         raise NotImplementedError()
 
-    @jit_method
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         if input.shape[self.feature_axis] != self.num_features * 2:
             raise ValueError(
                 'The shape of the pre-gated output is invalid: '

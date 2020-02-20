@@ -36,15 +36,19 @@ class BaseCategorical(Distribution):
                  dtype: str,
                  event_ndims: int,
                  epsilon: float = T.EPSILON,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         (logits, probs), = check_tensor_arg_types([('logits', logits),
-                                                   ('probs', probs)])
+                                                   ('probs', probs)],
+                                                  device=device)
         if logits is not None:
             param_shape = T.shape(logits)
             mutual_params = {'logits': logits}
+            device = device or T.get_device(logits)
         else:
             param_shape = T.shape(probs)
             mutual_params = {'probs': probs}
+            device = device or T.get_device(probs)
         epsilon = float(epsilon)
 
         if len(param_shape) < 1:
@@ -59,6 +63,7 @@ class BaseCategorical(Distribution):
             dtype=dtype,
             value_shape=value_shape,
             event_ndims=event_ndims,
+            device=device,
             validate_tensors=validate_tensors,
         )
         for k, v in mutual_params.items():
@@ -117,7 +122,7 @@ class BaseCategorical(Distribution):
         return copy_distribution(
             cls=self.__class__,
             base=self,
-            attrs=('dtype', 'event_ndims', 'validate_tensors', 'epsilon'),
+            attrs=('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
             mutual_attrs=(('logits', 'probs'),),
             compute_deps={'logits': ('epsilon',)},
             original_mutual_params=self._mutual_params,
@@ -143,6 +148,7 @@ class Categorical(BaseCategorical):
                  dtype: str = T.categorical_dtype,
                  event_ndims: int = 0,
                  epsilon: float = T.EPSILON,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`Categorical` distribution object.
@@ -165,8 +171,9 @@ class Categorical(BaseCategorical):
             probs=probs,
             dtype=dtype,
             event_ndims=event_ndims,
-            validate_tensors=validate_tensors,
             epsilon=epsilon,
+            device=device,
+            validate_tensors=validate_tensors,
         )
 
     def _sample(self,
@@ -195,7 +202,7 @@ class Categorical(BaseCategorical):
         return copy_distribution(
             cls=OneHotCategorical,
             base=self,
-            attrs=('dtype', 'validate_tensors', 'event_ndims', 'epsilon'),
+            attrs=('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
             mutual_attrs=(('logits', 'probs'),),
             compute_deps={'logits': ('epsilon',)},
             original_mutual_params=self._mutual_params,
@@ -223,6 +230,7 @@ class OneHotCategorical(BaseCategorical):
                  dtype: str = T.int32,
                  event_ndims: int = 1,
                  epsilon: float = T.EPSILON,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`OneHotCategorical` distribution object.
@@ -234,6 +242,7 @@ class OneHotCategorical(BaseCategorical):
             probs: The probability `p` of being each possible value.
                 ``p = softmax(logits)``.
             dtype: The dtype of the samples.
+            device: The device where to place new tensors and variables.
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
             epsilon: The infinitesimal constant, used for computing `logits`.
@@ -245,8 +254,9 @@ class OneHotCategorical(BaseCategorical):
             probs=probs,
             dtype=dtype,
             event_ndims=event_ndims,
-            validate_tensors=validate_tensors,
             epsilon=epsilon,
+            device=device,
+            validate_tensors=validate_tensors,
         )
 
     def _sample(self,
@@ -272,7 +282,7 @@ class OneHotCategorical(BaseCategorical):
         return copy_distribution(
             cls=Categorical,
             base=self,
-            attrs=('dtype', 'validate_tensors', 'event_ndims', 'epsilon'),
+            attrs=('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
             mutual_attrs=(('logits', 'probs'),),
             compute_deps={'logits': ('epsilon',)},
             original_mutual_params=self._mutual_params,

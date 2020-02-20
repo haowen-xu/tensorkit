@@ -14,7 +14,7 @@ __all__ = [
     # convolution shape ops
     'get_spatial_axis', 'get_channel_axis',
     'channel_to_last_nd', 'channel_to_first_nd', 'space_to_depth_nd',
-    'make_conv_shape',
+    'make_conv_shape', 'get_conv_output_size', 'get_deconv_output_size',
 
     # convolution ops
     'dense', 'conv_nd', 'conv_transpose_nd',

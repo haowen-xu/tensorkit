@@ -40,6 +40,7 @@ class Bernoulli(Distribution):
                  dtype: str = T.int32,
                  event_ndims: int = 0,
                  epsilon: float = T.EPSILON,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`Bernoulli` distribution object.
@@ -53,18 +54,22 @@ class Bernoulli(Distribution):
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
             epsilon: The infinitesimal constant, used for computing `logits`.
+            device: The device where to place new tensors and variables.
             validate_tensors: Whether or not to check the numerical issues?
                 Defaults to ``settings.validate_tensors``.
         """
         # validate the arguments
         (logits, probs), = check_tensor_arg_types([('logits', logits),
-                                                   ('probs', probs)])
+                                                   ('probs', probs)],
+                                                  device=device)
         if logits is not None:
             value_shape = T.shape(logits)
             mutual_params = {'logits': logits}
+            device = device or T.get_device(logits)
         else:
             value_shape = T.shape(probs)
             mutual_params = {'probs': probs}
+            device = device or T.get_device(probs)
         epsilon = float(epsilon)
 
         # construct the object
@@ -72,6 +77,7 @@ class Bernoulli(Distribution):
             dtype=dtype,
             value_shape=value_shape,
             event_ndims=event_ndims,
+            device=device,
             validate_tensors=validate_tensors,
         )
         for k, v in mutual_params.items():
@@ -130,7 +136,7 @@ class Bernoulli(Distribution):
         return copy_distribution(
             cls=Bernoulli,
             base=self,
-            attrs=('dtype', 'event_ndims', 'validate_tensors', 'epsilon'),
+            attrs=('dtype', 'event_ndims', 'epsilon', 'device', 'validate_tensors'),
             mutual_attrs=(('logits', 'probs'),),
             compute_deps={'logits': ('epsilon',)},
             original_mutual_params=self._mutual_params,

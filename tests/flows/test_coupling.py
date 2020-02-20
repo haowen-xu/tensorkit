@@ -1,5 +1,4 @@
 import unittest
-from itertools import product
 
 import pytest
 
@@ -19,8 +18,8 @@ def check_coupling_layer(ctx,
     sigmoid_scale_bias = 1.5
 
     n1, n2 = (num_features // 2), (num_features - num_features // 2)
-    shift_and_pre_scale_1 = T.jit_compile(shift_and_pre_scale_factory(n1, n2))
-    shift_and_pre_scale_2 = T.jit_compile(shift_and_pre_scale_factory(n2, n1))
+    shift_and_pre_scale_1 = tk.layers.jit_compile(shift_and_pre_scale_factory(n1, n2))
+    shift_and_pre_scale_2 = tk.layers.jit_compile(shift_and_pre_scale_factory(n2, n1))
 
     def do_check(secondary, scale_type):
         x = T.random.randn(make_conv_shape(
@@ -35,7 +34,7 @@ def check_coupling_layer(ctx,
             sigmoid_scale_bias=sigmoid_scale_bias
         )
         ctx.assertIn(f'secondary={secondary}', repr(flow))
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         # obtain the expected output
         channel_axis = get_channel_axis(spatial_ndims)
@@ -51,7 +50,7 @@ def check_coupling_layer(ctx,
             scale = SigmoidScale(pre_scale_bias=sigmoid_scale_bias)
         elif scale_type == 'linear' or scale_type is LinearScale:
             scale = LinearScale()
-        elif isinstance(scale_type, BaseScale) or T.is_jit_layer(scale_type):
+        elif isinstance(scale_type, Scale) or tk.layers.is_jit_layer(scale_type):
             scale = scale_type
         else:
             raise ValueError(f'Invalid value for `scale`: {scale_type}')
@@ -72,7 +71,7 @@ def check_coupling_layer(ctx,
         do_check(secondary, 'exp')
 
     for scale_type in ('exp', 'sigmoid', 'linear',
-                       SigmoidScale, T.jit_compile(LinearScale())):
+                       SigmoidScale, tk.layers.jit_compile(LinearScale())):
         do_check(False, scale_type)
 
     # test error constructors
@@ -86,7 +85,7 @@ def check_coupling_layer(ctx,
             _ = cls(shift_and_pre_scale, scale=scale)
 
 
-class CouplingLayerTestCase(unittest.TestCase):
+class CouplingLayerTestCase(TestCase):
 
     @slow_test
     def test_CouplingLayer(self):

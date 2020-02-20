@@ -7,7 +7,7 @@ from tensorkit.variational import *
 from tests.helper import *
 
 
-class VariationalChainTestCase(unittest.TestCase):
+class VariationalChainTestCase(TestCase):
 
     def prepare_model(self):
         def p_log_probs(names):

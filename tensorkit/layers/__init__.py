@@ -1,4 +1,5 @@
 from .activation import *
+from .builder import *
 from .composed import *
 from .contextual import *
 from .core import *

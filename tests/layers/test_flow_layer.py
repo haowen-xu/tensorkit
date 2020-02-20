@@ -10,15 +10,15 @@ from tests.helper import *
 from tests.ops import make_conv_shape
 
 
-class _MyFlow(tk.flows.BaseFlow):
+class _MyFlow(tk.flows.Flow):
 
     @T.jit_method
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             raise RuntimeError('Not invertible.')
         output = input * 2.
@@ -27,12 +27,12 @@ class _MyFlow(tk.flows.BaseFlow):
         return output, input_log_det
 
 
-class FlowLayerTestCase(unittest.TestCase):
+class FlowLayerTestCase(TestCase):
 
     def test_FlowLayer(self):
-        flow = T.jit_compile(_MyFlow(
+        flow = tk.layers.jit_compile(_MyFlow(
             x_event_ndims=0, y_event_ndims=0, explicitly_invertible=True))
-        layer = T.jit_compile(tk.layers.FlowLayer(flow))
+        layer = tk.layers.jit_compile(tk.layers.FlowLayer(flow))
 
         x = T.random.randn([3, 4, 5])
         assert_allclose(layer(x), x * 2.)
@@ -41,7 +41,7 @@ class FlowLayerTestCase(unittest.TestCase):
             _ = tk.layers.FlowLayer(object())
 
 
-class ActNormLayerTestCase(unittest.TestCase):
+class ActNormLayerTestCase(TestCase):
 
     def test_ActNorm(self):
         layer = tk.layers.ActNorm(5)
@@ -53,7 +53,7 @@ class ActNormLayerTestCase(unittest.TestCase):
         _ = layer(T.random.randn([3, 4, 5]))
 
         # check call
-        layer = T.jit_compile(layer)
+        layer = tk.layers.jit_compile(layer)
         x = T.random.randn([3, 4, 5])
         assert_allclose(layer(x), flow(x)[0])
 
@@ -72,6 +72,6 @@ class ActNormLayerTestCase(unittest.TestCase):
             _ = layer(T.random.randn(shape))
 
             # check call
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             x = T.random.randn(shape)
             assert_allclose(layer(x), flow(x)[0])

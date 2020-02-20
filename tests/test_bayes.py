@@ -10,7 +10,7 @@ from tensorkit.distributions import *
 from tests.helper import *
 
 
-class BayesianNetTestCase(unittest.TestCase):
+class BayesianNetTestCase(TestCase):
 
     def test_construct(self):
         # no observation

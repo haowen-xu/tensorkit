@@ -1,4 +1,5 @@
 import math
+from contextlib import contextmanager
 from typing import *
 
 import numpy as np
@@ -10,24 +11,31 @@ from ...settings_ import settings
 
 __all__ = [
     # constants
-    'IS_CHANNEL_LAST', 'EPSILON',
+    'IS_CHANNEL_LAST', 'EPSILON', 'CPU_DEVICE',
 
     # typing
     'Tensor', 'Variable', 'Module',
 
     # ordinary module base classes
     # jit
-    'jit', 'jit_ignore', 'jit_method', 'jit_compile', 'is_jit_layer',
+    'jit', 'jit_ignore', 'jit_method',
+
+    # device
+    'get_device', 'to_device', 'current_device', 'use_device',
+    'gpu_device_list', 'first_gpu_device',
 
     # utilities
     'int_range', 'identity',
 
+    # cast
+    'cast', 'cast_like',
+
     # dtypes
-    'cast', 'cast_like', 'get_dtype', 'is_floating_point',
-    'is_floating_point_dtype',
+    'get_dtype', 'is_floating_point', 'is_floating_point_dtype',
 
     # tensor constructors
-    'as_tensor_backend', 'as_tensor', 'from_numpy', 'float_scalar', 'int_scalar',
+    'as_tensor', 'from_numpy',
+    'float_scalar', 'float_scalar_like', 'int_scalar', 'int_scalar_like',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
     'arange', 'one_hot',
 
@@ -59,7 +67,7 @@ __all__ = [
 
     # reduce operators
     'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
-    'log_sum_exp', 'log_mean_exp',
+    'argmax', 'argmin', 'log_sum_exp', 'log_mean_exp',
     # 'all', 'any',
     'calculate_mean_and_var', 'norm_except_axis',
 
@@ -92,6 +100,9 @@ IS_CHANNEL_LAST = False
 EPSILON = 1e-6
 """The small infinitesimal constant to avoid diving by zero of taking logarithm of zero."""
 
+CPU_DEVICE = 'cpu'
+"""The constant that represents the local CPU device."""
+
 
 # ---- typing ----
 Tensor = torch.Tensor
@@ -118,18 +129,54 @@ def jit_method(fn):
     return fn
 
 
-def jit_compile(m):
-    if isinstance(m, Module):
-        if not settings.disable_jit:
-            m = torch.jit.script(m)
+# ---- device ----
+@jit
+def get_device(t: Tensor) -> str:
+    return str(t.device)
+
+
+@jit
+def to_device(t: Tensor, device: str) -> Tensor:
+    if str(t.device) != device:
+        t = t.to(device=device)
+    return t
+
+
+_current_device = [CPU_DEVICE]
+
+
+@jit_ignore
+def current_device() -> str:
+    return _current_device[0]
+
+
+@contextmanager
+def use_device(device: str):
+    if not torch.cuda.is_available():
+        if device != CPU_DEVICE:
+            raise RuntimeError('GPU is not available.')
+        yield
     else:
-        raise TypeError(f'Not supported by `jit_compile`: {m!r}')
-    return m
+        old_device = _current_device[0]
+        try:
+            _current_device[0] = device
+            yield
+        finally:
+            _current_device[0] = old_device
 
 
-def is_jit_layer(layer: Module) -> bool:
-    """Check whether or not `layer` is a JIT compiled layer."""
-    return isinstance(layer, torch.jit.ScriptModule)
+def gpu_device_list() -> List[str]:
+    return [f'cuda:{index}' for index in range(torch.cuda.device_count())]
+
+
+def first_gpu_device(fallback_to_cpu: bool = True) -> str:
+    gpu_list = gpu_device_list()
+    if not gpu_list:
+        if not fallback_to_cpu:  # pragma: no cover
+            raise RuntimeError('No GPU is available.')
+        else:
+            return CPU_DEVICE
+    return gpu_list[0]
 
 
 # ---- utilities ----
@@ -145,27 +192,39 @@ else:
         return ret
 
 
-# ---- dtypes ----
+# ---- cast dtype and device ----
 @jit
-def cast(input: Tensor, dtype: str) -> Tensor:
-    if dtype == 'float32':
-        target_dtype = torch.float32
-    elif dtype == 'int32':
-        target_dtype = torch.int32
+def cast(input: Tensor,
+         dtype: Optional[str] = None,
+         device: Optional[str] = None) -> Tensor:
+    if dtype is None:
+        target_dtype = input.dtype
     else:
-        target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    if target_dtype != input.dtype:
-        input = input.to(dtype=target_dtype)
-    return input
+        if dtype == 'float32':
+            target_dtype = torch.float32
+        elif dtype == 'int32':
+            target_dtype = torch.int32
+        else:
+            target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+
+    if target_dtype != input.dtype and device is not None:
+        output = input.to(dtype=target_dtype, device=device)
+    elif target_dtype != input.dtype:
+        output = input.to(dtype=target_dtype)
+    elif device is not None:
+        output = input.to(device=device)
+    else:
+        output = input
+
+    return output
 
 
 @jit
-def cast_like(input: Tensor, dtype_as: Tensor) -> Tensor:
-    if dtype_as.dtype != input.dtype:
-        input = input.to(dtype=dtype_as.dtype)
-    return input
+def cast_like(input: Tensor, like: Tensor) -> Tensor:
+    return input.to(dtype=like.dtype, device=like.device)
 
 
+# ---- dtypes ----
 @jit
 def get_dtype(input: Tensor) -> str:
     if input.dtype == torch.float32:
@@ -193,18 +252,10 @@ def is_floating_point_dtype(dtype: str) -> bool:
 
 
 # ---- tensor constructors ----
-as_tensor_backend = torch.as_tensor
-"""
-``T.as_tensor`` with JIT support.
-
-This should be an alias of the backend function ``as_tensor(data, dtype=None)``.
-Use only ``(data) -> torch.Tensor``, or ``(data, dtype=another_tensor.dtype) -> torch.Tensor``.
-"""
-
-
 @jit_ignore
 def as_tensor(data,
               dtype: Optional[Union[torch.dtype, str]] = None,
+              device: Optional[str] = None,
               force_copy: bool = False) -> Tensor:
     """
     Construct a new tensor from `data`.
@@ -217,6 +268,7 @@ def as_tensor(data,
             another tensor, a :class:`~tensorkit.StochasticTensor`, or anything
             else that the backend supports.
         dtype: The expected dtype of the constructed tensor.
+        device: The device where to place new tensors and variables.
         force_copy: Force to copy `data` even if it is not necessary.
             The gradient propagation will not be stopped from the copied tensor
             to the original tensor.  The caller may need to use `T.stop_grad()`
@@ -243,27 +295,38 @@ def as_tensor(data,
             else:
                 target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
 
+    # check the device argument
+    if device is None:
+        device = current_device()
+
     # if `data` is already a tensor
     if isinstance(data, StochasticTensor):
         data = data.tensor
 
     if isinstance(data, Tensor):
         # input `data` may be `StochasticTensor`, `Tensor` or `numpy.ndarray`
+        kwargs = {}
         if data.dtype != target_dtype:
-            data = data.to(target_dtype)
+            kwargs['dtype'] = target_dtype
+        if str(data.device) != device:
+            kwargs['device'] = device
+        if kwargs:
+            data = data.to(**kwargs)
         if force_copy:
             data = data.clone()
         return data
 
     # or if `data` is other types
-    ret = torch.as_tensor(data, dtype=target_dtype)
+    ret = torch.as_tensor(data, dtype=target_dtype, device=device)
     if force_copy:
         ret = ret.clone()
     return ret
 
 
 @jit_ignore
-def from_numpy(data, dtype: Optional[Union[torch.dtype, str]] = None) -> Tensor:
+def from_numpy(data,
+               dtype: Optional[Union[torch.dtype, str]] = None,
+               device: Optional[str] = None) -> Tensor:
     """
     Construct a new tensor from given numpy array `data`.
 
@@ -271,40 +334,68 @@ def from_numpy(data, dtype: Optional[Union[torch.dtype, str]] = None) -> Tensor:
         data: The numpy array, which will always be copied, even if the backend
             supports share memory between a numpy array and a tensor.
         dtype: The expected dtype of the constructed tensor.
+        device: Where to put the new tensor.
 
     Returns:
         The constructed tensor.
     """
-    return as_tensor(data, dtype=dtype, force_copy=True)
+    if device is None:
+        device = current_device()
+    return as_tensor(data, dtype=dtype, device=device, force_copy=True)
 
 
 @jit
-def float_scalar(data: float, dtype: str = settings.float_x) -> Tensor:
+def float_scalar(data: float,
+                 dtype: str = settings.float_x,
+                 device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         real_dtype = torch.float32
     else:
         real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
-    return torch.tensor(data, dtype=real_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.tensor(data, dtype=real_dtype, device=device)
 
 
 @jit
-def int_scalar(data: int, dtype: str = 'int32') -> Tensor:
+def float_scalar_like(data: float, like: Tensor) -> Tensor:
+    return torch.tensor(data, dtype=like.dtype, device=like.device)
+
+
+@jit
+def int_scalar(data: int,
+               dtype: str = 'int32',
+               device: Optional[str] = None) -> Tensor:
     if dtype == 'int32':
         int_dtype = torch.int32
     else:
         int_dtype = {'int8': torch.int8, 'int16': torch.int16, 'int64': torch.int64}[dtype]
-    return torch.tensor(data, dtype=int_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.tensor(data, dtype=int_dtype, device=device)
 
 
 @jit
-def zeros(shape: List[int], dtype: str = settings.float_x) -> Tensor:
+def int_scalar_like(data: int, like: Tensor) -> Tensor:
+    return torch.tensor(data, dtype=like.dtype, device=like.device)
+
+
+@jit
+def zeros(shape: List[int],
+          dtype: str = settings.float_x,
+          device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         target_dtype = torch.float32
     elif dtype == 'int32':
         target_dtype = torch.int32
     else:
         target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    return torch.zeros(shape, dtype=target_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.zeros(shape, dtype=target_dtype, device=device)
 
 
 @jit
@@ -322,18 +413,23 @@ def zeros_like(input: Tensor,
         target_dtype = input.dtype
     if shape is None:
         shape = list(input.shape)
-    return torch.zeros(shape, dtype=target_dtype)
+    return torch.zeros(shape, dtype=target_dtype, device=input.device)
 
 
 @jit
-def ones(shape: List[int], dtype: str = settings.float_x) -> Tensor:
+def ones(shape: List[int],
+         dtype: str = settings.float_x,
+         device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         target_dtype = torch.float32
     elif dtype == 'int32':
         target_dtype = torch.int32
     else:
         target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    return torch.ones(shape, dtype=target_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.ones(shape, dtype=target_dtype, device=device)
 
 
 @jit
@@ -351,20 +447,24 @@ def ones_like(input: Tensor,
         target_dtype = input.dtype
     if shape is None:
         shape = list(input.shape)
-    return torch.ones(shape, dtype=target_dtype)
+    return torch.ones(shape, dtype=target_dtype, device=input.device)
 
 
 @jit
 def full(shape: List[int],
          fill_value: float,
-         dtype: str = settings.float_x) -> Tensor:
+         dtype: str = settings.float_x,
+         device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         target_dtype = torch.float32
     elif dtype == 'int32':
         target_dtype = torch.int32
     else:
         target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    return torch.full(shape, fill_value, dtype=target_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.full(shape, fill_value, dtype=target_dtype, device=device)
 
 
 @jit
@@ -383,18 +483,22 @@ def full_like(input: Tensor,
         target_dtype = input.dtype
     if shape is None:
         shape = list(input.shape)
-    return torch.full(shape, fill_value, dtype=target_dtype)
+    return torch.full(shape, fill_value, dtype=target_dtype, device=input.device)
 
 
 @jit
-def arange(start: int, end: int, step: int = 1, dtype: str = 'int32') -> Tensor:
+def arange(start: int, end: int, step: int = 1, dtype: str = 'int32',
+           device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         target_dtype = torch.float32
     elif dtype == 'int32':
         target_dtype = torch.int32
     else:
         target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
-    return torch.arange(start, end, step, dtype=target_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.arange(start, end, step, dtype=target_dtype, device=device)
 
 
 @jit
@@ -430,6 +534,7 @@ def to_numpy(input: Tensor) -> np.ndarray:
 # ---- variable and initializer ----
 def variable(shape: List[int],
              dtype: Union[str, torch.dtype] = settings.float_x,
+             device: Optional[str] = None,
              initializer: Optional[
                  Union[
                      int, float, np.ndarray, Tensor,
@@ -444,6 +549,7 @@ def variable(shape: List[int],
     Args:
         shape: Shape of the variable.
         dtype: Dtype of the variable.
+        device: The device where to place new tensors and variables.
         initializer: The variable initializer.  It may be a scalar (which
             will be filled into the new variable), an array or another
             `Tensor` with the same shape as specified `shape`, or a callable
@@ -467,28 +573,33 @@ def variable(shape: List[int],
     else:
         target_dtype = dtype
 
+    if device is None:
+        device = current_device()
+
     if isinstance(initializer, (int, float)):
         ret = torch.full(shape, float(initializer), dtype=target_dtype,
-                         requires_grad=requires_grad)
+                         device=device, requires_grad=requires_grad)
     elif isinstance(initializer, np.ndarray) and initializer.shape == ():
         ret = torch.full(shape, initializer.tolist(), dtype=target_dtype,
-                         requires_grad=requires_grad)
+                         device=device, requires_grad=requires_grad)
     elif isinstance(initializer, (np.ndarray, Tensor)):
         if list(initializer.shape) != shape:
             raise ValueError(f'`initializer.shape` != `shape`: '
                              f'{list(initializer.shape)} vs {shape}')
+        if isinstance(initializer, Tensor):
+            initializer = to_numpy(initializer)
         ret = as_tensor(initializer, dtype=target_dtype,
-                        force_copy=force_copy)
+                        device=device, force_copy=force_copy)
         if requires_grad:
             ret.requires_grad_(True)
     elif isinstance(initializer, Callable):
-        ret = zeros(shape, dtype=dtype)
+        ret = zeros(shape, device=device, dtype=dtype)
         with torch.no_grad():
             initializer(ret)
         if requires_grad:
             ret.requires_grad_(True)
     elif initializer is None:
-        ret = torch.zeros(shape, dtype=target_dtype,
+        ret = torch.zeros(shape, dtype=target_dtype, device=device,
                           requires_grad=requires_grad)
     else:
         raise TypeError(f'Unsupported initializer: {initializer!r}')
@@ -1109,6 +1220,16 @@ def reduce_min(input: Tensor,
 
 
 @jit
+def argmax(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.argmax(input, dim=axis, keepdim=keepdims)
+
+
+@jit
+def argmin(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.argmin(input, dim=axis, keepdim=keepdims)
+
+
+@jit
 def log_sum_exp(input: Tensor,
                 axis: Optional[List[int]] = None,
                 keepdims: bool = False) -> Tensor:
@@ -1331,9 +1452,9 @@ def maybe_clip(x: Tensor,
     if x_min is not None and x_max is not None:
         return clip(x, x_min, x_max)
     elif x_min is not None:
-        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype))
+        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype, device=x.device))
     elif x_max is not None:
-        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype))
+        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype, device=x.device))
     else:
         return x
 
@@ -1363,33 +1484,47 @@ def matrix_inverse(matrix: Tensor) -> Tensor:
 
 
 # ---- gradient utilities ----
-if settings.disable_jit:
+if settings.disable_jit or not torch.__version__.startswith('1.3.'):
+    @jit
     def grad(outputs: List[Tensor],
              inputs: List[Tensor],
              grad_outputs: Optional[List[Optional[Tensor]]] = None,
-             keep_graph: Optional[bool] = None,
+             retain_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Optional[Tensor]]:
-        return list(
+        grad_outs = list(
             torch.autograd.grad(
                 outputs=outputs,
                 inputs=inputs,
                 grad_outputs=grad_outputs,
-                retain_graph=keep_graph,
+                retain_graph=retain_graph,
                 create_graph=create_graph,
                 allow_unused=allow_unused,
             )
         )
 
+        if not allow_unused:
+            for i in range(len(grad_outs)):
+                if grad_outs[i] is None:
+                    raise RuntimeError(
+                        'One of the differentiated Tensors '
+                        'appears to not have been used in the graph. '
+                        'Set allow_unused=True if this is the desired '
+                        'behavior.'
+                    )
 
-    def is_null_grad(origin: Tensor, gradient: Optional[Tensor]) -> bool:
-        return gradient is None
+        return grad_outs
+
+
+    def is_null_grad(origin: Tensor, grad: Optional[Tensor]) -> bool:
+        return grad is None
+
 else:
     @jit
     def grad(outputs: List[Tensor],
              inputs: List[Tensor],
              grad_outputs: Optional[List[Optional[Tensor]]] = None,
-             keep_graph: Optional[bool] = None,
+             retain_graph: Optional[bool] = None,
              create_graph: bool = False,
              allow_unused: bool = False) -> List[Tensor]:
         grad_outs = list(
@@ -1397,7 +1532,7 @@ else:
                 outputs=outputs,
                 inputs=inputs,
                 grad_outputs=grad_outputs,
-                keep_graph=keep_graph,
+                keep_graph=retain_graph,
                 create_graph=create_graph,
                 allow_unused=allow_unused,
             )

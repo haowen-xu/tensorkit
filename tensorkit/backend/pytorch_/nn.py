@@ -56,8 +56,8 @@ def sigmoid(x: Tensor) -> Tensor:
 def log_sigmoid(x: Tensor) -> Tensor:
     # using `neg_x` and `pos_x` separately can avoid having NaN or Infinity
     # on either of the path.
-    neg_x = torch.min(x, torch.as_tensor(0., dtype=x.dtype))
-    pos_x = torch.max(x, torch.as_tensor(0., dtype=x.dtype))
+    neg_x = torch.min(x, torch.as_tensor(0., dtype=x.dtype, device=x.device))
+    pos_x = torch.max(x, torch.as_tensor(0., dtype=x.dtype, device=x.device))
     return torch.where(
         x < 0.,
         neg_x - log1p(exp(neg_x)),  # log(exp(x) / (1 + exp(x)))
@@ -117,6 +117,8 @@ def cross_entropy_with_logits(logits: Tensor,
 
     logits, front_shape = flatten_to_ndims(logits, 2)
     labels, _ = flatten_to_ndims(labels, 1)
+    if labels.dtype != torch.int64:
+        labels = labels.to(torch.int64)
 
     ret = torch.nn.functional.cross_entropy(
         logits, labels, reduction=reduction)

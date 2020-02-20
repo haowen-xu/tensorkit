@@ -34,6 +34,7 @@ class UnitNormal(Distribution):
                  dtype: str = T.float_x(),
                  reparameterized: bool = True,
                  event_ndims: int = 0,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`UnitNormal` distribution.
@@ -44,6 +45,7 @@ class UnitNormal(Distribution):
             reparameterized: Whether the distribution should be reparameterized?
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
+            device: The device where to place new tensors and variables.
             validate_tensors: Whether or not to check the numerical issues?
                 Defaults to ``settings.validate_tensors``.
         """
@@ -52,6 +54,7 @@ class UnitNormal(Distribution):
             value_shape=shape,
             reparameterized=reparameterized,
             event_ndims=event_ndims,
+            device=device or T.current_device(),
             validate_tensors=validate_tensors,
         )
 
@@ -59,21 +62,24 @@ class UnitNormal(Distribution):
     def mean(self) -> T.Tensor:
         """The mean of the normal distribution."""
         if self._mean is None:
-            self._mean = T.zeros(self.value_shape, self.dtype)
+            self._mean = T.zeros(
+                self.value_shape, dtype=self.dtype, device=self.device)
         return self._mean
 
     @property
     def std(self) -> T.Tensor:
         """The standard deviation (std) of the normal distribution."""
         if self._std is None:
-            self._std = T.ones(self.value_shape, self.dtype)
+            self._std = T.ones(
+                self.value_shape, dtype=self.dtype, device=self.device)
         return self._std
 
     @property
     def logstd(self) -> T.Tensor:
         """The log-std of the normal distribution."""
         if self._logstd is None:
-            self._logstd = T.zeros(self.value_shape, self.dtype)
+            self._logstd = T.zeros(
+                self.value_shape, dtype=self.dtype, device=self.device)
         return self._logstd
 
     def _sample(self,
@@ -86,6 +92,7 @@ class UnitNormal(Distribution):
                 shape=([n_samples] + self.value_shape if n_samples is not None
                        else self.value_shape),
                 dtype=self.dtype,
+                device=self.device,
             ),
             distribution=self,
             n_samples=n_samples,
@@ -104,12 +111,12 @@ class UnitNormal(Distribution):
             cls=UnitNormal,
             base=self,
             attrs=(('shape', 'value_shape'), 'dtype', 'reparameterized',
-                   'event_ndims', 'validate_tensors'),
+                   'event_ndims', 'device', 'validate_tensors'),
             cached_attrs=('mean', 'std', 'logstd'),
             compute_deps={
-                'mean': ('dtype', 'value_shape'),
-                'std': ('dtype', 'value_shape'),
-                'logstd': ('dtype', 'value_shape'),
+                'mean': ('dtype', 'value_shape', 'device'),
+                'std': ('dtype', 'value_shape', 'device'),
+                'logstd': ('dtype', 'value_shape', 'device'),
             },
             overrided_params=overrided_params,
         )
@@ -147,10 +154,13 @@ class BaseNormal(Distribution):
                  logstd: Optional[TensorOrData] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         # validate the arguments
         mean, (std, logstd) = check_tensor_arg_types(
-            ('mean', mean), [('std', std), ('logstd', logstd)])
+            ('mean', mean), [('std', std), ('logstd', logstd)],
+            device=device,
+        )
         if std is not None:
             mutual_params = {'std': std}
             stdx = std
@@ -168,6 +178,7 @@ class BaseNormal(Distribution):
             reparameterized=reparameterized,
             value_shape=value_shape,
             event_ndims=event_ndims,
+            device=device or T.get_device(mean),
             validate_tensors=validate_tensors,
         )
         for k, v in mutual_params.items():
@@ -208,7 +219,8 @@ class BaseNormal(Distribution):
             cls=self.__class__,
             base=self,
             attrs=(
-                ('mean', 'reparameterized', 'event_ndims', 'validate_tensors') +
+                ('mean', 'reparameterized', 'event_ndims', 'device',
+                 'validate_tensors') +
                 self._extra_args
             ),
             mutual_attrs=(('std', 'logstd'),),
@@ -227,6 +239,7 @@ class Normal(BaseNormal):
                  logstd: Optional[TensorOrData] = None,
                  reparameterized: bool = True,
                  event_ndims: int = 0,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`Normal` distribution instance.
@@ -238,12 +251,13 @@ class Normal(BaseNormal):
             reparameterized: Whether the distribution should be reparameterized?
             event_ndims: The number of dimensions in the samples to be
                 considered as an event.
+            device: The device where to place new tensors and variables.
             validate_tensors: Whether or not to check the numerical issues?
                 Defaults to ``settings.validate_tensors``.
         """
         super().__init__(
             mean=mean, std=std, logstd=logstd, reparameterized=reparameterized,
-            event_ndims=event_ndims, validate_tensors=validate_tensors,
+            event_ndims=event_ndims, device=device, validate_tensors=validate_tensors,
         )
 
     def _sample(self,
@@ -304,6 +318,7 @@ class TruncatedNormal(BaseNormal):
                  event_ndims: int = 0,
                  epsilon: float = T.EPSILON,
                  log_zero: float = T.random.LOG_ZERO_VALUE,
+                 device: Optional[str] = None,
                  validate_tensors: Optional[bool] = None):
         """
         Construct a new :class:`TruncatedNormal` distribution instance.
@@ -321,6 +336,7 @@ class TruncatedNormal(BaseNormal):
             log_zero: The value to represent ``log(0)`` in the result of
                 :meth:`log_prob()`, instead of using ``-math.inf``, to avoid
                 potential numerical issues.
+            device: The device where to place new tensors and variables.
             validate_tensors: Whether or not to check the numerical issues?
                 Defaults to ``settings.validate_tensors``.
         """
@@ -330,7 +346,7 @@ class TruncatedNormal(BaseNormal):
                                  f'and high == {high}.')
         super().__init__(
             mean=mean, std=std, logstd=logstd, reparameterized=reparameterized,
-            event_ndims=event_ndims, validate_tensors=validate_tensors,
+            event_ndims=event_ndims, device=device, validate_tensors=validate_tensors,
         )
         self.low = low
         self.high = high

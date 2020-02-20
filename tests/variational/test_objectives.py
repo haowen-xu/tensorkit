@@ -9,13 +9,12 @@ from tests.helper import *
 
 
 def prepare_test_payload():
-    np.random.seed(1234)
     log_p = T.as_tensor(np.random.normal(size=[13]))
     log_q = T.as_tensor(np.random.normal(size=[7, 13]))
     return log_p, log_q
 
 
-class ELBOObjectiveTestCase(unittest.TestCase):
+class ELBOObjectiveTestCase(TestCase):
 
     def test_elbo(self):
         log_p, log_q = prepare_test_payload()
@@ -36,7 +35,7 @@ class ELBOObjectiveTestCase(unittest.TestCase):
         )
 
 
-class MonteCarloObjectiveTestCase(unittest.TestCase):
+class MonteCarloObjectiveTestCase(TestCase):
 
     def test_error(self):
         log_p, log_q = prepare_test_payload()

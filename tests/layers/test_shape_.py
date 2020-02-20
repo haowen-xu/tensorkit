@@ -8,13 +8,13 @@ from tests.helper import *
 from tests.ops import make_conv_shape
 
 
-class FlattenToNDimsTestCase(unittest.TestCase):
+class FlattenToNDimsTestCase(TestCase):
 
     def test_FlattenToNDims(self):
         x = T.random.randn(make_conv_shape([3, 4], 6, [5]))
 
         internal = tk.layers.LinearConv1d(6, 7, kernel_size=1)
-        layer = T.jit_compile(tk.layers.FlattenToNDims(internal, 3))
+        layer = tk.layers.jit_compile(tk.layers.FlattenToNDims(internal, 3))
 
         xx, front_shape = T.flatten_to_ndims(x, 3)
         assert_equal(layer(x), T.unflatten_from_ndims(internal(xx), front_shape))
@@ -23,7 +23,7 @@ class FlattenToNDimsTestCase(unittest.TestCase):
             _ = layer(T.random.randn([1, 1]))
 
 
-class ConstantPadTestCase(unittest.TestCase):
+class ConstantPadTestCase(TestCase):
 
     def test_ConstantPad(self):
         for value_arg in [{}, {'value': 123.0}]:
@@ -33,7 +33,7 @@ class ConstantPadTestCase(unittest.TestCase):
                 repr(layer),
                 f'ConstantPad(padding=[(1, 1), (2, 3), (0, 5)], value={value})'
             )
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
 
             x = T.random.randn([3, 4, 5])
             assert_equal(layer(x), T.pad(x, [(1, 1), (2, 3), (0, 5)], value=value))
@@ -76,7 +76,7 @@ class ConstantPadTestCase(unittest.TestCase):
                         repr(layer),
                         f'ConstantPad{spatial_ndims}d(padding={padding}, value={value})'
                     )
-                    layer = T.jit_compile(layer)
+                    layer = tk.layers.jit_compile(layer)
                     assert_equal(
                         layer(x),
                         spatial_pad(x, [pad_arg] * spatial_ndims)
@@ -90,7 +90,7 @@ class ConstantPadTestCase(unittest.TestCase):
                     repr(layer),
                     f'ConstantPad{spatial_ndims}d(padding={padding}, value={value})'
                 )
-                layer = T.jit_compile(layer)
+                layer = tk.layers.jit_compile(layer)
                 assert_equal(layer(x), spatial_pad(x, padding))
 
                 # error padding argument
@@ -106,7 +106,7 @@ class ConstantPadTestCase(unittest.TestCase):
                         _ = layer_factory(0, 1, 2, 3)
 
 
-class ChannelSwapTestCase(unittest.TestCase):
+class ChannelSwapTestCase(TestCase):
 
     def test_channel_last_to_first(self):
         for spatial_ndims in (1, 2, 3):
@@ -118,7 +118,7 @@ class ChannelSwapTestCase(unittest.TestCase):
             fn = getattr(T.nn, f'channel_last_to_first{spatial_ndims}d')
             x = T.random.randn([3, 4, 5, 6, 7][:spatial_ndims + 2])
 
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             assert_equal(layer(x), fn(x))
 
     def test_channel_first_to_last(self):
@@ -131,5 +131,5 @@ class ChannelSwapTestCase(unittest.TestCase):
             fn = getattr(T.nn, f'channel_first_to_last{spatial_ndims}d')
             x = T.random.randn([3, 4, 5, 6, 7][:spatial_ndims + 2])
 
-            layer = T.jit_compile(layer)
+            layer = tk.layers.jit_compile(layer)
             assert_equal(layer(x), fn(x))

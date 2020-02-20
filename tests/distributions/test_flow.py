@@ -10,18 +10,18 @@ from tensorkit import tensor as T
 from tensorkit.distributions import Categorical, FlowDistribution, UnitNormal
 from tensorkit.distributions.utils import copy_distribution
 from tensorkit.flows import ReshapeFlow, ActNorm
-from tensorkit.tensor import Tensor, as_tensor_backend, int_range
+from tensorkit.tensor import Tensor, float_scalar_like, int_range
 from tests.helper import *
 
 
-class _MyFlow(tk.flows.BaseFlow):
+class _MyFlow(tk.flows.Flow):
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             output = input * 2.0 + 1
             event_ndims = self.x_event_ndims
@@ -31,9 +31,9 @@ class _MyFlow(tk.flows.BaseFlow):
 
         if compute_log_det:
             if inverse:
-                output_log_det = as_tensor_backend(-math.log(2.))
+                output_log_det = float_scalar_like(-math.log(2.), output)
             else:
-                output_log_det = as_tensor_backend(math.log(2.))
+                output_log_det = float_scalar_like(math.log(2.), output)
 
             for axis in int_range(-event_ndims, 0):
                 output_log_det = output_log_det * output.shape[axis]
@@ -49,9 +49,9 @@ class _MyFlow(tk.flows.BaseFlow):
 def check_flow_distribution(ctx,
                             distribution,
                             flow):
-    min_event_ndims = flow.y_event_ndims
+    min_event_ndims = flow.get_y_event_ndims()
     max_event_ndims = (distribution.value_ndims +
-                       (flow.y_event_ndims - flow.x_event_ndims))
+                       (flow.get_y_event_ndims() - flow.get_x_event_ndims()))
 
     def fn(event_ndims, reparameterized, validate_tensors):
         # construct the instance
@@ -65,7 +65,7 @@ def check_flow_distribution(ctx,
         if event_ndims is not None:
             kwargs['event_ndims'] = event_ndims
         else:
-            event_ndims = flow.y_event_ndims
+            event_ndims = flow.get_y_event_ndims()
 
         if validate_tensors is not None:
             kwargs['validate_tensors'] = validate_tensors
@@ -82,11 +82,11 @@ def check_flow_distribution(ctx,
             assert_allclose(y, t.tensor, atol=1e-4, rtol=1e-6)
             ctx.assertEqual(
                 T.rank(log_det),
-                T.rank(log_px) - (flow.x_event_ndims - distribution.event_ndims)
+                T.rank(log_px) - (flow.get_x_event_ndims() - distribution.event_ndims)
             )
             return -log_det + T.reduce_sum(
                 log_px, T.int_range(
-                    -(flow.x_event_ndims - distribution.event_ndims),
+                    -(flow.get_x_event_ndims() - distribution.event_ndims),
                     0
                 )
             )
@@ -100,7 +100,7 @@ def check_flow_distribution(ctx,
             max_event_ndims=max_event_ndims,
             log_prob_fn=log_prob_fn,
             transform_origin_distribution=distribution,
-            transform_origin_group_ndims=flow.x_event_ndims - distribution.event_ndims,
+            transform_origin_group_ndims=flow.get_x_event_ndims() - distribution.event_ndims,
             # other attributes
             base_distribution=distribution,
             flow=flow,
@@ -123,11 +123,9 @@ def check_flow_distribution(ctx,
         fn(None, None, validate_tensors)
 
 
-class FlowDistributionTestCase(unittest.TestCase):
+class FlowDistributionTestCase(TestCase):
 
     def test_FlowDistribution(self):
-        T.random.seed(1234)
-
         check_flow_distribution(
             self,
             UnitNormal([], event_ndims=0),

@@ -1,6 +1,7 @@
 from typing import *
 
 from .. import tensor as T
+from ..layers import is_jit_layer
 from ..tensor import Tensor, Module, split, concat
 from .core import *
 
@@ -9,7 +10,7 @@ __all__ = [
 ]
 
 
-class SplitFlow(BaseFlow):
+class SplitFlow(Flow):
     """
     A flow which splits input `x` into halves, apply different flows on each
     half, then concat the output together.
@@ -26,7 +27,7 @@ class SplitFlow(BaseFlow):
         log_det = log_det1 + log_det2
     """
 
-    __constants__ = BaseFlow.__constants__ + (
+    __constants__ = Flow.__constants__ + (
         'left', 'right', 'x_sections', 'x_axis', 'y_sections', 'y_axis',
     )
 
@@ -39,8 +40,8 @@ class SplitFlow(BaseFlow):
 
     def __init__(self,
                  x_sections: Sequence[int],
-                 left: BaseFlow,
-                 right: Optional[BaseFlow] = None,
+                 left: Flow,
+                 right: Optional[Flow] = None,
                  y_sections: Optional[Sequence[int]] = None,
                  x_axis: int = -1,
                  y_axis: Optional[int] = None):
@@ -79,23 +80,23 @@ class SplitFlow(BaseFlow):
                                  f'two positive integers: got {y_sections!r}.')
             y_sections = list(map(int, y_sections))
 
-        if not isinstance(left, BaseFlow) and not T.is_jit_layer(left):
+        if not isinstance(left, Flow) and not is_jit_layer(left):
             raise TypeError(f'`left` is not a flow: got {left!r}.')
-        x_event_ndims = left.x_event_ndims
-        y_event_ndims = left.y_event_ndims
+        x_event_ndims = left.get_x_event_ndims()
+        y_event_ndims = left.get_y_event_ndims()
 
         if right is not None:
-            if not isinstance(right, BaseFlow) and not T.is_jit_layer(right):
+            if not isinstance(right, Flow) and not is_jit_layer(right):
                 raise TypeError(f'`right` is not a flow: got {right!r}.')
-            if right.x_event_ndims != x_event_ndims or \
-                    right.y_event_ndims != y_event_ndims:
+            if right.get_x_event_ndims() != x_event_ndims or \
+                    right.get_y_event_ndims() != y_event_ndims:
                 raise ValueError(
                     f'`left` and `right` flows must have same `x_event_ndims` '
                     f'and `y_event_ndims`: '
-                    f'got `left.x_event_ndims` == {left.x_event_ndims!r}, '
-                    f'`left.y_event_ndims` == {left.y_event_ndims}, '
-                    f'`right.x_event_ndims` == {right.x_event_ndims}, '
-                    f'and `right.y_event_ndims` == {right.y_event_ndims}.'
+                    f'got `left.x_event_ndims` == {left.get_x_event_ndims()!r}, '
+                    f'`left.y_event_ndims` == {left.get_y_event_ndims()}, '
+                    f'`right.x_event_ndims` == {right.get_x_event_ndims()}, '
+                    f'and `right.y_event_ndims` == {right.get_y_event_ndims()}.'
                 )
 
         if x_event_ndims != y_event_ndims:
@@ -124,12 +125,12 @@ class SplitFlow(BaseFlow):
         self.y_sections = y_sections
         self.y_axis = y_axis
 
-    def _forward(self,
-                 input: Tensor,
-                 input_log_det: Optional[Tensor],
-                 inverse: bool,
-                 compute_log_det: bool
-                 ) -> Tuple[Tensor, Optional[Tensor]]:
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
         if inverse:
             out_left, out_right = split(
                 input, sections=self.y_sections, axis=self.y_axis)
@@ -159,8 +160,8 @@ class SplitFlowNd(SplitFlow):
 
     def __init__(self,
                  x_sections: Sequence[int],
-                 left: BaseFlow,
-                 right: Optional[BaseFlow] = None,
+                 left: Flow,
+                 right: Optional[Flow] = None,
                  y_sections: Optional[Sequence[int]] = None):
         """
         Construct a new convolutional split flow.
@@ -181,13 +182,13 @@ class SplitFlowNd(SplitFlow):
             # type error deferred to the base class, thus we only check
             # the event ndims if `arg` looks like a flow.
             if arg is not None and hasattr(arg, 'x_event_ndims'):
-                if arg.x_event_ndims != event_ndims or \
-                        arg.y_event_ndims != event_ndims:
+                if arg.get_x_event_ndims() != event_ndims or \
+                        arg.get_y_event_ndims() != event_ndims:
                     raise ValueError(
                         f'The `x_event_ndims` and `y_event_ndims` of '
                         f'`{arg_name}` are required to be {event_ndims}: '
-                        f'got `x_event_ndims` == {arg.x_event_ndims}, '
-                        f'and `y_event_ndims` == {arg.y_event_ndims}.'
+                        f'got `x_event_ndims` == {arg.get_x_event_ndims()}, '
+                        f'and `y_event_ndims` == {arg.get_y_event_ndims()}.'
                     )
 
         super().__init__(

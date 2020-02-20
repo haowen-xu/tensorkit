@@ -9,7 +9,7 @@ from .nn import *
 from ...settings_ import settings
 
 __all__ = [
-    'seed',
+    'seed', 'set_deterministic',
 
     # uniform
     'rand', 'uniform',
@@ -37,26 +37,41 @@ __all__ = [
 
 def seed(seed: int):
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def set_deterministic(deterministic: bool = True):
+    if hasattr(torch, 'backends') and hasattr(torch.backends, 'cudnn'):
+        torch.backends.cudnn.enabled = not deterministic
+        torch.backends.cudnn.benchmark = not deterministic
+        torch.backends.cudnn.deterministic = deterministic
 
 
 # ---- uniform distribution ----
 @jit
-def rand(shape: List[int], dtype: str = settings.float_x) -> Tensor:
+def rand(shape: List[int],
+         dtype: str = settings.float_x,
+         device: Optional[str] = None) -> Tensor:
     if dtype == 'float32':
         real_dtype = torch.float32
     else:
         real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
-    return torch.rand(shape, dtype=real_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.rand(shape, dtype=real_dtype, device=device)
 
 
 @jit
 def uniform(shape: List[int], low: float, high: float,
-            dtype: str = settings.float_x) -> Tensor:
+            dtype: str = settings.float_x,
+            device: Optional[str] = None) -> Tensor:
     if low >= high:
         raise ValueError('`low` < `high` does not hold: low == {}, high == {}'.
                          format(low, high))
     scale = high - low
-    return rand(shape, dtype) * scale + low
+    return rand(shape, dtype, device=device) * scale + low
 
 
 # ---- shuffle and random permutation ----
@@ -64,7 +79,8 @@ def uniform(shape: List[int], low: float, high: float,
 def shuffle(input: Tensor, axis: int = 0) -> Tensor:
     input_shape = input.shape
     shuffle_size = input_shape[axis]
-    permutation = torch.randperm(shuffle_size, dtype=torch.long)
+    permutation = torch.randperm(
+        shuffle_size, dtype=torch.long, device=input.device)
     if axis == 0:
         return input[permutation]
     else:
@@ -72,22 +88,32 @@ def shuffle(input: Tensor, axis: int = 0) -> Tensor:
 
 
 @jit
-def random_permutation(n: int, dtype: str = 'int32') -> Tensor:
+def random_permutation(n: int,
+                       dtype: str = 'int32',
+                       device: Optional[str] = None) -> Tensor:
     if dtype == 'int32':
         int_dtype = torch.int32
     else:
         int_dtype = {'int8': torch.int8, 'int16': torch.int16, 'int64': torch.int64}[dtype]
-    return torch.randperm(n, dtype=int_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.randperm(n, dtype=int_dtype, device=device)
 
 
 # ---- normal distribution ----
 @jit
-def randn(shape: List[int], dtype: str = settings.float_x) -> Tensor:
+def randn(shape: List[int],
+          dtype: str = settings.float_x,
+          device: Optional[str] = None,) -> Tensor:
     if dtype == 'float32':
         real_dtype = torch.float32
     else:
         real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
-    return torch.randn(shape, dtype=real_dtype)
+
+    if device is None:
+        device = current_device()
+    return torch.randn(shape, dtype=real_dtype, device=device)
 
 
 @jit
@@ -116,7 +142,7 @@ def normal(mean: Tensor,
     param_shape = broadcast_shape(shape(mean), shape(std))
     if n_samples is not None:
         param_shape = [n_samples] + param_shape
-    r = std * torch.randn(param_shape, dtype=mean.dtype) + mean
+    r = std * torch.randn(param_shape, dtype=mean.dtype, device=mean.device) + mean
     if not reparameterized:
         r = r.detach()
     return r
@@ -181,7 +207,7 @@ def bernoulli(probs: Tensor,
     if n_samples is not None:
         sample_shape = (n_samples,) + sample_shape
         probs = probs.unsqueeze(dim=0).expand(sample_shape)
-    out = torch.zeros(sample_shape, dtype=target_dtype)
+    out = torch.zeros(sample_shape, dtype=target_dtype, device=probs.device)
     return torch.bernoulli(probs, out=out).detach()
 
 

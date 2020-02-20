@@ -15,6 +15,7 @@ ignore_errors = True
 omit =
     tests/*
     scripts/*
+    tensorkit/examples/*
     tensorkit/backend/pytorch_/_make_dtypes_mapper.py
     setup.py
     *.pyt

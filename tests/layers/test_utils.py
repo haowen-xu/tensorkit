@@ -10,7 +10,7 @@ from tests.helper import *
 from tests.ops import *
 
 
-class UtilsTestCase(unittest.TestCase):
+class UtilsTestCase(TestCase):
 
     def test_flatten_nested_layers(self):
         layers = [tk.layers.Linear(5, 5) for _ in range(5)]
@@ -45,6 +45,7 @@ class UtilsTestCase(unittest.TestCase):
                     ('Leaky_ReLU', tk.layers.LeakyReLU, (), {'negative_slope': 0.2}, T.nn.leaky_relu(x, 0.2)),
                     ('Sigmoid', tk.layers.Sigmoid, (), {}, T.nn.sigmoid(x)),
                     ('Tanh', tk.layers.Tanh, (), {}, T.tanh(x)),
+                    ('Log_Softmax', tk.layers.LogSoftmax, (), {}, T.nn.log_softmax(x)),
                 ]:
             name_candidates = (None,) if origin_name is None else (
                 origin_name,

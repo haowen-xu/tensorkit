@@ -1,5 +1,6 @@
 from typing import *
 
+from .. import tensor as T
 from ..tensor import (Tensor, Module, shape, rank, flatten_to_ndims,
                       unflatten_from_ndims, pad)
 from ..tensor.nn import *
@@ -10,23 +11,25 @@ __all__ = [
     'ConstantPad', 'ConstantPad1d', 'ConstantPad2d', 'ConstantPad3d',
     'ChannelFirstToLast1d', 'ChannelFirstToLast2d', 'ChannelFirstToLast3d',
     'ChannelLastToFirst1d', 'ChannelLastToFirst2d', 'ChannelLastToFirst3d',
+    'ChannelDefaultToLast1d', 'ChannelDefaultToLast2d', 'ChannelDefaultToLast3d',
+    'ChannelLastToDefault1d', 'ChannelLastToDefault2d', 'ChannelLastToDefault3d',
 ]
 
 
 # ---- FlattenToNDims ----
-class FlattenToNDims(BaseSingleVariateLayer):
+class FlattenToNDims(BaseLayer):
 
-    __constants__ = ('layer', 'ndims')
+    __constants__ = ('wrapped', 'ndims')
 
-    layer: Module
+    wrapped: Module
     ndims: int
 
     def __init__(self, layer: Module, ndims: int):
         super().__init__()
-        self.layer = layer
+        self.wrapped = layer
         self.ndims = ndims
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         # validate the shape of input
         input_rank = rank(input)
         expected_rank = self.ndims
@@ -39,12 +42,12 @@ class FlattenToNDims(BaseSingleVariateLayer):
 
         # flatten, get output from the layer, and then unflatten
         output, front_shape = flatten_to_ndims(input, expected_rank)
-        output = self.layer(output)
+        output = self.wrapped(output)
         return unflatten_from_ndims(output, front_shape)
 
 
 # ---- pad ----
-class ConstantPad(BaseSingleVariateLayer):
+class ConstantPad(BaseLayer):
 
     __constants__ = ('padding', 'value')
 
@@ -73,7 +76,7 @@ class ConstantPad(BaseSingleVariateLayer):
         self.padding = padding
         self.value = value
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return pad(input, self.padding, value=self.value)
 
 
@@ -130,37 +133,54 @@ class ConstantPad3d(ConstantPadNd):
 
 
 # ---- channel swap ----
-class ChannelFirstToLast1d(BaseSingleVariateLayer):
+class ChannelFirstToLast1d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last1d(input)
 
 
-class ChannelFirstToLast2d(BaseSingleVariateLayer):
+class ChannelFirstToLast2d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last2d(input)
 
 
-class ChannelFirstToLast3d(BaseSingleVariateLayer):
+class ChannelFirstToLast3d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_first_to_last3d(input)
 
 
-class ChannelLastToFirst1d(BaseSingleVariateLayer):
+class ChannelLastToFirst1d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first1d(input)
 
 
-class ChannelLastToFirst2d(BaseSingleVariateLayer):
+class ChannelLastToFirst2d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first2d(input)
 
 
-class ChannelLastToFirst3d(BaseSingleVariateLayer):
+class ChannelLastToFirst3d(BaseLayer):
 
-    def _forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         return channel_last_to_first3d(input)
+
+
+if T.IS_CHANNEL_LAST:
+    ChannelLastToDefault1d = \
+        ChannelLastToDefault2d = \
+        ChannelLastToDefault3d = \
+        ChannelDefaultToLast1d = \
+        ChannelDefaultToLast2d = \
+        ChannelDefaultToLast3d = \
+        Identity
+else:
+    ChannelLastToDefault1d = ChannelLastToFirst1d
+    ChannelLastToDefault2d = ChannelLastToFirst2d
+    ChannelLastToDefault3d = ChannelLastToFirst3d
+    ChannelDefaultToLast1d = ChannelFirstToLast1d
+    ChannelDefaultToLast2d = ChannelFirstToLast2d
+    ChannelDefaultToLast3d = ChannelFirstToLast3d

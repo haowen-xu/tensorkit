@@ -1,7 +1,8 @@
 from typing import *
 
 from .. import tensor as T
-from ..flows import BaseFlow
+from ..flows import Flow
+from ..layers import is_jit_layer
 from ..stochastic import StochasticTensor
 from .base import Distribution
 from .utils import copy_distribution, get_overrided_parameterized
@@ -18,7 +19,7 @@ class FlowDistribution(Distribution):
     _base_distribution: Distribution
     """The base distribution, which is transform by the `flow`."""
 
-    flow: BaseFlow
+    flow: Flow
     """The flow instance, which transforms the `distribution`."""
 
     _base_group_ndims: int
@@ -26,7 +27,7 @@ class FlowDistribution(Distribution):
 
     def __init__(self,
                  distribution: Distribution,
-                 flow: BaseFlow,
+                 flow: Flow,
                  reparameterized: Optional[bool] = None,
                  event_ndims: Optional[int] = None,
                  validate_tensors: Optional[bool] = None):
@@ -34,7 +35,7 @@ class FlowDistribution(Distribution):
         if not isinstance(distribution, Distribution):
             raise TypeError(f'`distribution` is not an instance of '
                             f'`Distribution`: got {distribution!r}')
-        if not isinstance(flow, BaseFlow) and not T.is_jit_layer(flow):
+        if not isinstance(flow, Flow) and not is_jit_layer(flow):
             raise TypeError(f'`flow` is not a flow: {flow!r}')
 
         # `distribution` is required to be continuous and have float dtype.
@@ -53,19 +54,19 @@ class FlowDistribution(Distribution):
 
         # requirement: distribution.event_ndims <= flow.x_event_ndims <= distribution.value_ndims
         #              otherwise the distribution cannot be transformed by the flow
-        if not (distribution.event_ndims <= flow.x_event_ndims <=
+        if not (distribution.event_ndims <= flow.get_x_event_ndims() <=
                 distribution.value_ndims):
             raise ValueError(
                 f'`distribution.event_ndims <= flow.x_event_ndims <= '
                 f'distribution.value_ndims` is not satisfied: '
                 f'`distribution.event_ndims` is {distribution.event_ndims}, '
-                f'while `flow.x_event_ndims` is {flow.x_event_ndims}.'
+                f'while `flow.x_event_ndims` is {flow.get_x_event_ndims()}.'
             )
 
         # requirement: min_event_ndims <= event_ndims <= max_event_ndims
-        min_event_ndims = flow.y_event_ndims
+        min_event_ndims = flow.get_y_event_ndims()
         max_event_ndims = (distribution.value_ndims +
-                           (flow.y_event_ndims - flow.x_event_ndims))
+                           (flow.get_y_event_ndims() - flow.get_x_event_ndims()))
         if event_ndims is not None and \
                 not (min_event_ndims <= event_ndims <= max_event_ndims):
             raise ValueError(
@@ -76,7 +77,7 @@ class FlowDistribution(Distribution):
 
         # obtain the arguments
         if event_ndims is None:
-            event_ndims = flow.y_event_ndims
+            event_ndims = flow.get_y_event_ndims()
         batch_ndims = max_event_ndims - event_ndims
         batch_shape = distribution.batch_shape[:batch_ndims]
         reparameterized = get_overrided_parameterized(
@@ -87,13 +88,14 @@ class FlowDistribution(Distribution):
         if validate_tensors is None:
             validate_tensors = distribution.validate_tensors
 
-        base_group_ndims = flow.x_event_ndims - distribution.event_ndims
+        base_group_ndims = flow.get_x_event_ndims() - distribution.event_ndims
 
         # now construct the instance
         super(FlowDistribution, self).__init__(
             dtype=dtype, batch_shape=batch_shape, continuous=continuous,
             reparameterized=reparameterized, event_ndims=event_ndims,
-            min_event_ndims=min_event_ndims, validate_tensors=validate_tensors,
+            min_event_ndims=min_event_ndims, device=distribution.device,
+            validate_tensors=validate_tensors,
         )
         self._base_distribution = distribution
         self.flow = flow

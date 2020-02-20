@@ -15,10 +15,12 @@ from tests.helper import *
 def do_check_log_prob(given, batch_ndims, Z_log_prob_fn, np_log_prob):
     # test log_prob
     for group_ndims in range(0, batch_ndims + 1):
+        out = Z_log_prob_fn(given, group_ndims=group_ndims)
+        assert(T.get_device(out) == T.get_device(given))
         assert_allclose(
-            Z_log_prob_fn(given, group_ndims=group_ndims),
+            out,
             np.sum(np_log_prob, axis=tuple(range(-group_ndims, 0))),
-            rtol=1e-2
+            rtol=1e-2, atol=1e-5,
         )
     with pytest.raises(Exception, match='`group_ndims` is too large'):
         _ = Z_log_prob_fn(given, group_ndims=batch_ndims + 1)
@@ -28,26 +30,24 @@ def normal_cdf(x):
     return norm.cdf(x)
 
 
-class TensorRandomTestCase(unittest.TestCase):
+class TensorRandomTestCase(TestCase):
 
     def test_seed(self):
         T.random.seed(1234)
-        x = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
-        y = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
+        x = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
+        y = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
         self.assertFalse(np.allclose(x, y))
 
         T.random.seed(1234)
-        z = T.to_numpy(T.random.normal(T.as_tensor_backend(0.), T.as_tensor_backend(1.)))
+        z = T.to_numpy(T.random.normal(T.as_tensor(0.), T.as_tensor(1.)))
         assert_allclose(x, z)
 
     def test_rand(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
-        for dtype in float_dtypes:
+        for dtype, device in product(float_dtypes, [None, T.CPU_DEVICE]):
             # test sample dtype and shape
-            t = T.random.rand([n_samples, 2, 3, 4], dtype=dtype)
+            t = T.random.rand([n_samples, 2, 3, 4], dtype=dtype, device=device)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
             # test sample mean
@@ -60,15 +60,15 @@ class TensorRandomTestCase(unittest.TestCase):
             )
 
     def test_uniform(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for low, high in [(-1., 2.), (3.5, 7.5)]:
-            for dtype in float_dtypes:
+            for dtype, device in product(float_dtypes, [None, T.CPU_DEVICE]):
                 # test sample dtype and shape
-                t = T.random.uniform([n_samples, 2, 3, 4], low=low, high=high,
-                                     dtype=dtype)
+                t = T.random.uniform(
+                    [n_samples, 2, 3, 4], low=low, high=high, dtype=dtype,
+                    device=device
+                )
                 self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.get_device(t), device or T.current_device())
                 self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
                 # test sample mean
@@ -76,7 +76,7 @@ class TensorRandomTestCase(unittest.TestCase):
                 x_mean = np.mean(x, axis=0)
                 np.testing.assert_array_less(
                     np.abs(x_mean - 0.5 * (high + low)),
-                    (3. * np.sqrt((high - low) ** 2 / 12) / np.sqrt(n_samples) *
+                    (5. * np.sqrt((high - low) ** 2 / 12) / np.sqrt(n_samples) *
                      np.ones_like(x_mean))
                 )
 
@@ -85,7 +85,6 @@ class TensorRandomTestCase(unittest.TestCase):
             _ = T.random.uniform([2, 3, 4], low=2., high=1.)
 
     def test_shuffle_and_random_permutation(self):
-        T.random.seed(1234)
         x = np.arange(24).reshape([2, 3, 4])
 
         # shuffle
@@ -99,13 +98,14 @@ class TensorRandomTestCase(unittest.TestCase):
             self.assertLess(equal_count, 100)
 
         # random_permutation
-        for dtype in int_dtypes:
+        for dtype, device in product(int_dtypes, [None, T.CPU_DEVICE]):
             for n in [0, 1, 5]:
                 x = np.arange(n)
                 equal_count = 0
                 for k in range(100):
-                    t = T.random.random_permutation(n, dtype=dtype)
+                    t = T.random.random_permutation(n, dtype=dtype, device=device)
                     self.assertEqual(T.get_dtype(t), dtype)
+                    self.assertEqual(T.get_device(t), device or T.current_device())
                     if np.all(np.equal(T.to_numpy(t), x)):
                         equal_count += 1
                     assert_equal(np.sort(T.to_numpy(t)), x)
@@ -113,13 +113,11 @@ class TensorRandomTestCase(unittest.TestCase):
                     self.assertLess(equal_count, 100)
 
     def test_randn(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
-        for dtype in float_dtypes:
+        for dtype, device in product(float_dtypes, [None, T.CPU_DEVICE]):
             # test sample dtype and shape
-            t = T.random.randn([n_samples, 2, 3, 4], dtype=dtype)
+            t = T.random.randn([n_samples, 2, 3, 4], dtype=dtype, device=device)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
             # test sample mean
@@ -138,8 +136,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 np_log_prob=np.log(np.exp(-x ** 2 / 2.) / np.sqrt(2 * np.pi)))
 
     def test_truncated_randn(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
         log_zero = -1e6
 
         def log_prob(given, low, high):
@@ -208,9 +204,6 @@ class TensorRandomTestCase(unittest.TestCase):
         )
 
     def test_normal(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         mean = np.random.randn(2, 3, 4)
         logstd = np.random.randn(3, 4)
         std = np.exp(logstd)
@@ -226,11 +219,12 @@ class TensorRandomTestCase(unittest.TestCase):
         # test n_samples by manual expanding the param shape
         for dtype in float_dtypes:
             # test sample dtype and shape
-            mean_t = T.cast(T.expand(T.as_tensor_backend(mean), [n_samples, 2, 3, 4]), dtype)
-            std_t = T.cast(T.expand(T.as_tensor_backend(std), [n_samples, 1, 3, 4]), dtype)
-            logstd_t = T.cast(T.expand(T.as_tensor_backend(logstd), [n_samples, 1, 3, 4]), dtype)
+            mean_t = T.cast(T.expand(T.as_tensor(mean), [n_samples, 2, 3, 4]), dtype)
+            std_t = T.cast(T.expand(T.as_tensor(std), [n_samples, 1, 3, 4]), dtype)
+            logstd_t = T.cast(T.expand(T.as_tensor(logstd), [n_samples, 1, 3, 4]), dtype)
             t = T.random.normal(mean_t, std_t)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
             # test sample mean
@@ -238,7 +232,7 @@ class TensorRandomTestCase(unittest.TestCase):
             x_mean = np.mean(x, axis=0)
             np.testing.assert_array_less(
                 np.abs(x_mean - mean),
-                np.tile(np.expand_dims(3 * std / np.sqrt(n_samples), axis=0),
+                np.tile(np.expand_dims(5 * std / np.sqrt(n_samples), axis=0),
                         [2, 1, 1])
             )
 
@@ -258,6 +252,7 @@ class TensorRandomTestCase(unittest.TestCase):
             logstd_t = T.as_tensor(logstd, dtype)
             t = T.random.normal(mean_t, std_t, n_samples=n_samples)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
             # test sample mean
@@ -265,7 +260,7 @@ class TensorRandomTestCase(unittest.TestCase):
             x_mean = np.mean(x, axis=0)
             np.testing.assert_array_less(
                 np.abs(x_mean - mean),
-                np.tile(np.expand_dims(3 * std / np.sqrt(n_samples), axis=0),
+                np.tile(np.expand_dims(5 * std / np.sqrt(n_samples), axis=0),
                         [2, 1, 1])
             )
 
@@ -284,6 +279,7 @@ class TensorRandomTestCase(unittest.TestCase):
             logstd_t = T.as_tensor(logstd, dtype)
             t = T.random.normal(mean_t, std_t)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
 
             # test log_prob
             x = T.to_numpy(t)
@@ -349,9 +345,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 t, mean_t, logstd_t, validate_tensors=True)
 
     def test_truncated_normal(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         mean = np.random.randn(2, 3, 4)
         logstd = np.random.randn(3, 4)
         std = np.exp(logstd)
@@ -389,6 +382,7 @@ class TensorRandomTestCase(unittest.TestCase):
             t = T.random.truncated_normal(
                 mean_t, std_t, n_samples=n_samples, low=low, high=high)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
 
             # test sample value range
@@ -426,6 +420,7 @@ class TensorRandomTestCase(unittest.TestCase):
             logstd_t = T.as_tensor(logstd, dtype)
             t = T.random.truncated_normal(mean_t, std_t, low=low, high=high)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
 
             # test sample value range
             x = T.to_numpy(t)
@@ -542,9 +537,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 (1 - given) * log_sigmoid(-logits)
             )
 
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         logits = np.random.randn(2, 3, 4)
         probs = sigmoid(logits)
 
@@ -573,6 +565,7 @@ class TensorRandomTestCase(unittest.TestCase):
             t = T.random.bernoulli(
                 probs=probs_t, n_samples=n_z, dtype=dtype)
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), sample_shape + [2, 3, 4])
 
             # all values must be either 0 or 1
@@ -600,7 +593,7 @@ class TensorRandomTestCase(unittest.TestCase):
             do_test_sample(n_z, sample_shape, T.float64, dtype)
 
         with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-            _ = T.random.bernoulli(probs=T.as_tensor_backend(probs), n_samples=0)
+            _ = T.random.bernoulli(probs=T.as_tensor(probs), n_samples=0)
 
         # given has lower rank than params, broadcasted to match param
         for float_dtype in float_dtypes:
@@ -631,9 +624,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 given = one_hot(given, n_classes)
             # return np.log(np.prod(element_pow(probs, one-hot-given), axis=-1))
             return np.sum(given * np.log(probs), axis=-1)
-
-        np.random.seed(1234)
-        T.random.seed(1234)
 
         n_classes = 5
         logits = np.clip(np.random.randn(2, 3, 4, n_classes) / 10.,
@@ -681,6 +671,7 @@ class TensorRandomTestCase(unittest.TestCase):
             t = (T.random.one_hot_categorical if is_one_hot
                  else T.random.categorical)(probs_t, n_samples=n_z, **kwargs)
             self.assertEqual(T.get_dtype(t), expected_dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), sample_shape + [2, 3, 4] + value_shape)
 
             # check values
@@ -721,7 +712,7 @@ class TensorRandomTestCase(unittest.TestCase):
             is_one_hot = Z_sample_fn == T.random.one_hot_categorical
             this_probs = probs[0, 0]
             t = Z_sample_fn(
-                probs=T.as_tensor_backend(this_probs),
+                probs=T.as_tensor(this_probs),
                 n_samples=100
             )
             self.assertEqual(
@@ -730,7 +721,7 @@ class TensorRandomTestCase(unittest.TestCase):
             )
 
             x = T.to_numpy(t)
-            logits_t = T.as_tensor_backend(np.log(this_probs))
+            logits_t = T.as_tensor(np.log(this_probs))
             do_check_log_prob(
                 given=t,
                 batch_ndims=len(t.shape) - int(is_one_hot),
@@ -761,14 +752,13 @@ class TensorRandomTestCase(unittest.TestCase):
         # argument error
         for Z_sample_fn in (T.random.categorical, T.random.one_hot_categorical):
             with pytest.raises(Exception, match='`n_samples` must be at least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor_backend(probs), n_samples=0)
+                _ = Z_sample_fn(probs=T.as_tensor(probs), n_samples=0)
 
             with pytest.raises(Exception, match='The rank of `probs` must be at '
                                                 'least 1'):
-                _ = Z_sample_fn(probs=T.as_tensor_backend(probs[0, 0, 0, 0]))
+                _ = Z_sample_fn(probs=T.as_tensor(probs[0, 0, 0, 0]))
 
     def test_discretized_logistic(self):
-        np.random.seed(1234)
         next_seed_val = [1234]
 
         def next_seed():
@@ -891,6 +881,7 @@ class TensorRandomTestCase(unittest.TestCase):
                 validate_tensors=validate_tensors,
             )
             self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), T.current_device())
             self.assertEqual(T.shape(t), sample_shape + value_shape)
 
             # check values
@@ -980,9 +971,6 @@ class TensorRandomTestCase(unittest.TestCase):
                 given_t, mean_t, log_scale_t, 1 / 255., max_val=2.)
 
     def test_random_init(self):
-        np.random.seed(1234)
-        T.random.seed(1234)
-
         for dtype in float_dtypes:
             t = T.variable([n_samples, 2, 3], dtype=dtype)
             for fn, mean, std in [

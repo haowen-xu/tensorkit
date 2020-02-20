@@ -3,8 +3,8 @@ from typing import *
 
 import numpy as np
 
-from ..tensor import (jit, Tensor, where, as_tensor_backend, as_tensor, get_dtype,
-                      float_x)
+from ..tensor import (jit, Tensor, where, float_scalar_like, as_tensor,
+                      get_dtype, get_device, current_device, float_x)
 
 __all__ = [
     'get_overrided_parameterized',
@@ -84,12 +84,14 @@ def log_pdf_mask(condition: Tensor,
     out remaining positions (i.e., set log-pdf of these locations to
     `log_zero`).
     """
-    return where(condition, log_pdf, as_tensor_backend(log_zero, dtype=log_pdf.dtype))
+    return where(condition, log_pdf, float_scalar_like(log_zero, log_pdf))
 
 
 def check_tensor_arg_types(*args,
                            dtype: Optional[str] = None,
-                           default_dtype: str = float_x()
+                           device: Optional[str] = None,
+                           default_dtype: str = float_x(),
+                           default_device: Optional[str] = None,
                            ) -> Tuple[Union[Tensor, Tuple[Tensor, ...]], ...]:
     """
     Validate tensor argument types.
@@ -104,9 +106,13 @@ def check_tensor_arg_types(*args,
                while the others must be None.
         dtype: If specified, all arguments must be tensors of this dtype,
             or Python numbers (which can be casted into this dtype).
+        device: If specified, all tensor arguments must be placed on this device.
         default_dtype: The default dtype to cast Python numbers into,
             if `dtype` is not specified, and all arguments are Python numbers
             (thus no dtype can be inferred).
+        default_device: The default device where to place new tensors and
+            variables, if `device` is not specified, and all arguments are
+            Python numbers (thus no device can be inferred).
 
     Returns:
         A list of validated tensors.
@@ -130,12 +136,25 @@ def check_tensor_arg_types(*args,
                 raise ValueError(f'`{name}.dtype` != `{inferred_dtype[0]}`: '
                                  f'{data_dtype} vs {inferred_dtype[1]}')
 
+    def check_device(name, data):
+        if isinstance(data, StochasticTensor):
+            data = data.tensor
+        if isinstance(data, Tensor):
+            data_device = get_device(data)
+            if inferred_device[1] is None:
+                inferred_device[0] = f'{name}.device'
+                inferred_device[1] = data_device
+            elif inferred_device[1] != data_device:
+                raise ValueError(f'`{name}.device` != `{inferred_device[0]}`: '
+                                 f'{data_device} vs {inferred_device[1]}')
+
     def check_arg(arg):
         if isinstance(arg, tuple):
             name, data = arg
             if data is None:
                 raise ValueError(f'`{name}` must be specified.')
             check_dtype(name, data)
+            check_device(name, data)
         else:
             not_none_count = 0
             for i, (name, data) in enumerate(arg):
@@ -144,6 +163,7 @@ def check_tensor_arg_types(*args,
                     if not_none_count != 1:
                         break
                     check_dtype(name, data)
+                    check_device(name, data)
             if not_none_count != 1:
                 names = [f'`{n}`' for n, _ in arg]
                 if len(names) == 2:
@@ -161,18 +181,26 @@ def check_tensor_arg_types(*args,
     else:
         inferred_dtype = [None, None]
 
+    if device is not None:
+        inferred_device = ['device', device]
+    else:
+        inferred_device = [None, None]
+
     for a in args:
         check_arg(a)
 
     # do cast the tensors
+    default_device = default_device or current_device()
     target_dtype = inferred_dtype[1] or default_dtype
+    target_device = inferred_device[1] or default_device
+
     ret: List[Union[Tensor, Tuple[Tensor, ...]]] = []
     for arg in args:
         if isinstance(arg, tuple):
-            ret.append(as_tensor(arg[1], dtype=target_dtype))
+            ret.append(as_tensor(arg[1], dtype=target_dtype, device=target_device))
         else:
             ret.append(tuple(
-                (as_tensor(data, dtype=target_dtype)
+                (as_tensor(data, dtype=target_dtype, device=target_device)
                  if data is not None else None)
                 for _, data in arg
             ))

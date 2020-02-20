@@ -9,6 +9,7 @@ from tensorkit.distributions import (Categorical, Normal, UnitNormal, Mixture,
 from tensorkit.distributions.utils import copy_distribution
 from tensorkit.flows import ActNorm
 from tests.distributions.test_flow import check_distribution_instance
+from tests.helper import *
 
 
 def check_mixture(ctx,
@@ -96,11 +97,9 @@ def check_mixture(ctx,
         fn(categorical, components, None, None, validate_tensors)
 
 
-class MixtureTestCase(unittest.TestCase):
+class MixtureTestCase(TestCase):
 
     def test_mixture(self):
-        T.random.seed(1234)
-
         check_mixture(
             self,
             Categorical(logits=T.random.randn([4, 5, 1])),

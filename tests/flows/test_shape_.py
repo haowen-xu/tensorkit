@@ -10,17 +10,17 @@ from tests.helper import *
 from tests.ops import *
 
 
-class ReshapeFlowTestCase(unittest.TestCase):
+class ReshapeFlowTestCase(TestCase):
 
     def test_ReshapeFlow(self):
         flow = ReshapeFlow([4, -1], [-1])
         self.assertEqual(flow.x_event_shape, [4, -1])
         self.assertEqual(flow.y_event_shape, [-1])
-        self.assertEqual(flow.x_event_ndims, 2)
-        self.assertEqual(flow.y_event_ndims, 1)
+        self.assertEqual(flow.get_x_event_ndims(), 2)
+        self.assertEqual(flow.get_y_event_ndims(), 1)
         self.assertIn('x_event_shape=[4, -1]', repr(flow))
         self.assertIn('y_event_shape=[-1]', repr(flow))
-        flow = T.jit_compile(flow)
+        flow = tk.layers.jit_compile(flow)
 
         x = T.random.randn([2, 3, 4, 5])
         expected_y = T.reshape_tail(x, 2, [-1])
@@ -48,11 +48,9 @@ class ReshapeFlowTestCase(unittest.TestCase):
             _ = ReshapeFlow([-1], [-1, -2])
 
 
-class SpaceDepthTransformFlowTestCase(unittest.TestCase):
+class SpaceDepthTransformFlowTestCase(TestCase):
 
     def test_space_depth_transform(self):
-        T.random.seed(1234)
-
         for spatial_ndims, batch_shape, block_size in product(
                     (1, 2, 3),
                     ([2], [2, 3]),
