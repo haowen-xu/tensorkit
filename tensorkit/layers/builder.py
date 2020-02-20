@@ -178,7 +178,8 @@ class SequentialBuilder(object):
                  in_shape: Sequence[Optional[int]] = NOT_SET,
                  in_channels: Optional[int] = NOT_SET,
                  in_size: Sequence[Optional[int]] = NOT_SET,
-                 in_builder: 'SequentialBuilder' = NOT_SET):
+                 in_builder: 'SequentialBuilder' = NOT_SET,
+                 layer_args: LayerArgs = NOT_SET):
         """
         Construct a new :class:`SequentialBuilder`.
 
@@ -192,6 +193,11 @@ class SequentialBuilder(object):
             in_size: The input spatial size.  Can be specified
                 only if `in_channels` is specified, or `in_spec` is a int.
             in_builder: Explicitly specify the previous sequential builder.
+                The `layer_args` of this `in_builder` will be copied to the
+                new sequential builder, if `layer_args` is not specified.
+            layer_args: If specified, the layer arguments will be copied
+                to the new sequential builder.  This will also override
+                the layer args of `in_builder`.
         """
 
         # parse the argument
@@ -202,16 +208,19 @@ class SequentialBuilder(object):
                 '`in_builder` should be specified.'
             )
 
-        layer_args = None
+        if layer_args is not NOT_SET:
+            layer_args = LayerArgs(layer_args)
+
         if isinstance(in_spec, SequentialBuilder):
             in_builder = in_spec
-            layer_args = LayerArgs(in_builder.layer_args)
+            if layer_args is NOT_SET:
+                layer_args = LayerArgs(in_builder.layer_args)
         elif hasattr(in_spec, '__iter__'):
             in_shape = in_spec
         elif in_spec is not NOT_SET:
             in_channels = in_spec
 
-        if layer_args is None:
+        if layer_args is NOT_SET:
             layer_args = LayerArgs()
 
         if in_size is not NOT_SET and in_channels is NOT_SET:

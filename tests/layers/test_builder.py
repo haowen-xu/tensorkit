@@ -206,9 +206,24 @@ class SequentialBuilderTestCase(TestCase):
             [s if s == 5 else None for s in make_conv_shape([], 5, [3, 4])],
         )
 
+        # test copy layer_args
+        layer_args = LayerArgs()
+        layer_args.set_args(['dense', 'conv2d'], activation=tk.layers.LeakyReLU)
+        layer_args.set_args('conv2d', kernel_size=3)
+        builder = SequentialBuilder(5, layer_args=layer_args)
+        self.assertEqual(
+            builder.layer_args.get_kwargs(Dense),
+            {'activation': tk.layers.LeakyReLU}
+        )
+        self.assertEqual(
+            builder.layer_args.get_kwargs(Conv2d),
+            {'activation': tk.layers.LeakyReLU, 'kernel_size': 3}
+        )
+
         # test in_builder
         in_shape0 = make_conv_shape([], 5, [3, 4])
         for in_shape in (in_shape0, [None if i != 5 else i for i in in_shape0]):
+            # test init from another build
             builder0 = SequentialBuilder(in_shape)
             builder0.set_args(['dense', 'conv2d'], activation=tk.layers.LeakyReLU)
             builder0.set_args('conv2d', kernel_size=3)
@@ -222,6 +237,20 @@ class SequentialBuilderTestCase(TestCase):
             self.assertEqual(
                 builder.layer_args.get_kwargs(Conv2d),
                 {'activation': tk.layers.LeakyReLU, 'kernel_size': 3}
+            )
+
+            # test override builder args with layer_args
+            layer_args = LayerArgs()
+            layer_args.set_args(['dense'], activation=tk.layers.Sigmoid)
+            builder = SequentialBuilder(builder0, layer_args=layer_args)
+            assert_in_shape(builder, in_shape)
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Dense),
+                {'activation': tk.layers.Sigmoid}
+            )
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Conv2d),
+                {}
             )
 
         # test arg errors
