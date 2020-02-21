@@ -90,7 +90,6 @@ def main(exp: mltk.Experiment[Config]):
     train_stream, _, test_stream = utils.get_mnist_streams(
         batch_size=exp.config.batch_size,
         test_batch_size=exp.config.test_batch_size,
-        val_batch_size=exp.config.test_batch_size,
         flatten=True,
         x_range=(0., 1.),
         use_y=False,
