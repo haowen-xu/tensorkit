@@ -25,7 +25,7 @@ class Config(mltk.Config):
 
     # evaluation parameters
     test_n_z: int = 500
-    test_batch_size: int = 256
+    test_batch_size: int = 64
 
 
 class VAE(tk.layers.BaseLayer):
