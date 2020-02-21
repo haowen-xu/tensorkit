@@ -1,3 +1,4 @@
+from functools import partial
 from typing import *
 
 import mltk
@@ -110,9 +111,9 @@ def main(exp: mltk.Experiment[Config]):
         loss = chain.vi.training.sgvb(reduction='mean')
         return {'loss': loss}
 
-    def eval_step(x):
+    def eval_step(x, n_z=exp.config.test_n_z):
         with tk.layers.scoped_eval_mode(vae), T.no_grad():
-            chain = vae.get_chain(x, n_z=exp.config.test_n_z)
+            chain = vae.get_chain(x, n_z=n_z)
             loss = chain.vi.training.sgvb(reduction='mean')
             nll = -chain.vi.evaluation.is_loglikelihood(reduction='mean')
         return {'elbo': loss, 'nll': nll}
@@ -142,7 +143,7 @@ def main(exp: mltk.Experiment[Config]):
         epochs=exp.config.lr_anneal_epochs
     )
     loop.run_after_every(
-        lambda: loop.test().run(eval_step, test_stream),
+        lambda: loop.test().run(partial(eval_step, n_z=10), test_stream),
         epochs=10
     )
     loop.run_after_every(plot_samples, epochs=10)
