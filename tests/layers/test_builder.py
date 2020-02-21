@@ -262,7 +262,7 @@ class SequentialBuilderTestCase(TestCase):
             )
 
             # test `next_builder`
-            builder = builder0.next()
+            builder = builder0.as_input()
             assert_in_shape(builder, in_shape)
             self.assertEqual(
                 builder.layer_args.get_kwargs(Dense),
@@ -274,7 +274,7 @@ class SequentialBuilderTestCase(TestCase):
             )
 
             # test `next_builder` with overrided `layer_args`
-            builder = builder0.next(layer_args)
+            builder = builder0.as_input(layer_args)
             assert_in_shape(builder, in_shape)
             self.assertEqual(
                 builder.layer_args.get_kwargs(Dense),

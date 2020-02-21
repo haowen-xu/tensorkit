@@ -44,8 +44,8 @@ class VAE(tk.layers.BaseLayer):
         # nn for q(z|x)
         q_builder = tk.layers.SequentialBuilder(x_dim, layer_args=layer_args)
         self.hx_for_qz = q_builder.dense(500).dense(500).build()
-        self.qz_mean = q_builder.next().linear(config.z_dim).build()
-        self.qz_logstd = q_builder.next().linear(config.z_dim).build()
+        self.qz_mean = q_builder.as_input().linear(config.z_dim).build()
+        self.qz_logstd = q_builder.as_input().linear(config.z_dim).build()
 
         # nn for p(x|z)
         p_builder = tk.layers.SequentialBuilder(config.z_dim, layer_args=layer_args)

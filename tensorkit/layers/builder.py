@@ -383,7 +383,7 @@ class SequentialBuilder(object):
             layer = FlattenToNDims(layer, ndims=len(self.in_shape) + 1)
         return layer
 
-    def next(self, layer_args: LayerArgs = NOT_SET) -> 'SequentialBuilder':
+    def as_input(self, layer_args: LayerArgs = NOT_SET) -> 'SequentialBuilder':
         """
         Construct a new :class:`SequentialBuilder` whose `in_shape` is the
         `out_shape` of this builder.

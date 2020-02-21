@@ -57,8 +57,8 @@ class VAE(tk.layers.BaseLayer):
         q_builder.flatten()
 
         self.hx_for_qz = q_builder.build()
-        self.qz_mean = q_builder.next().linear(config.z_dim).build()
-        self.qz_logstd = q_builder.next().linear(config.z_dim).build()
+        self.qz_mean = q_builder.as_input().linear(config.z_dim).build()
+        self.qz_logstd = q_builder.as_input().linear(config.z_dim).build()
 
         # nn for p(x|z)
         n_channels, _ = T.utils.split_channel_spatial_shape(self.x_shape)
