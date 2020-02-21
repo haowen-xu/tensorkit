@@ -1,5 +1,4 @@
 import functools
-import unittest
 
 import numpy as np
 import pytest
@@ -31,6 +30,8 @@ class SGVBEstimatorTestCase(TestCase):
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
         cost = sgvb_estimator(f)
         assert_allclose_(-cost, sgvb_estimator(f, negative=True))
+        assert_allclose_(T.reduce_mean(cost), sgvb_estimator(f, reduction='mean'))
+        assert_allclose_(T.reduce_sum(cost), sgvb_estimator(f, reduction='sum'))
         cost_shape = T.shape(cost)
         assert_allclose_(
             T.grad([T.reduce_sum(cost)], [y])[0],
@@ -48,6 +49,8 @@ class SGVBEstimatorTestCase(TestCase):
 
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
         cost_rk = sgvb_estimator(f, axis=[0], keepdims=True)
+        assert_allclose_(T.reduce_mean(cost_rk), sgvb_estimator(f, axis=[0], reduction='mean'))
+        assert_allclose_(T.reduce_sum(cost_rk), sgvb_estimator(f, axis=[0], reduction='sum'))
         assert_allclose_(
             -cost_rk,
             sgvb_estimator(f, axis=[0], keepdims=True, negative=True))
@@ -78,6 +81,8 @@ class IWAEEstimatorTestCase(TestCase):
         wk_hat = f / T.reduce_sum(f, axis=[0], keepdims=True)
         cost = iwae_estimator(log_f, axis=[0])
         assert_allclose_(-cost, iwae_estimator(log_f, axis=[0], negative=True))
+        assert_allclose_(T.reduce_mean(cost), iwae_estimator(log_f, axis=[0], reduction='mean'))
+        assert_allclose_(T.reduce_sum(cost), iwae_estimator(log_f, axis=[0], reduction='sum'))
         cost_shape = T.shape(cost)
         assert_allclose_(
             T.grad([T.reduce_sum(cost)], [y])[0],
@@ -87,6 +92,14 @@ class IWAEEstimatorTestCase(TestCase):
         x, y, z, f, log_f, log_q = prepare_test_payload(reparameterized=True)
         wk_hat = f / T.reduce_sum(f, axis=[0], keepdims=True)
         cost_k = iwae_estimator(log_f, axis=[0], keepdims=True)
+        assert_allclose_(
+            T.reduce_mean(cost_k),
+            iwae_estimator(log_f, axis=[0], keepdims=True, reduction='mean')
+        )
+        assert_allclose_(
+            T.reduce_sum(cost_k),
+            iwae_estimator(log_f, axis=[0], keepdims=True, reduction='sum')
+        )
         assert_allclose_(
             -cost_k,
             T.to_numpy(iwae_estimator(log_f, axis=[0], keepdims=True,

@@ -16,7 +16,7 @@ __all__ = [
     'DEFAULT_GATE_BIAS', 'DEFAULT_WEIGHT_INIT', 'DEFAULT_BIAS_INIT',
 
     # utils
-    'jit_compile', 'is_jit_layer', 'layer_to_device',
+    'jit_compile', 'jit_compile_children', 'is_jit_layer', 'layer_to_device',
     'add_parameter', 'get_parameter', 'get_parameters', 'get_named_parameters',
     'add_buffer', 'get_buffer', 'get_buffers', 'get_named_buffers',
     'set_train_mode', 'set_eval_mode',
@@ -55,6 +55,30 @@ DEFAULT_BIAS_INIT = init.zeros
 def jit_compile(m: Module) -> Module:
     if not settings.disable_jit:
         m = torch_script(m)
+    return m
+
+
+def jit_compile_children(m: Module,
+                         excludes: Optional[Sequence[str]] = None) -> Module:
+    """
+    Compile all children modules of `m` in-place with JIT.
+
+    Args:
+        m: The parent module.
+        excludes: The attribute names to be excluded.
+
+    Returns:
+        The `m` module itself.
+    """
+    if not settings.disable_jit:
+        excludes = set(excludes or ())
+        for attr in dir(m):
+            if attr in excludes:
+                continue
+            val = getattr(m, attr)
+            if isinstance(val, Module) and \
+                    not isinstance(val, torch.jit.ScriptModule):
+                setattr(m, attr, jit_compile(val))
     return m
 
 
@@ -377,23 +401,23 @@ class Identity(Module):
 
 
 # ---- base layers and composition layers ----
-class BaseLayerMeta(type):
+# class BaseLayerMeta(type):
+#
+#     def __new__(cls, name, parents, dct):
+#         if torch.__version__ == '1.4.0':
+#             # strange bug, that PyTorch 1.4.0 does not support annotations
+#             # with type `Module` or `ModuleList`
+#             if '__annotations__' in dct:
+#                 annotations = dct['__annotations__']
+#                 annotation_keys = list(annotations)
+#                 for attr in annotation_keys:
+#                     if annotations[attr] in (Module, ModuleList):
+#                         annotations.pop(attr)
+#
+#         return super().__new__(cls, name, parents, dct)
 
-    def __new__(cls, name, parents, dct):
-        if torch.__version__ == '1.4.0':
-            # strange bug, that PyTorch 1.4.0 does not support annotations
-            # with type `Module` or `ModuleList`
-            if '__annotations__' in dct:
-                annotations = dct['__annotations__']
-                annotation_keys = list(annotations)
-                for attr in annotation_keys:
-                    if annotations[attr] in (Module, ModuleList):
-                        annotations.pop(attr)
 
-        return super().__new__(cls, name, parents, dct)
-
-
-class BaseLayer(Module, metaclass=BaseLayerMeta):
+class BaseLayer(Module):
 
     def _is_attr_included_in_repr(self, attr: str, value: Any) -> bool:
         return True

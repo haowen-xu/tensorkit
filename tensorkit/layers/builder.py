@@ -106,7 +106,7 @@ class LayerArgs(object):
     def set_args(self,
                  type_or_types_: Union[
                      str, Type[T.Module], Sequence[Union[str, Type[T.Module]]]],
-                 **kwargs):
+                 **kwargs) -> 'LayerArgs':
         """
         Set default arguments for the specified layer types.
 
@@ -123,6 +123,8 @@ class LayerArgs(object):
             if type_ not in self.args:
                 self.args[type_] = {}
             self.args[type_].update(kwargs)
+
+        return self
 
     def get_kwargs(self, type_: Union[str, type], **kwargs) -> Dict[str, Any]:
         """
@@ -380,6 +382,19 @@ class SequentialBuilder(object):
         if flatten_to_ndims:
             layer = FlattenToNDims(layer, ndims=len(self.in_shape) + 1)
         return layer
+
+    def next(self, layer_args: LayerArgs = NOT_SET) -> 'SequentialBuilder':
+        """
+        Construct a new :class:`SequentialBuilder` whose `in_shape` is the
+        `out_shape` of this builder.
+
+        Args:
+            layer_args: If specified, override the `layer_args` of this builder.
+
+        Returns:
+            The new :class:`SequentialBuilder`.
+        """
+        return SequentialBuilder(self, layer_args=layer_args)
 
     # ---- identity layer (add no layer) ----
     def identity(self):
@@ -674,6 +689,53 @@ class SequentialBuilder(object):
         return self._global_avg_pool_nd(3, GlobalAvgPool3d, **kwargs)
 
     # ---- reshape layers ----
+    def reshape(self, shape: Sequence[int]) -> 'SequentialBuilder':
+        # check the input and output shape
+        in_shape = self.out_shape
+        in_count = 1
+        for s in in_shape:
+            if s is None:
+                in_count = None
+                break
+            else:
+                in_count *= s
+
+        shape = list(shape)
+        out_neg_one_count = 0
+        out_count = 1
+
+        for s in shape:
+            if s == -1:
+                if out_neg_one_count > 0:
+                    raise ValueError(f'Too many "-1" in `shape`: '
+                                     f'got {shape!r}')
+                else:
+                    out_neg_one_count += 1
+            elif s <= 0:
+                raise ValueError(f'`shape` is not a valid shape: '
+                                 f'{shape!r}')
+            else:
+                out_count *= s
+
+        if in_count is not None:
+            if (not out_neg_one_count and out_count != in_count) or \
+                    (out_neg_one_count and in_count % out_count != 0):
+                raise ValueError(f'The previous output shape cannot be reshape '
+                                 f'into the new `shape`: {self.out_shape!r} vs '
+                                 f'{shape!r}.')
+
+            out_shape = [
+                s if s != -1 else (in_count // out_count)
+                for s in shape
+            ]
+        else:
+            out_shape = [s if s != -1 else None for s in shape]
+
+        return self.add(ReshapeTail(len(in_shape), shape), out_shape)
+
+    def flatten(self) -> 'SequentialBuilder':
+        return self.reshape([-1])
+
     def _channel_first_to_last_nd(self, spatial_ndims, layer_cls):
         in_shape = self._assert_out_shape([False] * (spatial_ndims + 1))
         out_shape = in_shape[1:] + in_shape[:1]

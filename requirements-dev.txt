@@ -5,3 +5,10 @@ mock >= 2.0.0
 numba
 pytest >= 3.0
 pytest-doctest-import >= 0.1.1
+
+
+# dependencies required only for running the examples
+imageio >= 2.3.0
+scikit-learn >= 0.20
+matplotlib >= 2.1.0
+git+https://github.com/haowen-xu/mlsnippet.git

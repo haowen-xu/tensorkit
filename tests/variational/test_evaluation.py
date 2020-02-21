@@ -37,6 +37,14 @@ class ImportanceSamplingLogLikelihoodTestCase(TestCase):
         ll = importance_sampling_log_likelihood(log_p, log_q, axis=[0])
         ll_shape = T.shape(ll)
         assert_allclose_(ll, T.log_mean_exp(log_p - log_q, axis=[0]))
+        assert_allclose_(
+            T.reduce_mean(ll),
+            importance_sampling_log_likelihood(log_p, log_q, axis=[0], reduction='mean')
+        )
+        assert_allclose_(
+            T.reduce_sum(ll),
+            importance_sampling_log_likelihood(log_p, log_q, axis=[0], reduction='sum')
+        )
 
         ll_k = importance_sampling_log_likelihood(
             log_p, log_q, axis=[0], keepdims=True)

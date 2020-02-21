@@ -2,12 +2,12 @@ from typing import *
 
 from .. import tensor as T
 from ..tensor import (Tensor, Module, shape, rank, flatten_to_ndims,
-                      unflatten_from_ndims, pad)
+                      unflatten_from_ndims, pad, reshape_tail)
 from ..tensor.nn import *
 from .core import *
 
 __all__ = [
-    'FlattenToNDims',
+    'FlattenToNDims', 'ReshapeTail',
     'ConstantPad', 'ConstantPad1d', 'ConstantPad2d', 'ConstantPad3d',
     'ChannelFirstToLast1d', 'ChannelFirstToLast2d', 'ChannelFirstToLast3d',
     'ChannelLastToFirst1d', 'ChannelLastToFirst2d', 'ChannelLastToFirst3d',
@@ -44,6 +44,37 @@ class FlattenToNDims(BaseLayer):
         output, front_shape = flatten_to_ndims(input, expected_rank)
         output = self.wrapped(output)
         return unflatten_from_ndims(output, front_shape)
+
+
+class ReshapeTail(BaseLayer):
+
+    __constants__ = ('ndims', 'shape')
+
+    ndims: int
+    shape: List[int]
+
+    def __init__(self, ndims: int, shape: Sequence[int]):
+        ndims = int(ndims)
+        if ndims < 0:
+            raise ValueError(f'`ndims` must be non-negative: got {ndims!r}')
+
+        shape = list(map(int, shape))
+        neg_one_count = 0
+        for s in shape:
+            if s == -1:
+                if neg_one_count > 0:
+                    raise ValueError(f'Too many "-1" in `shape`: got {shape!r}')
+                else:
+                    neg_one_count += 1
+            elif s <= 0:
+                raise ValueError(f'`shape` is invalid: {shape!r}')
+
+        super().__init__()
+        self.ndims = ndims
+        self.shape = shape
+
+    def forward(self, input: Tensor) -> Tensor:
+        return reshape_tail(input, self.ndims, self.shape)
 
 
 # ---- pad ----

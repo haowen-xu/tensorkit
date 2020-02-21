@@ -1,6 +1,7 @@
 from typing import *
 
 from ..tensor import jit, Tensor, reduce_mean, log_mean_exp
+from .utils import apply_reduction
 
 __all__ = [
     'sgvb_estimator', 'iwae_estimator',
@@ -11,6 +12,7 @@ __all__ = [
 def sgvb_estimator(values: Tensor,
                    axis: Optional[List[int]] = None,
                    keepdims: bool = False,
+                   reduction: str = 'none',  # {'sum', 'mean' or 'none'}
                    negative: bool = False) -> Tensor:
     """
     Derive the gradient estimator for
@@ -28,6 +30,9 @@ def sgvb_estimator(values: Tensor,
             If not specified, no axis will be reduced.
         keepdims: When `axis` is specified, whether or not to keep
             the reduced axis?  Defaults to :obj:`False`.
+        reduction: "sum" to return the sum of the resulted gradient estimator,
+            "mean" to return the mean of the estimator, or "none" to return
+            the original element-wise estimator.
         negative: If :obj:`True`, returns negative of the gradient estimator,
             instead of the original gradient estimator derived from `values`.
 
@@ -39,6 +44,7 @@ def sgvb_estimator(values: Tensor,
     estimator = values
     if axis is not None:
         estimator = reduce_mean(estimator, axis=axis, keepdims=keepdims)
+    estimator = apply_reduction(estimator, reduction)
     if negative:
         estimator = -estimator
     return estimator
@@ -48,6 +54,7 @@ def sgvb_estimator(values: Tensor,
 def iwae_estimator(log_values: Tensor,
                    axis: Optional[List[int]] = None,
                    keepdims: bool = False,
+                   reduction: str = 'none',  # {'sum', 'mean' or 'none'}
                    negative: bool = False) -> Tensor:
     """
     Derive the gradient estimator for
@@ -72,6 +79,9 @@ def iwae_estimator(log_values: Tensor,
             If not specified, no axis will be reduced.
         keepdims: When `axis` is specified, whether or not to keep
             the reduced axis?  Defaults to :obj:`False`.
+        reduction: "sum" to return the sum of the resulted gradient estimator,
+            "mean" to return the mean of the estimator, or "none" to return
+            the original element-wise estimator.
         negative: If :obj:`True`, returns negative of the gradient estimator,
             instead of the original gradient estimator derived from `log_values`.
 
@@ -86,6 +96,7 @@ def iwae_estimator(log_values: Tensor,
             'variables, thus the `axis` argument must be specified'
         )
     estimator = log_mean_exp(log_values, axis=axis, keepdims=keepdims)
+    estimator = apply_reduction(estimator, reduction)
     if negative:
         estimator = -estimator
     return estimator

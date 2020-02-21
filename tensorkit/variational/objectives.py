@@ -1,6 +1,7 @@
 from typing import *
 
 from ..tensor import jit, Tensor, reduce_mean, log_mean_exp
+from .utils import apply_reduction
 
 __all__ = ['elbo_objective', 'monte_carlo_objective']
 
@@ -9,7 +10,9 @@ __all__ = ['elbo_objective', 'monte_carlo_objective']
 def elbo_objective(log_joint: Tensor,
                    latent_log_joint: Tensor,
                    axis: Optional[List[int]] = None,
-                   keepdims: bool = False) -> Tensor:
+                   keepdims: bool = False,
+                   reduction: str = 'none',  # {'sum', 'mean' or 'none'}
+                   ) -> Tensor:
     """
     Derive the ELBO objective.
 
@@ -25,6 +28,9 @@ def elbo_objective(log_joint: Tensor,
         latent_log_joint: :math:`\\log q(\\mathbf{z}|\\mathbf{x})`.
         axis: The sampling dimensions to be averaged out.
             If :obj:`None`, no dimensions will be averaged out.
+        reduction: "sum" to return the sum of the elbo,
+            "mean" to return the mean of the elbo, or "none" to
+            return the original element-wise elbo.
         keepdims: When `axis` is specified, whether or not to keep
             the reduced axis?  Defaults to :obj:`False`.
 
@@ -34,6 +40,7 @@ def elbo_objective(log_joint: Tensor,
     objective = log_joint - latent_log_joint
     if axis is not None:
         objective = reduce_mean(objective, axis=axis, keepdims=keepdims)
+    objective = apply_reduction(objective, reduction)
     return objective
 
 
@@ -41,7 +48,9 @@ def elbo_objective(log_joint: Tensor,
 def monte_carlo_objective(log_joint: Tensor,
                           latent_log_joint: Tensor,
                           axis: Optional[List[int]] = None,
-                          keepdims: bool = False) -> Tensor:
+                          keepdims: bool = False,
+                          reduction: str = 'none',  # {'sum', 'mean' or 'none'}
+                          ) -> Tensor:
     """
     Derive the Monte-Carlo objective.
 
@@ -61,6 +70,9 @@ def monte_carlo_objective(log_joint: Tensor,
         latent_log_joint: :math:`\\log q(\\mathbf{z}|\\mathbf{x})`.
         axis: The sampling dimensions to be averaged out.
             If :obj:`None`, no dimensions will be averaged out.
+        reduction: "sum" to return the sum of the monte-carlo objective,
+            "mean" to return the mean of the monte-carlo objective, or "none" to
+            return the original element-wise monte-carlo objective.
         keepdims: When `axis` is specified, whether or not to keep
             the reduced axis?  Defaults to :obj:`False`.
 
@@ -75,4 +87,5 @@ def monte_carlo_objective(log_joint: Tensor,
 
     likelihood = log_joint - latent_log_joint
     objective = log_mean_exp(likelihood, axis=axis, keepdims=keepdims)
+    objective = apply_reduction(objective, reduction)
     return objective
