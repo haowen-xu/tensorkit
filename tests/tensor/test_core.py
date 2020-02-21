@@ -1,6 +1,5 @@
 import copy
 import itertools
-import unittest
 from functools import partial
 
 import numpy as np
@@ -13,6 +12,14 @@ from tensorkit import *
 from tensorkit.distributions import *
 from tests.helper import *
 from tests.ops import *
+
+
+class _MyParent(tk.layers.BaseLayer):
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        for key, val in kwargs.items():
+            setattr(self, key, val)
 
 
 class TensorCoreTestCase(TestCase):
@@ -28,6 +35,40 @@ class TensorCoreTestCase(TestCase):
             self.assertTrue(tk.layers.is_jit_layer(layer2))
         else:
             self.assertFalse(tk.layers.is_jit_layer(layer2))
+
+    def test_jit_compile_children(self):
+        a = 1
+        b = tk.layers.Linear(5, 3)
+        c = tk.layers.Linear(5, 3)
+        d = tk.layers.jit_compile(tk.layers.Linear(6, 2))
+
+        # test without excludes
+        layer = _MyParent(a=a, b=b, c=c, d=d)
+        layer2 = tk.layers.jit_compile_children(layer)
+        self.assertIs(layer2, layer)
+        self.assertEqual(layer.a, a)
+        if not tk.settings.disable_jit:
+            self.assertTrue(tk.layers.is_jit_layer(layer.b))
+            self.assertTrue(tk.layers.is_jit_layer(layer.c))
+            self.assertIs(layer.d, d)
+        else:
+            self.assertIs(layer.b, b)
+            self.assertIs(layer.c, c)
+            self.assertIs(layer.d, d)
+
+        # test with excludes
+        layer = _MyParent(a=a, b=b, c=c, d=d)
+        layer2 = tk.layers.jit_compile_children(layer, excludes=('c',))
+        self.assertIs(layer2, layer)
+        self.assertEqual(layer.a, a)
+        if not tk.settings.disable_jit:
+            self.assertTrue(tk.layers.is_jit_layer(layer.b))
+            self.assertFalse(tk.layers.is_jit_layer(layer.c))
+            self.assertIs(layer.d, d)
+        else:
+            self.assertIs(layer.b, b)
+            self.assertIs(layer.c, c)
+            self.assertIs(layer.d, d)
 
     def test_device(self):
         # ensure we're using GPU if GPU is available

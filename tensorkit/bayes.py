@@ -6,6 +6,7 @@ from frozendict import frozendict
 from . import tensor as T
 from .distributions import Distribution
 from .stochastic import StochasticTensor
+from .typing_ import *
 
 __all__ = ['BayesianNet']
 
@@ -31,8 +32,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
     _stochastic_tensors: Mapping[str, StochasticTensor]
     """The stochastic tensors added to this Bayesian net."""
 
-    def __init__(self,
-                 observed: Mapping[str, Union[T.Tensor, StochasticTensor]] = None):
+    def __init__(self, observed: Optional[Mapping[str, TensorOrData]] = None):
         """
         Construct a new :class:`BayesianNet` instance.
 
@@ -47,7 +47,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         else:
             self._original_observed = {}
         self._observed = frozendict([
-            (str(name), (t.tensor if isinstance(t, StochasticTensor) else t))
+            (str(name), T.as_tensor(t))
             for name, t in self._original_observed.items()
         ])
         self._stochastic_tensors: Dict[str, StochasticTensor] = {}

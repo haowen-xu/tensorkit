@@ -23,6 +23,32 @@ class FlattenToNDimsTestCase(TestCase):
             _ = layer(T.random.randn([1, 1]))
 
 
+class ReshapeTailTestCase(unittest.TestCase):
+
+    def test_ReshapeTail(self):
+        x = T.random.randn([2, 3, 4, 5])
+
+        for ndims, shape in [
+                    (0, []),
+                    (0, [1, 1]),
+                    (0, [-1]),
+                    (1, [1, 5]),
+                    (1, [-1, 1, 1]),
+                    (2, [4, 1, 5]),
+                    (2, [2, 10]),
+                    (2, [-1, 2]),
+                ]:
+            layer = tk.layers.jit_compile(tk.layers.ReshapeTail(ndims, shape))
+            assert_equal(layer(x), T.reshape_tail(x, ndims, shape))
+
+        with pytest.raises(ValueError, match='`ndims` must be non-negative'):
+            _ = tk.layers.ReshapeTail(-1, [1])
+        with pytest.raises(ValueError, match='Too many "-1" in `shape`'):
+            _ = tk.layers.ReshapeTail(3, [-1, -1])
+        with pytest.raises(ValueError, match='`shape` is invalid'):
+            _ = tk.layers.ReshapeTail(3, [0])
+
+
 class ConstantPadTestCase(TestCase):
 
     def test_ConstantPad(self):

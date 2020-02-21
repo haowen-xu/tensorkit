@@ -40,7 +40,7 @@ class LayerArgsTestCase(TestCase):
         self.assertEqual(o, ((), {}))
 
         # set default args
-        args.set_args(_RecordInitArgsLayer, d=4)
+        self.assertIs(args.set_args(_RecordInitArgsLayer, d=4), args)
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {'d': 4})
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer, c=3, d=5), {'c': 3, 'd': 5})
 
@@ -105,6 +105,10 @@ def sequential_builder_standard_check(ctx,
         T.random.seed(1234)
         builder = SequentialBuilder(input_shape)
         ctx.assertEqual(builder.in_shape, input_shape)
+        # clear `in_shape`, such that the only reliable shape is `out_shape`,
+        # that we can check whether or not the layer builder method reads the
+        # correct shape.
+        builder.in_shape = [None] * len(builder.in_shape)
         if builder_set_arg_kwargs:
             ctx.assertIs(
                 builder.set_args(
@@ -206,13 +210,34 @@ class SequentialBuilderTestCase(TestCase):
             [s if s == 5 else None for s in make_conv_shape([], 5, [3, 4])],
         )
 
+        # test copy layer_args
+        layer_args = LayerArgs()
+        layer_args.set_args(['dense', 'conv2d'], activation=tk.layers.LeakyReLU)
+        layer_args.set_args('conv2d', kernel_size=3)
+        builder = SequentialBuilder(5, layer_args=layer_args)
+        self.assertEqual(
+            builder.layer_args.get_kwargs(Dense),
+            {'activation': tk.layers.LeakyReLU}
+        )
+        self.assertEqual(
+            builder.layer_args.get_kwargs(Conv2d),
+            {'activation': tk.layers.LeakyReLU, 'kernel_size': 3}
+        )
+
         # test in_builder
         in_shape0 = make_conv_shape([], 5, [3, 4])
         for in_shape in (in_shape0, [None if i != 5 else i for i in in_shape0]):
+            # prepare for the objects
             builder0 = SequentialBuilder(in_shape)
+            builder0.in_shape = []
+            self.assertEqual(builder0.out_shape, in_shape)
             builder0.set_args(['dense', 'conv2d'], activation=tk.layers.LeakyReLU)
             builder0.set_args('conv2d', kernel_size=3)
 
+            layer_args = LayerArgs()
+            layer_args.set_args(['dense'], activation=tk.layers.Sigmoid)
+
+            # test init from another build
             builder = SequentialBuilder(builder0)
             assert_in_shape(builder, in_shape)
             self.assertEqual(
@@ -222,6 +247,42 @@ class SequentialBuilderTestCase(TestCase):
             self.assertEqual(
                 builder.layer_args.get_kwargs(Conv2d),
                 {'activation': tk.layers.LeakyReLU, 'kernel_size': 3}
+            )
+
+            # test override builder args with layer_args
+            builder = SequentialBuilder(builder0, layer_args=layer_args)
+            assert_in_shape(builder, in_shape)
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Dense),
+                {'activation': tk.layers.Sigmoid}
+            )
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Conv2d),
+                {}
+            )
+
+            # test `next_builder`
+            builder = builder0.as_input()
+            assert_in_shape(builder, in_shape)
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Dense),
+                {'activation': tk.layers.LeakyReLU}
+            )
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Conv2d),
+                {'activation': tk.layers.LeakyReLU, 'kernel_size': 3}
+            )
+
+            # test `next_builder` with overrided `layer_args`
+            builder = builder0.as_input(layer_args)
+            assert_in_shape(builder, in_shape)
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Dense),
+                {'activation': tk.layers.Sigmoid}
+            )
+            self.assertEqual(
+                builder.layer_args.get_kwargs(Conv2d),
+                {}
             )
 
         # test arg errors
@@ -551,6 +612,42 @@ class SequentialBuilderTestCase(TestCase):
                     output_mask=output_mask
                 )
 
+    def test_reshape(self):
+        for new_shape in ([-1], [-1, 3], [3, 1, 4, 2]):
+            sequential_builder_standard_check(
+                ctx=self,
+                fn_name=f'reshape',
+                layer_cls=tk.layers.ReshapeTail,
+                input_shape=[2, 3, 4], input_mask=[False] * 3,
+                args=(), builder_args=(new_shape,), kwargs={},
+                layer_kwargs={'ndims': 3, 'shape': new_shape},
+                output_mask=[None if s == -1 else s for s in new_shape],
+                at_least=0,
+            )
+
+        with pytest.raises(ValueError,
+                           match='Too many "-1" in `shape`'):
+            _ = tk.layers.SequentialBuilder([2, 3]).reshape([-1, -1])
+        with pytest.raises(ValueError,
+                           match='`shape` is not a valid shape'):
+            _ = tk.layers.SequentialBuilder([2, 3]).reshape([0])
+        with pytest.raises(ValueError,
+                           match='The previous output shape cannot be reshape '
+                                 'into the new `shape`'):
+            _ = tk.layers.SequentialBuilder([2, 3]).reshape([4])
+
+    def test_flatten(self):
+        sequential_builder_standard_check(
+            ctx=self,
+            fn_name=f'flatten',
+            layer_cls=tk.layers.ReshapeTail,
+            input_shape=[2, 3, 4], input_mask=[False] * 3,
+            args=(), builder_args=(), kwargs={},
+            layer_kwargs={'ndims': 3, 'shape': [-1]},
+            output_mask=[False],
+            at_least=0,
+        )
+
     def test_channel_transpose_layers(self):
         for spatial_ndims in (1, 2, 3):
             input_shape = [15, 16, 17, 18][:spatial_ndims + 1]
@@ -571,5 +668,5 @@ class SequentialBuilderTestCase(TestCase):
                 sequential_builder_standard_check(
                     ctx=self, fn_name=fn_name, layer_cls=layer_cls,
                     input_shape=input_shape, input_mask=input_mask,
-                    args=(), builder_args=(), kwargs={}
+                    args=(), builder_args=(), kwargs={},
                 )
