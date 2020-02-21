@@ -38,8 +38,7 @@ class VAE(tk.layers.BaseLayer):
 
         # common nn parameters
         layer_args = tk.layers.LayerArgs(). \
-            set_args(['dense'], activation=tk.layers.LeakyReLU,
-                     data_init=tk.init.StdDataInit)
+            set_args(['dense'], activation=tk.layers.LeakyReLU)
 
         # nn for q(z|x)
         q_builder = tk.layers.SequentialBuilder(x_dim, layer_args=layer_args)

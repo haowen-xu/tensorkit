@@ -43,8 +43,7 @@ class VAE(tk.layers.BaseLayer):
             set_args(['res_block2d', 'res_block_transpose2d'],
                      activation=tk.layers.LeakyReLU,
                      kernel_size=config.kernel_size,
-                     padding='half',
-                     data_init=tk.init.StdDataInit)
+                     padding='half')
 
         # nn for q(z|x)
         q_builder = tk.layers.SequentialBuilder(x_shape, layer_args=layer_args)
