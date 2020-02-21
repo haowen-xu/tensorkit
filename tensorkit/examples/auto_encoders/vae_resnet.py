@@ -143,8 +143,10 @@ def main(exp: mltk.Experiment[Config]):
         epoch = epoch or loop.epoch
         with tk.layers.scoped_eval_mode(vae), T.no_grad():
             logits = vae.p(n_z=100)['x'].distribution.logits
-            images = T.cast(T.clip(T.nn.sigmoid(logits) * 255., 0., 255.),
-                            dtype=T.uint8)
+            images = T.reshape(
+                T.cast(T.clip(T.nn.sigmoid(logits) * 255., 0., 255.), dtype=T.uint8),
+                [-1, 28, 28],
+            )
         utils.save_images_collection(
             images=T.to_numpy(images),
             filename=exp.abspath(f'plotting/{epoch}.png'),
