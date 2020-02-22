@@ -53,7 +53,7 @@ DEFAULT_BIAS_INIT = init.zeros
 
 # ---- utils ----
 def jit_compile(m: Module) -> Module:
-    if not settings.disable_jit:
+    if is_module_jit_enabled():
         m = torch_script(m)
     return m
 
@@ -70,7 +70,7 @@ def jit_compile_children(m: Module,
     Returns:
         The `m` module itself.
     """
-    if not settings.disable_jit:
+    if is_module_jit_enabled():
         excludes = set(excludes or ())
         for attr in dir(m):
             if attr in excludes:

@@ -7,7 +7,7 @@ import torch
 import torch.jit
 import torch.nn.functional
 
-from ...settings_ import settings
+from ...settings_ import settings, JitMode
 
 __all__ = [
     # constants
@@ -18,6 +18,7 @@ __all__ = [
 
     # ordinary module base classes
     # jit
+    'is_function_jit_enabled', 'is_module_jit_enabled',
     'jit', 'jit_ignore', 'jit_method',
 
     # device
@@ -111,20 +112,28 @@ Module = torch.nn.Module
 
 
 # ---- jit ----
+def is_function_jit_enabled() -> bool:
+    return settings.jit_mode is not None and settings.jit_mode != JitMode.NONE
+
+
+def is_module_jit_enabled() -> bool:
+    return settings.jit_mode is not None and settings.jit_mode == JitMode.ALL
+
+
 def jit(fn):
-    if not settings.disable_jit:
+    if is_function_jit_enabled():
         fn = torch.jit.script(fn)
     return fn
 
 
 def jit_ignore(fn):
-    if not settings.disable_jit:
+    if is_function_jit_enabled() or is_module_jit_enabled():
         fn = torch.jit.ignore(fn)
     return fn
 
 
 def jit_method(fn):
-    if not settings.disable_jit:
+    if is_module_jit_enabled():
         fn = torch.jit.export(fn)
     return fn
 
@@ -180,7 +189,7 @@ def first_gpu_device(fallback_to_cpu: bool = True) -> str:
 
 
 # ---- utilities ----
-if settings.disable_jit:
+if not is_function_jit_enabled():
     def int_range(start: int, end: int, step: int = 1) -> List[int]:
         return list(range(start, end, step))
 else:
@@ -1484,7 +1493,7 @@ def matrix_inverse(matrix: Tensor) -> Tensor:
 
 
 # ---- gradient utilities ----
-if settings.disable_jit or not torch.__version__.startswith('1.3.'):
+if not is_function_jit_enabled() or not torch.__version__.startswith('1.3.'):
     @jit
     def grad(outputs: List[Tensor],
              inputs: List[Tensor],

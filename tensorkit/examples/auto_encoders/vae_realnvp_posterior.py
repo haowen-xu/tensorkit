@@ -53,7 +53,10 @@ class VAE(tk.layers.BaseLayer):
         # the posterior flow
         flows = []
         for i in range(config.flow_levels):
-            # build the coupling layer of this level
+            # act norm
+            flows.append(tk.flows.ActNorm(config.z_dim))
+
+            # coupling layer
             n1 = config.z_dim // 2
             n2 = config.z_dim - n1
             b = tk.layers.SequentialBuilder(n1, layer_args=layer_args)
@@ -71,8 +74,7 @@ class VAE(tk.layers.BaseLayer):
             flows.append(tk.flows.CouplingLayer(
                 shift_and_pre_scale, scale='sigmoid'))
 
-            # build other flow layers of this level
-            flows.append(tk.flows.ActNorm(config.z_dim))
+            # feature rearrangement by invertible dense
             flows.append(tk.flows.InvertibleDense(config.z_dim))
         self.posterior_flow = tk.flows.SequentialFlow(flows)
 
@@ -134,7 +136,7 @@ def main(exp: mltk.Experiment[Config]):
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
     vae.initialize(init_x)
-    mltk.print_with_time('Network initialized and compiled with JIT')
+    mltk.print_with_time('Network initialized')
 
     # define the train and evaluate functions
     def train_step(x):

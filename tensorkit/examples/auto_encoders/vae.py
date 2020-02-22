@@ -102,7 +102,7 @@ def main(exp: mltk.Experiment[Config]):
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
     vae.initialize(init_x)
-    mltk.print_with_time('Network initialized and compiled with JIT')
+    mltk.print_with_time('Network initialized')
 
     # define the train and evaluate functions
     def train_step(x):

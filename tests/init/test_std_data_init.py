@@ -47,7 +47,7 @@ class StdDataInitTestCase(TestCase):
                 check_x(layer)
 
         # test error
-        if not tk.settings.disable_jit:
+        if T.is_module_jit_enabled():
             with pytest.raises(TypeError,
                                match='JIT compiled layer is not supported'):
                 layer = tk.layers.jit_compile(tk.layers.Linear(5, 3))

@@ -1,8 +1,9 @@
+from enum import Enum
 from typing import *
 
-from mltk import Config, ConfigField
+from mltk import Config, ConfigField, field_checker
 
-__all__ = ['Settings', 'settings']
+__all__ = ['JitMode', 'Settings', 'settings']
 
 
 KNOWN_BACKENDS = ('PyTorch', 'TensorFlow')
@@ -36,10 +37,22 @@ def auto_choose_backend() -> Optional[str]:
             return backend
 
 
+class JitMode(str, Enum):
+    """Enum of the JIT mode."""
+
+    ALL = 'all'
+    """Enable JIT on both functions and modules (layers)."""
+
+    FUNCTION_ONLY = 'function_only'
+    """Enable JIT only on functions."""
+
+    NONE = 'none'
+    """Disable JIT."""
+
+
 class Settings(Config):
 
     backend: str = ConfigField(
-        str,
         default=auto_choose_backend() or KNOWN_BACKENDS[0],
         choices=KNOWN_BACKENDS,
         envvar='TENSORKIT_BACKEND',
@@ -48,7 +61,6 @@ class Settings(Config):
                     'will not take effect.'
     )
     float_x: str = ConfigField(
-        str,
         default='float32',
         choices=['float32', 'float64'],
         envvar='TENSORKIT_FLOATX',
@@ -57,7 +69,6 @@ class Settings(Config):
                     'not take effect.'
     )
     validate_tensors: bool = ConfigField(
-        bool,
         default=False,
         envvar='TENSORKIT_VALIDATE_TENSORS',
         description='Whether or not to perform time-consuming validation on '
@@ -66,14 +77,27 @@ class Settings(Config):
                     'are no numerical issues (i.e., no NaN or Infinity values), '
                     'and no semantic or logical errors (e.g., `low` > `high`)?'
     )
-    disable_jit: bool = ConfigField(
-        bool,
-        default=False,
-        envvar='TENSORKIT_DISABLE_JIT',
-        description='Whether or not to disable the JIT engine of backend?'
-                    'Changing the value of this configuration at runtime '
-                    'will not take effect.'
+    jit_mode: Optional[JitMode] = ConfigField(
+        default=None,
+        envvar='TENSORKIT_JIT_MODE',
+        description='The mode of JIT engine. If not specified, determined by '
+                    'the backend. ' 
+                    'Changing the value of this configuration at runtime will '
+                    'not take effect.'
     )
+
+    @field_checker('jit_mode', pre=True)
+    def _jit_mode_pre_checker(self, v):
+        if isinstance(v, bool):
+            v = JitMode.ALL if v else JitMode.NONE
+        elif isinstance(v, str):
+            if v.lower() in ('1', 'yes', 'on', 'true', 'all'):
+                v = JitMode.ALL
+            elif v.lower() in ('0', 'no', 'off', 'false', 'none'):
+                v = JitMode.NONE
+            elif v.lower() in ('func', 'function', 'func_only', 'function_only'):
+                v = JitMode.FUNCTION_ONLY
+        return v
 
 
 settings = Settings()

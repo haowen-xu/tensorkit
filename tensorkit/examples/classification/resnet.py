@@ -49,11 +49,8 @@ def main(exp: mltk.Experiment[Config]):
     # initialize the network with first few batches of train data
     init_x, _ = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
     _ = net(T.as_tensor(init_x))
-    mltk.print_with_time('Network initialized')
-
-    # we have initialized the network, now we can compile the net with JIT engine
     net = tk.layers.jit_compile(net)
-    mltk.print_with_time('Network compiled with JIT')
+    mltk.print_with_time('Network initialized')
 
     # the train, test and validate functions
     def train_step(x, y):

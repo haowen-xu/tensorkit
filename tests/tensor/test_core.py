@@ -31,7 +31,7 @@ class TensorCoreTestCase(TestCase):
         # test compile layer
         layer = tk.layers.Linear(5, 3)
         layer2 = tk.layers.jit_compile(layer)
-        if not tk.settings.disable_jit:
+        if T.is_module_jit_enabled():
             self.assertTrue(tk.layers.is_jit_layer(layer2))
         else:
             self.assertFalse(tk.layers.is_jit_layer(layer2))
@@ -47,7 +47,7 @@ class TensorCoreTestCase(TestCase):
         layer2 = tk.layers.jit_compile_children(layer)
         self.assertIs(layer2, layer)
         self.assertEqual(layer.a, a)
-        if not tk.settings.disable_jit:
+        if T.is_module_jit_enabled():
             self.assertTrue(tk.layers.is_jit_layer(layer.b))
             self.assertTrue(tk.layers.is_jit_layer(layer.c))
             self.assertIs(layer.d, d)
@@ -61,7 +61,7 @@ class TensorCoreTestCase(TestCase):
         layer2 = tk.layers.jit_compile_children(layer, excludes=('c',))
         self.assertIs(layer2, layer)
         self.assertEqual(layer.a, a)
-        if not tk.settings.disable_jit:
+        if T.is_module_jit_enabled():
             self.assertTrue(tk.layers.is_jit_layer(layer.b))
             self.assertFalse(tk.layers.is_jit_layer(layer.c))
             self.assertIs(layer.d, d)
