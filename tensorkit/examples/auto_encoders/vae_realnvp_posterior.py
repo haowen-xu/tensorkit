@@ -10,7 +10,7 @@ from tensorkit.typing_ import TensorOrData
 
 class Config(mltk.Config):
     # model parameters
-    z_dim: int = 4
+    z_dim: int = 40
     flow_levels: int = 10
     flow_hidden_layer_count: int = 1
     flow_hidden_layer_units: int = 250
@@ -71,8 +71,7 @@ class VAE(tk.layers.BaseLayer):
                 ],
                 shared=b.build(),
             )
-            flows.append(tk.flows.CouplingLayer(
-                shift_and_pre_scale, scale='sigmoid'))
+            flows.append(tk.flows.CouplingLayer(shift_and_pre_scale, scale='sigmoid'))
 
             # feature rearrangement by invertible dense
             flows.append(tk.flows.InvertibleDense(config.z_dim))
