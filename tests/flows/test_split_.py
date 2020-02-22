@@ -17,44 +17,44 @@ def check_split_flow(ctx,
                      left,
                      right,
                      **kwargs):
+    batch_shape = [2]
     y_sections = kwargs.get("y_sections", x_sections)
     x_axis = kwargs.get("x_axis", get_channel_axis(spatial_ndims))
     y_axis = kwargs.get("y_axis", x_axis)
 
-    for batch_shape in ([2], [2, 3]):
-        x = T.random.randn(make_conv_shape(
-            batch_shape, num_features, [6, 7, 8][:spatial_ndims]))
-        input_log_det = T.random.randn(batch_shape)
+    x = T.random.randn(make_conv_shape(
+        batch_shape, num_features, [6, 7, 8][:spatial_ndims]))
+    input_log_det = T.random.randn(batch_shape)
 
-        # without right
-        if y_axis == x_axis:
-            flow = cls(x_sections, left, None, **kwargs)
-            ctx.assertIn(f'x_sections={x_sections}', repr(flow))
-            ctx.assertIn(f'y_sections={y_sections}', repr(flow))
-            ctx.assertIn(f'x_axis={x_axis}', repr(flow))
-            ctx.assertIn(f'y_axis={y_axis}', repr(flow))
-            flow = tk.layers.jit_compile(flow)
-
-            x1, x2 = T.split(x, x_sections, axis=x_axis)
-            y1, expected_log_det = left(x1, compute_log_det=True)
-            y2 = x2
-            expected_y = T.concat([y1, y2], axis=y_axis)
-
-            flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
-                                input_log_det)
-
-        # with right
-        flow = cls(x_sections, left, right, **kwargs)
+    # without right
+    if y_axis == x_axis:
+        flow = cls(x_sections, left, None, **kwargs)
+        ctx.assertIn(f'x_sections={x_sections}', repr(flow))
+        ctx.assertIn(f'y_sections={y_sections}', repr(flow))
+        ctx.assertIn(f'x_axis={x_axis}', repr(flow))
+        ctx.assertIn(f'y_axis={y_axis}', repr(flow))
         flow = tk.layers.jit_compile(flow)
 
         x1, x2 = T.split(x, x_sections, axis=x_axis)
         y1, expected_log_det = left(x1, compute_log_det=True)
-        y2, expected_log_det = right(
-            x2, input_log_det=expected_log_det, compute_log_det=True)
+        y2 = x2
         expected_y = T.concat([y1, y2], axis=y_axis)
 
         flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
                             input_log_det)
+
+    # with right
+    flow = cls(x_sections, left, right, **kwargs)
+    flow = tk.layers.jit_compile(flow)
+
+    x1, x2 = T.split(x, x_sections, axis=x_axis)
+    y1, expected_log_det = left(x1, compute_log_det=True)
+    y2, expected_log_det = right(
+        x2, input_log_det=expected_log_det, compute_log_det=True)
+    expected_y = T.concat([y1, y2], axis=y_axis)
+
+    flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
+                        input_log_det)
 
     # test argument error
     with pytest.raises(ValueError,

@@ -361,7 +361,7 @@ class SequentialBuilder(object):
         self.out_shape = out_shape
         return self
 
-    def build(self, flatten_to_ndims: bool = True) -> T.Module:
+    def build(self, flatten_to_ndims: bool = False) -> T.Module:
         """
         Build the sequential layer.
 

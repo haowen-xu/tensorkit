@@ -567,9 +567,7 @@ class Linear(CoreLinear):
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        output, front_shape = flatten_to_ndims(input, 2)
-        output = torch.nn.functional.linear(output, weight, bias)
-        output = unflatten_from_ndims(output, front_shape)
+        output = torch.nn.functional.linear(input, weight, bias)
         return output
 
 

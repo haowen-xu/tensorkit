@@ -49,7 +49,7 @@ class VAE(tk.layers.BaseLayer):
 
         # nn for p(x|z)
         p_builder = tk.layers.SequentialBuilder(config.z_dim, layer_args=layer_args)
-        self.px_logits = p_builder.dense(500).dense(500).linear(x_dim).build()
+        self.px_logits = p_builder.dense(500).dense(500).linear(x_dim).build(True)
 
     def initialize(self, x):
         _ = self.get_chain(T.as_tensor(x)).vi.training.sgvb()

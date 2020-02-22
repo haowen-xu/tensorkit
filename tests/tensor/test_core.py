@@ -1057,6 +1057,22 @@ class TensorCoreTestCase(TestCase):
             with pytest.raises(Exception):
                 _ = T.shift_axis(x_t, axis, 0)
 
+        # flip
+        assert_equal(T.flip(x_t, []), x)
+        assert_equal(T.flip(x_t, [-2]), x[::-1])
+        assert_equal(T.flip(x_t, [-1]), x[:, ::-1])
+        assert_equal(T.flip(x_t, [0]), x[::-1])
+        assert_equal(T.flip(x_t, [1]), x[:, ::-1])
+        assert_equal(T.flip(x_t, [0, 1]), x[::-1, ::-1])
+        assert_equal(T.flip(x_t, [-2, 1]), x[::-1, ::-1])
+        assert_equal(T.flip(x_t, [0, -1]), x[::-1, ::-1])
+
+        # flip axis
+        assert_equal(T.flip_axis(x_t, -2), x[::-1])
+        assert_equal(T.flip_axis(x_t, -1), x[:, ::-1])
+        assert_equal(T.flip_axis(x_t, 0), x[::-1])
+        assert_equal(T.flip_axis(x_t, 1), x[:, ::-1])
+
     def test_math_univariate_op(self):
         x = np.random.randn(2, 3)
         u = np.random.rand(2, 3)

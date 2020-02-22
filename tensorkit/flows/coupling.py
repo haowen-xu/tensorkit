@@ -151,25 +151,19 @@ class CouplingLayer(FeatureMappingFlow):
         # do transform
         y1 = x1
         shift, pre_scale = self.shift_and_pre_scale(x1)
+
+        y2 = x2 if inverse else x2 + shift
+        event_ndims = self.y_event_ndims if inverse else self.x_event_ndims
+        y2, output_log_det = self.scale(
+            input=y2,
+            pre_scale=pre_scale,
+            event_ndims=event_ndims,
+            input_log_det=input_log_det,
+            compute_log_det=compute_log_det,
+            inverse=inverse,
+        )
         if inverse:
-            y2, output_log_det = self.scale(
-                input=x2,
-                pre_scale=pre_scale,
-                event_ndims=self.x_event_ndims,
-                input_log_det=input_log_det,
-                compute_log_det=compute_log_det,
-                inverse=True,
-            )
             y2 = y2 - shift
-        else:
-            y2, output_log_det = self.scale(
-                input=x2 + shift,
-                pre_scale=pre_scale,
-                event_ndims=self.x_event_ndims,
-                input_log_det=input_log_det,
-                compute_log_det=compute_log_det,
-                inverse=False,
-            )
 
         # merge the tensor
         if self.secondary:

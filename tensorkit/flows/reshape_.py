@@ -1,6 +1,6 @@
 from typing import *
 
-from ..tensor import Tensor, reshape_tail, float_scalar_like, jit_method
+from ..tensor import Tensor, reshape_tail, float_scalar_like, jit_method, flatten_to_ndims
 from ..tensor.nn import *
 from .core import *
 

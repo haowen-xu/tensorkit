@@ -274,7 +274,10 @@ class SequentialFlow(Flow):
     #       duplicated weights.  Deal with this issue.
     _inverse_chain: ModuleList
 
-    def __init__(self, *flows: Union[Module, Sequence[Module]]):
+    flatten_to_ndims: bool
+
+    def __init__(self,
+                 *flows: Union[Module, Sequence[Module]]):
         from tensorkit.layers import flatten_nested_layers
 
         # validate the arguments
@@ -306,6 +309,7 @@ class SequentialFlow(Flow):
             self._inverse_chain = ModuleList(reversed(flows))
         else:
             self._inverse_chain = ModuleList([_NotInvertibleFlow()])
+        self.flatten_to_ndims = bool(flatten_to_ndims)
 
     def _transform(self,
                    input: Tensor,
@@ -314,6 +318,14 @@ class SequentialFlow(Flow):
                    compute_log_det: bool
                    ) -> Tuple[Tensor, Optional[Tensor]]:
         output, output_log_det = input, input_log_det
+        event_ndims = self.y_event_ndims if inverse else self.x_event_ndims
+
+        if rank(output) > event_ndims:
+            output, batch_shape = flatten_to_ndims(output, event_ndims + 1)
+            if output_log_det is not None:
+                output_log_det = reshape(output_log_det, [-1])
+        else:
+            batch_shape: Optional[List[int]] = None
 
         if inverse:
             for flow in self._inverse_chain:
@@ -323,6 +335,11 @@ class SequentialFlow(Flow):
             for flow in self._chain:
                 output, output_log_det = flow(
                     output, output_log_det, False, compute_log_det)
+
+        if batch_shape is not None:
+            output = unflatten_from_ndims(output, batch_shape)
+            if output_log_det is not None:
+                output_log_det = reshape(output_log_det, batch_shape)
 
         return output, output_log_det
 
@@ -557,9 +574,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
         weight = reshape(weight, shape(weight) + [1] * spatial_ndims)
 
         # compute the output
-        output, front_shape = flatten_to_ndims(input, spatial_ndims + 2)
-        output = self._affine_transform(output, weight)
-        output = unflatten_from_ndims(output, front_shape)
+        output = self._affine_transform(input, weight)
 
         # compute the log_det
         output_log_det = input_log_det
@@ -809,15 +824,14 @@ class LinearScale(Scale):
                              compute_log_scale: bool
                              ) -> Tuple[Tensor, Optional[Tensor]]:
         log_scale: Optional[Tensor] = None
+        epsilon = float_scalar_like(self.epsilon, pre_scale)
         if inverse:
             scale = 1. / pre_scale
             if compute_log_scale:
-                epsilon = float_scalar_like(self.epsilon, pre_scale)
                 log_scale = -log(maximum(abs(pre_scale), epsilon))
         else:
             scale = pre_scale
             if compute_log_scale:
-                epsilon = float_scalar_like(self.epsilon, pre_scale)
                 log_scale = log(maximum(abs(pre_scale), epsilon))
 
         return scale, log_scale

@@ -1,7 +1,7 @@
 from typing import *
 
 from .. import tensor as T
-from ..tensor import Tensor, argsort, index_select, float_scalar_like
+from ..tensor import Tensor, argsort, index_select, flip_axis, float_scalar_like
 from ..tensor.random import random_permutation
 from ..layers import *
 from .core import *
@@ -9,6 +9,8 @@ from .core import *
 __all__ = [
     'FeatureShufflingFlow', 'FeatureShufflingFlow1d', 'FeatureShufflingFlow2d',
     'FeatureShufflingFlow3d',
+    'FeatureReversingFlow', 'FeatureReversingFlow1d', 'FeatureReversingFlow2d',
+    'FeatureReversingFlow3d',
 ]
 
 
@@ -77,18 +79,75 @@ class FeatureShufflingFlow1d(FeatureShufflingFlow):
     """1D convolutional channel shuffling flow."""
 
     def __init__(self, num_features: int):
-        super().__init__(num_features, axis=-2, event_ndims=2)
+        axis = -1 if T.IS_CHANNEL_LAST else -2
+        super().__init__(num_features, axis=axis, event_ndims=2)
 
 
 class FeatureShufflingFlow2d(FeatureShufflingFlow):
     """2D convolutional channel shuffling flow."""
 
     def __init__(self, num_features: int):
-        super().__init__(num_features, axis=-3, event_ndims=3)
+        axis = -1 if T.IS_CHANNEL_LAST else -3
+        super().__init__(num_features, axis=axis, event_ndims=3)
 
 
 class FeatureShufflingFlow3d(FeatureShufflingFlow):
     """3D convolutional channel shuffling flow."""
 
     def __init__(self, num_features: int):
-        super().__init__(num_features, axis=-4, event_ndims=4)
+        axis = -1 if T.IS_CHANNEL_LAST else -4
+        super().__init__(num_features, axis=axis, event_ndims=4)
+
+
+class FeatureReversingFlow(FeatureMappingFlow):
+    """An invertible flow that reverses the order of features."""
+
+    def __init__(self,
+                 axis: int = -1,
+                 event_ndims: int = 1):
+        """
+        Construct a new :class:`FeatureShufflingFlow`.
+
+        Args:
+            axis: The feature axis, to apply the transformation.
+            event_ndims: Number of dimensions to be considered as the
+                event dimensions.  `x.ndims - event_ndims == log_det.ndims`.
+        """
+        super().__init__(axis=int(axis), event_ndims=event_ndims,
+                         explicitly_invertible=True)
+
+    def _transform(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
+        output = flip_axis(input, axis=self.axis)
+        output_log_det = input_log_det
+        if compute_log_det and output_log_det is None:
+            output_log_det = float_scalar_like(0., input)
+        return output, output_log_det
+
+
+class FeatureReversingFlow1d(FeatureReversingFlow):
+    """1D convolutional channel reversing flow."""
+
+    def __init__(self):
+        axis = -1 if T.IS_CHANNEL_LAST else -2
+        super().__init__(axis=axis, event_ndims=2)
+
+
+class FeatureReversingFlow2d(FeatureReversingFlow):
+    """2D convolutional channel reversing flow."""
+
+    def __init__(self):
+        axis = -1 if T.IS_CHANNEL_LAST else -3
+        super().__init__(axis=axis, event_ndims=3)
+
+
+class FeatureReversingFlow3d(FeatureReversingFlow):
+    """3D convolutional channel reversing flow."""
+
+    def __init__(self):
+        axis = -1 if T.IS_CHANNEL_LAST else -4
+        super().__init__(axis=axis, event_ndims=4)

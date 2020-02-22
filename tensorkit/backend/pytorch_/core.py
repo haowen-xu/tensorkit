@@ -57,7 +57,7 @@ __all__ = [
 
     # split / join / indexing / gathering ...
     'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
-    'pad', 'pad_axis', 'shift', 'shift_axis',
+    'pad', 'pad_axis', 'shift', 'shift_axis', 'flip', 'flip_axis',
 
     # math operators
     'floor', 'ceil', 'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin',
@@ -1070,6 +1070,16 @@ def shift(input: Tensor,
             output, padding, mode='constant', value=fill_value)
 
     return output
+
+
+@jit
+def flip_axis(input: Tensor, axis: int) -> Tensor:
+    return torch.flip(input, [axis])
+
+
+@jit
+def flip(input: Tensor, axis: List[int]) -> Tensor:
+    return torch.flip(input, axis)
 
 
 # ---- univariate element-wise math operations ----

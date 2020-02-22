@@ -345,37 +345,37 @@ def check_invertible_linear(ctx,
                             invertible_linear_factory,
                             linear_factory,
                             strict: bool,):
-    for batch_shape in ([2], [2, 3]):
-        num_features = 4
-        spatial_shape = [5, 6, 7][:spatial_ndims]
-        x = T.random.randn(make_conv_shape(
-            batch_shape, num_features, spatial_shape))
+    batch_shape = [2]
+    num_features = 4
+    spatial_shape = [5, 6, 7][:spatial_ndims]
+    x = T.random.randn(make_conv_shape(
+        batch_shape, num_features, spatial_shape))
 
-        # construct the layer
-        flow = invertible_linear_factory(num_features, strict=strict)
-        ctx.assertIn(f'num_features={num_features}', repr(flow))
-        flow = tk.layers.jit_compile(flow)
+    # construct the layer
+    flow = invertible_linear_factory(num_features, strict=strict)
+    ctx.assertIn(f'num_features={num_features}', repr(flow))
+    flow = tk.layers.jit_compile(flow)
 
-        # derive the expected answer
-        weight, log_det = flow.invertible_matrix(
-            inverse=False, compute_log_det=True)
-        linear_kwargs = {}
-        if spatial_ndims > 0:
-            linear_kwargs['kernel_size'] = 1
-        linear = linear_factory(
-            num_features, num_features,
-            weight_init=T.reshape(weight, T.shape(weight) + [1] * spatial_ndims),
-            use_bias=False,
-            **linear_kwargs
-        )
-        x_flatten, front_shape = T.flatten_to_ndims(x, spatial_ndims + 2)
-        expected_y = T.unflatten_from_ndims(linear(x_flatten), front_shape)
-        expected_log_det = T.expand(
-            T.reduce_sum(T.expand(log_det, spatial_shape)), batch_shape)
+    # derive the expected answer
+    weight, log_det = flow.invertible_matrix(
+        inverse=False, compute_log_det=True)
+    linear_kwargs = {}
+    if spatial_ndims > 0:
+        linear_kwargs['kernel_size'] = 1
+    linear = linear_factory(
+        num_features, num_features,
+        weight_init=T.reshape(weight, T.shape(weight) + [1] * spatial_ndims),
+        use_bias=False,
+        **linear_kwargs
+    )
+    x_flatten, front_shape = T.flatten_to_ndims(x, spatial_ndims + 2)
+    expected_y = T.unflatten_from_ndims(linear(x_flatten), front_shape)
+    expected_log_det = T.expand(
+        T.reduce_sum(T.expand(log_det, spatial_shape)), batch_shape)
 
-        # check the invertible layer
-        flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
-                            T.random.randn(batch_shape))
+    # check the invertible layer
+    flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
+                        T.random.randn(batch_shape))
 
 
 class InvertibleLinearTestCase(TestCase):

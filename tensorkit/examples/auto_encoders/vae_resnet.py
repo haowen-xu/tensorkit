@@ -71,7 +71,7 @@ class VAE(tk.layers.BaseLayer):
             res_block_transpose2d(32). \
             res_block_transpose2d(16, stride=2, output_size=[28, 28]). \
             conv2d(n_channels, kernel_size=1). \
-            build()
+            build(True)
 
     def initialize(self, x):
         _ = self.get_chain(T.as_tensor(x)).vi.training.sgvb()

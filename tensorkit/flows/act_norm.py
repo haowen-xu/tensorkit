@@ -177,25 +177,18 @@ class ActNorm(FeatureMappingFlow):
         shift = reshape(self.bias, shape_aligned)
         pre_scale = reshape(self.pre_scale, shape_aligned)
 
+        output = input if inverse else input + shift
+        event_ndims = self.x_event_ndims
+        output, output_log_det = self.scale(
+            input=output,
+            pre_scale=pre_scale,
+            event_ndims=event_ndims,
+            input_log_det=input_log_det,
+            compute_log_det=compute_log_det,
+            inverse=inverse,
+        )
         if inverse:
-            output, output_log_det = self.scale(
-                input=input,
-                pre_scale=pre_scale,
-                event_ndims=self.x_event_ndims,
-                input_log_det=input_log_det,
-                compute_log_det=compute_log_det,
-                inverse=True,
-            )
             output = output - shift
-        else:
-            output, output_log_det = self.scale(
-                input=input + shift,
-                pre_scale=pre_scale,
-                event_ndims=self.x_event_ndims,
-                input_log_det=input_log_det,
-                compute_log_det=compute_log_det,
-                inverse=False,
-            )
 
         return output, output_log_det
 

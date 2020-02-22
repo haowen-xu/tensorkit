@@ -1,5 +1,3 @@
-import unittest
-
 import tensorkit as tk
 from tensorkit import tensor as T
 from tensorkit.flows import *
@@ -40,6 +38,28 @@ def check_shuffling_flow(ctx,
                             T.random.randn(batch_shape))
 
 
+def check_reversing_flow(ctx,
+                         spatial_ndims: int,
+                         cls):
+    num_features = 5
+
+    for batch_shape in ([2], [2, 3]):
+        shape = make_conv_shape(
+            batch_shape, num_features, [6, 7, 8][: spatial_ndims])
+        flow = tk.layers.jit_compile(cls())
+
+        # prepare for the answer
+        x = T.random.randn(shape)
+        channel_axis = get_channel_axis(spatial_ndims)
+        perm = T.arange(num_features - 1, -1, -1, dtype=T.index_dtype)
+        expected_y = T.index_select(x, perm, axis=channel_axis)
+        expected_log_det = T.zeros(batch_shape)
+
+        # check the flow
+        flow_standard_check(ctx, flow, x, expected_y, expected_log_det,
+                            T.random.randn(batch_shape))
+
+
 class RearrangementTestCase(TestCase):
 
     def test_FeatureShuffleFlow(self):
@@ -51,4 +71,15 @@ class RearrangementTestCase(TestCase):
                 self,
                 spatial_ndims,
                 getattr(tk.flows, f'FeatureShufflingFlow{spatial_ndims}d'),
+            )
+
+    def test_FeatureReversingFlow(self):
+        check_reversing_flow(self, 0, FeatureReversingFlow)
+
+    def test_FeatureReversingFlowNd(self):
+        for spatial_ndims in (1, 2, 3):
+            check_reversing_flow(
+                self,
+                spatial_ndims,
+                getattr(tk.flows, f'FeatureReversingFlow{spatial_ndims}d'),
             )

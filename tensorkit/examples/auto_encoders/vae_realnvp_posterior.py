@@ -60,7 +60,7 @@ class VAE(tk.layers.BaseLayer):
             n1 = config.z_dim // 2
             n2 = config.z_dim - n1
             b = tk.layers.SequentialBuilder(n1, layer_args=layer_args)
-            for j in range(config.flow_hidden_layer_count):
+            for j in range(config.flow_levels):
                 b.dense(config.flow_hidden_layer_units)
             shift_and_pre_scale = tk.layers.Branch(
                 branches=[
@@ -79,7 +79,7 @@ class VAE(tk.layers.BaseLayer):
 
         # nn for p(x|z)
         p_builder = tk.layers.SequentialBuilder(config.z_dim, layer_args=layer_args)
-        self.px_logits = p_builder.dense(500).dense(500).linear(x_dim).build()
+        self.px_logits = p_builder.dense(500).dense(500).linear(x_dim).build(True)
 
     def initialize(self, x):
         _ = self.get_chain(T.as_tensor(x)).vi.training.sgvb()
