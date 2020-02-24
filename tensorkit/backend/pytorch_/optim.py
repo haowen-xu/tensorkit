@@ -20,7 +20,16 @@ class Optimizer(object):
     def set_lr(self, lr: float):
         raise NotImplementedError()
 
-    def add_param_group(self, params: Iterator[Variable]):
+    def add_params(self, params: Iterator[Variable]):
+        raise NotImplementedError()
+
+    def iter_params(self) -> Iterator[Variable]:
+        raise NotImplementedError()
+
+    def iter_params_and_grads(self) -> Iterator[Tuple[Variable, Optional[Tensor]]]:
+        raise NotImplementedError()
+
+    def set_param_grad(self, param: Variable, grad: Optional[Tensor]):
         raise NotImplementedError()
 
     def clear_grad(self):
@@ -30,10 +39,32 @@ class Optimizer(object):
     def capture_grad(self) -> Generator[None, None, None]:
         raise NotImplementedError()
 
-    def minimize(self, loss: Tensor):
+    def clip_grad_by_value(self, clip_min: float, clip_max: float):
+        for param, grad in self.iter_params_and_grads():
+            if grad is not None:
+                self.set_param_grad(param, clip(grad, clip_min, clip_max))
+
+    def clip_grad_by_norm(self, clip_norm: float):
+        for param, grad in self.iter_params_and_grads():
+            if grad is not None:
+                self.set_param_grad(param, clip_by_norm(grad, clip_norm))
+
+    def clip_grad_by_global_norm(self, clip_norm: float):
+        params = []
+        grads = []
+        for param, grad in self.iter_params_and_grads():
+            if grad is not None:
+                params.append(param)
+                grads.append(grad)
+        if grads:
+            grads = clip_by_global_norm(grads, clip_norm)
+            for param, grad in zip(params, grads):
+                self.set_param_grad(param, grad)
+
+    def add_loss(self, loss: Tensor, maximize: bool = False):
         raise NotImplementedError()
 
-    def maximize(self, loss: Tensor):
+    def step(self):
         raise NotImplementedError()
 
     def state_dict(self) -> Dict[str, Any]:
@@ -46,11 +77,20 @@ class Optimizer(object):
 class BackendOptimizer(Optimizer):
 
     _lr: float = None
+    _in_capture_context: bool = False
     torch_optimizer: TorchOptimizer
+    params: List[Variable]  # all parameters, without partitioned into groups
 
     def __init__(self,
+                 params: Iterable[Variable],
                  lr: float,
                  torch_optimizer: TorchOptimizer):
+        self.params = []
+        for p in params:
+            if any(id(p) == id(pp) for pp in self.params):
+                raise ValueError(f'Duplicated parameter: {p!r}')
+            self.params.append(p)
+
         self.torch_optimizer = torch_optimizer
         self.set_lr(lr)
 
@@ -64,25 +104,52 @@ class BackendOptimizer(Optimizer):
                 group['lr'] = lr
         self._lr = lr
 
-    def add_param_group(self, params: Iterator[Variable]):
+    def add_params(self, params: Iterator[Variable]):
+        params = list(params)
+        for p in params:
+            if any(id(p) == id(pp) for pp in self.params):
+                raise ValueError(f'Duplicated parameter: {p!r}')
+        self.params.extend(params)
         self.torch_optimizer.add_param_group({
-            'params': list(params),
+            'params': params,
             'lr': self._lr,
         })
+
+    def iter_params(self) -> Iterator[Variable]:
+        return iter(self.params)
+
+    def iter_params_and_grads(self) -> Iterator[Tuple[Variable, Optional[Tensor]]]:
+        for p in self.params:
+            yield p, p.grad
+
+    def set_param_grad(self, param: Variable, grad: Optional[Tensor]):
+        param.grad = grad
 
     def clear_grad(self):
         self.torch_optimizer.zero_grad()
 
     @contextmanager
     def capture_grad(self) -> Generator[None, None, None]:
-        yield
+        self._in_capture_context = True
+        try:
+            yield
+        finally:
+            self._in_capture_context = False
 
-    def minimize(self, loss: Tensor):
+    def add_loss(self, loss: Tensor, maximize: bool = False):
+        if not self._in_capture_context:
+            raise RuntimeError(
+                '`add_loss()` must be called inside the `capture_grad()` context.')
+
+        if maximize:
+            loss = -loss
         loss.backward()
-        self.torch_optimizer.step()
 
-    def maximize(self, loss: Tensor):
-        self.minimize(-loss)
+    def step(self):
+        if self._in_capture_context:
+            raise RuntimeError(
+                '`step()` must be called outside the `capture_grad()` context.')
+        self.torch_optimizer.step()
 
     def state_dict(self) -> Dict[str, Any]:
         return self.torch_optimizer.state_dict()
@@ -114,7 +181,9 @@ class SGD(BackendOptimizer):
             momentum: The momentum.  Typically 0.9 for momentum SGD optimization.
             nesterov: Whether or not to use Nesterov momentum optimizer?
         """
+        params = list(params)
         super().__init__(
+            params=params,
             lr=lr,
             torch_optimizer=torch.optim.SGD(
                 params=params,
@@ -134,7 +203,9 @@ class Adam(BackendOptimizer):
                  beta_2: float = 0.999,
                  epsilon: float = 1e-8,
                  amsgrad: bool = False):
+        params = list(params)
         super().__init__(
+            params=params,
             lr=lr,
             torch_optimizer=torch.optim.Adam(
                 params=params,

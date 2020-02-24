@@ -1,4 +1,3 @@
-import unittest
 from itertools import product
 
 import numpy as np
@@ -74,6 +73,15 @@ class TensorNNTestCase(TestCase):
 
         # test softplus
         assert_allclose(T.nn.softplus(x_t), np.log1p(np.exp(x)))
+
+    def test_regularizations(self):
+        tensors = [np.random.randn(2, 3, 4), np.random.randn(5, 6)]
+        tensors_t = [T.as_tensor(t) for t in tensors]
+
+        assert_allclose(T.nn.l1_regularization([]), 0.)
+        assert_allclose(T.nn.l1_regularization(tensors_t), l1_reg(tensors))
+        assert_allclose(T.nn.l2_regularization([]), 0.)
+        assert_allclose(T.nn.l2_regularization(tensors_t), l2_reg(tensors))
 
     def test_binary_cross_entropy(self):
         def sigmoid(x):

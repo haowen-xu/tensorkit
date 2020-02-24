@@ -401,9 +401,9 @@ class SequentialBuilder(object):
         return self
 
     # ---- activation ----
-    def _make_activation(self, type_):
+    def _make_activation(self, type_, **kwargs):
         self._assert_out_shape((False,), at_least=True)
-        layer = self.layer_args.build(type_)
+        layer = self.layer_args.build(type_, **kwargs)
         return self.add(layer, self.out_shape)
 
     def relu(self):
@@ -417,6 +417,9 @@ class SequentialBuilder(object):
 
     def tanh(self):
         return self._make_activation(Tanh)
+
+    def hard_tanh(self, min_val: float = -1., max_val: float = 1.):
+        return self._make_activation(HardTanh, min_val=min_val, max_val=max_val)
 
     def log_softmax(self):
         return self._make_activation(LogSoftmax)

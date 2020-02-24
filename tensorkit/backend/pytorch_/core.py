@@ -70,7 +70,7 @@ __all__ = [
     'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
     'argmax', 'argmin', 'log_sum_exp', 'log_mean_exp',
     # 'all', 'any',
-    'calculate_mean_and_var', 'norm_except_axis',
+    'calculate_mean_and_var', 'norm', 'norm_except_axis', 'global_norm',
 
     # logical operators
     'logical_not', 'logical_and', 'logical_or', 'logical_xor', 'multiply_mask',
@@ -78,7 +78,8 @@ __all__ = [
 
     # comparison operators (resulting in `boolean` dtype)
     'equal', 'not_equal', 'less', 'less_equal', 'greater', 'greater_equal',
-    'minimum', 'maximum', 'clip', 'maybe_clip',
+    'minimum', 'maximum', 'clip', 'maybe_clip', 'clip_by_norm',
+    'clip_by_global_norm',
 
     # sort operators
     'sort', 'argsort',
@@ -357,14 +358,14 @@ def from_numpy(data,
 def float_scalar(data: float,
                  dtype: str = settings.float_x,
                  device: Optional[str] = None) -> Tensor:
-    if dtype == 'float32':
-        real_dtype = torch.float32
-    else:
-        real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
+   if dtype == 'float32':
+       real_dtype = torch.float32
+   else:
+       real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
 
-    if device is None:
-        device = current_device()
-    return torch.tensor(data, dtype=real_dtype, device=device)
+   if device is None:
+       device = current_device()
+   return torch.tensor(data, dtype=real_dtype, device=device)
 
 
 @jit
@@ -1305,8 +1306,39 @@ def calculate_mean_and_var(input: Tensor,
 
 
 @jit
+def norm(input: Tensor,
+         axis: Optional[List[int]] = None,
+         p: float = 2,
+         keepdims: bool = False) -> Tensor:
+    """
+    Calculate the Lp-norm of a tensor for specified axis.
+
+    Args:
+        input:
+        axis: The axis to reduce for computing Lp-norm.
+            If :obj:`None`, all axis will be reduced.
+        p: The `p` of the `Lp` norm.  Defaults to 2.
+        keepdims: Whether or not to keep the reduced dimensions?
+            Defaults to :obj:`False`.
+
+    Returns:
+        The Lp-norm of the tensor.
+    """
+    if p == 2:
+        return sqrt(reduce_sum(input ** 2, axis=axis, keepdims=keepdims))
+    elif p == 1:
+        return reduce_sum(abs(input), axis=axis, keepdims=keepdims)
+    else:
+        p_inv = 1. / p
+        return pow(
+            reduce_sum(pow(abs(input), p), axis=axis, keepdims=keepdims),
+            p_inv
+        )
+
+
+@jit
 def norm_except_axis(input: Tensor,
-                     axis: Optional[List[int]],
+                     axis: List[int],
                      p: float = 2,
                      keepdims: bool = False) -> Tensor:
     """
@@ -1315,8 +1347,7 @@ def norm_except_axis(input: Tensor,
     Args:
         input: The input tensor.
         axis: The axis to keep for computing Lp-norm.
-            All other axis will be reduced.  Defaults to :obj:`None`,
-            where no axis will be kept.
+            All other axis will be reduced.
         p: The `p` of the `Lp` norm.  Defaults to 2.
         keepdims: Whether or not to keep the reduced dimensions?
             Defaults to :obj:`False`.
@@ -1325,9 +1356,7 @@ def norm_except_axis(input: Tensor,
         The Lp-norm of the tensor.
     """
     r = rank(input)
-    if axis is None:
-        axis_reduce = None
-    elif len(axis) == 1:
+    if len(axis) == 1:
         # compute the axis to reduce in a fast manner
         a = axis[0]
         if a < -r or a >= r:
@@ -1350,17 +1379,31 @@ def norm_except_axis(input: Tensor,
         for i in range(r):
             if axis_mask[i]:
                 axis_reduce.append(i)
+    return norm(input, axis_reduce, p, keepdims)
 
-    if p == 2:
-        return sqrt(reduce_sum(input ** 2, axis=axis_reduce, keepdims=keepdims))
-    elif p == 1:
-        return reduce_sum(abs(input), axis=axis_reduce, keepdims=keepdims)
+
+@jit
+def global_norm(inputs: List[Tensor]) -> Tensor:
+    """
+    Calculates the global norm of `inputs`.
+
+    .. math::
+
+        global_norm = \sqrt{\sum_{i=1}^n \left|x_i\right|_2^2}
+
+    Args:
+        inputs: The tensors
+
+    Returns:
+        The global norm.
+    """
+    if len(inputs) == 0:
+        return float_scalar(0.)
     else:
-        p_inv = 1. / p
-        return pow(
-            reduce_sum(pow(abs(input), p), axis=axis_reduce, keepdims=keepdims),
-            p_inv
-        )
+        ret: Tensor = torch.sum(inputs[0] ** 2)
+        for t in inputs[1:]:
+            ret += torch.sum(t ** 2)
+        return torch.sqrt(ret)
 
 
 # ---- logical operations ----
@@ -1460,20 +1503,43 @@ def maximum(x: Tensor, y: Tensor) -> Tensor:
 
 
 @jit
-def clip(x: Tensor, x_min: float, x_max: float) -> Tensor:
-    return torch.clamp(x, x_min, x_max)
+def clip(x: Tensor, min_val: float, max_val: float) -> Tensor:
+    return torch.clamp(x, min_val, max_val)
+
+
+@jit
+def clip_by_norm(input: Tensor,
+                 clip_norm: float,
+                 axis: Optional[List[int]] = None) -> Tensor:
+    input_norm = norm(input, axis=axis, keepdims=True)
+    scale = torch.min(
+        clip_norm / input_norm,
+        float_scalar_like(1.0, input)
+    )
+    return input * scale
+
+
+@jit
+def clip_by_global_norm(inputs: List[Tensor],
+                        clip_norm: float) -> List[Tensor]:
+    input_global_norm = global_norm(inputs)
+    scale = torch.min(
+        clip_norm / input_global_norm,
+        float_scalar_like(1.0, input_global_norm)
+    )
+    return [input * scale for input in inputs]
 
 
 @jit
 def maybe_clip(x: Tensor,
-               x_min: Optional[float] = None,
-               x_max: Optional[float] = None) -> Tensor:
-    if x_min is not None and x_max is not None:
-        return clip(x, x_min, x_max)
-    elif x_min is not None:
-        return torch.max(x, torch.as_tensor(x_min, dtype=x.dtype, device=x.device))
-    elif x_max is not None:
-        return torch.min(x, torch.as_tensor(x_max, dtype=x.dtype, device=x.device))
+               min_val: Optional[float] = None,
+               max_val: Optional[float] = None) -> Tensor:
+    if min_val is not None and max_val is not None:
+        return clip(x, min_val, max_val)
+    elif min_val is not None:
+        return torch.max(x, torch.as_tensor(min_val, dtype=x.dtype, device=x.device))
+    elif max_val is not None:
+        return torch.min(x, torch.as_tensor(max_val, dtype=x.dtype, device=x.device))
     else:
         return x
 

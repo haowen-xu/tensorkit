@@ -23,7 +23,32 @@ __all__ = [
 
 
 # ---- base flow classes ----
-class Flow(BaseLayer):
+class BaseValidateTensorLayer(BaseLayer):
+
+    __constants__ = ('_should_validate_tensor', '_validate_tensor_messgae_prefix')
+
+    _should_validate_tensor: bool
+    _validate_tensor_messgae_prefix: str
+
+    def __init__(self):
+        super().__init__()
+        self._should_validate_tensor = bool(settings.validate_tensors)
+        self._validate_tensor_messgae_prefix = self.__class__.__qualname__
+
+    @jit_method
+    def _maybe_assert_finite(self,
+                             t: Tensor,
+                             name: str,
+                             inverse: bool = False) -> Tensor:
+        if self._should_validate_tensor:
+            msg = '{}.{}'.format(self._validate_tensor_messgae_prefix, name)
+            if inverse:
+                msg += ' [inverse]'
+            t = assert_finite(t, msg)
+        return t
+
+
+class Flow(BaseValidateTensorLayer):
     """
     Base class for normalizing flows.
 
@@ -345,15 +370,21 @@ class SequentialFlow(Flow):
 
 
 # ---- invertible linear flows ----
-class InvertibleMatrix(Module):
+class InvertibleMatrix(BaseValidateTensorLayer):
 
-    __constants__ = ('size',)
+    __constants__ = ('size', 'validate_tensors')
 
     size: int
+
+    validate_tensors: bool
+    """Whether or not to perform time-consuming validations on tensors?"""
 
     def __init__(self, size: int):
         super().__init__()
         self.size = size
+
+        # TODO: make validate_tensors an argument
+        self.validate_tensors = settings.validate_tensors is True
 
     def __repr__(self):
         return f'{self.__class__.__qualname__}(size={self.size})'
@@ -396,13 +427,17 @@ class LooseInvertibleMatrix(InvertibleMatrix):
                 ) -> Tuple[Tensor, Optional[Tensor]]:
         log_det: Optional[Tensor] = None
         if inverse:
-            matrix = matrix_inverse(self.matrix)
+            matrix = self._maybe_assert_finite(
+                matrix_inverse(self.matrix), 'matrix', inverse)
             if compute_log_det:
-                log_det = -slogdet(self.matrix)[1]
+                log_det = self._maybe_assert_finite(
+                    -slogdet(self.matrix)[1], 'log_det', inverse)
         else:
-            matrix = self.matrix
+            matrix = self._maybe_assert_finite(self.matrix, 'matrix', inverse)
             if compute_log_det:
-                log_det = slogdet(self.matrix)[1]
+                log_det = self._maybe_assert_finite(
+                    slogdet(self.matrix)[1], 'log_det', inverse)
+
         return matrix, log_det
 
 
@@ -482,12 +517,17 @@ class StrictInvertibleMatrix(InvertibleMatrix):
                 matrix_inverse(U),
                 matmul(matrix_inverse(L), matrix_inverse(P))
             )
+            matrix = self._maybe_assert_finite(matrix, 'matrix', inverse)
             if compute_log_det:
-                log_det = -reduce_sum(self.log_s)
+                log_det = self._maybe_assert_finite(
+                    -reduce_sum(self.log_s), 'log_det', inverse)
         else:
             matrix = matmul(P, matmul(L, U))
+            matrix = self._maybe_assert_finite(matrix, 'matrix', inverse)
             if compute_log_det:
-                log_det = reduce_sum(self.log_s)
+                log_det = self._maybe_assert_finite(
+                    reduce_sum(self.log_s), 'log_det', inverse)
+
         return matrix, log_det
 
 
@@ -634,7 +674,7 @@ class InvertibleConv3d(InvertibleLinearNd):
 
 
 # ---- scale modules, for transforming input to output by a scale ----
-class Scale(BaseLayer):
+class Scale(BaseValidateTensorLayer):
     """Base class for scaling `input`."""
 
     def _scale_and_log_scale(self,
@@ -681,6 +721,7 @@ class Scale(BaseLayer):
 
         scale, log_scale = self._scale_and_log_scale(
             pre_scale, inverse, compute_log_det)
+
         output = input * scale
 
         if log_scale is not None:
@@ -742,13 +783,17 @@ class ExpScale(Scale):
         log_scale: Optional[Tensor] = None
         if inverse:
             neg_pre_scale = -pre_scale
-            scale = exp(neg_pre_scale)
+            scale = self._maybe_assert_finite(
+                exp(neg_pre_scale), 'scale', inverse)
             if compute_log_scale:
-                log_scale = neg_pre_scale
+                log_scale = self._maybe_assert_finite(
+                    neg_pre_scale, 'log_scale', inverse)
         else:
-            scale = exp(pre_scale)
+            scale = self._maybe_assert_finite(
+                exp(pre_scale), 'scale', inverse)
             if compute_log_scale:
-                log_scale = pre_scale
+                log_scale = self._maybe_assert_finite(
+                    pre_scale, 'log_scale', inverse)
         return scale, log_scale
 
 
@@ -785,13 +830,16 @@ class SigmoidScale(Scale):
         log_scale: Optional[Tensor] = None
         if inverse:
             neg_pre_scale = -pre_scale
-            scale = exp(neg_pre_scale) + 1.
+            scale = self._maybe_assert_finite(
+                exp(neg_pre_scale) + 1., 'scale', inverse)
             if compute_log_scale:
-                log_scale = softplus(neg_pre_scale)
+                log_scale = self._maybe_assert_finite(
+                    softplus(neg_pre_scale), 'log_scale', inverse)
         else:
-            scale = sigmoid(pre_scale)
+            scale = self._maybe_assert_finite(sigmoid(pre_scale), 'scale', inverse)
             if compute_log_scale:
-                log_scale = -softplus(-pre_scale)
+                log_scale = self._maybe_assert_finite(
+                    -softplus(-pre_scale), 'log_scale', inverse)
 
         return scale, log_scale
 
@@ -826,12 +874,14 @@ class LinearScale(Scale):
         log_scale: Optional[Tensor] = None
         epsilon = float_scalar_like(self.epsilon, pre_scale)
         if inverse:
-            scale = 1. / pre_scale
+            scale = self._maybe_assert_finite(1. / pre_scale, 'scale', inverse)
             if compute_log_scale:
-                log_scale = -log(maximum(abs(pre_scale), epsilon))
+                log_scale = self._maybe_assert_finite(
+                    -log(maximum(abs(pre_scale), epsilon)), 'log_scale', inverse)
         else:
-            scale = pre_scale
+            scale = self._maybe_assert_finite(pre_scale, 'scale', inverse)
             if compute_log_scale:
-                log_scale = log(maximum(abs(pre_scale), epsilon))
+                log_scale = self._maybe_assert_finite(
+                    log(maximum(abs(pre_scale), epsilon)), 'log_scale', inverse)
 
         return scale, log_scale

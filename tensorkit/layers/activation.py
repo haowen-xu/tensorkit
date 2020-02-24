@@ -1,9 +1,9 @@
-from ..tensor import Tensor, tanh
+from ..tensor import Tensor, tanh, clip
 from ..tensor.nn import *
 from .core import *
 
 __all__ = [
-    'ReLU', 'LeakyReLU', 'Tanh', 'Sigmoid', 'LogSoftmax',
+    'ReLU', 'LeakyReLU', 'Tanh', 'HardTanh', 'Sigmoid', 'LogSoftmax',
 ]
 
 
@@ -31,6 +31,22 @@ class Tanh(BaseLayer):
 
     def forward(self, input: Tensor) -> Tensor:
         return tanh(input)
+
+
+class HardTanh(BaseLayer):
+
+    __constants__ = ('min_val', 'max_val')
+
+    min_val: float
+    max_val: float
+
+    def __init__(self, min_val: float = -1., max_val: float = 1.):
+        super().__init__()
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def forward(self, input: Tensor) -> Tensor:
+        return clip(input, self.min_val, self.max_val)
 
 
 class Sigmoid(BaseLayer):

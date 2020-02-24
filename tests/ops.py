@@ -23,7 +23,8 @@ __all__ = [
     'avg_pool_nd', 'max_pool_nd',
 
     # other ops
-    'pad_constant', 'norm_except_axis',
+    'pad_constant', 'norm', 'norm_except_axis', 'global_norm',
+    'clip_by_norm', 'clip_by_global_norm', 'l1_reg', 'l2_reg',
 ]
 
 
@@ -655,27 +656,79 @@ def pad_constant(input: np.ndarray,
     return np.pad(input, pad, mode='constant', constant_values=value)
 
 
+def norm(input: np.ndarray,
+         axis: Optional[Union[int, Sequence[int]]] = None,
+         p: float = 2.,
+         keepdims: bool = False) -> np.ndarray:
+    if axis is not None:
+        if not hasattr(axis, '__iter__'):
+            axis = [int(axis)]
+        else:
+            axis = tuple(map(int, axis))
+
+    p_inv = 1. / p
+    return np.power(
+        np.sum(np.power(np.abs(input), p), axis=axis, keepdims=keepdims),
+        p_inv
+    )
+
+
 def norm_except_axis(input: np.ndarray,
                      axis: Union[int, Sequence[int]],
                      p: float = 2.,
                      keepdims: bool = False) -> np.ndarray:
-    if axis is None:
-        reduce_axis = None
+    if not hasattr(axis, '__iter__'):
+        axis = [int(axis)]
     else:
-        if not hasattr(axis, '__iter__'):
-            axis = [int(axis)]
-        else:
-            axis = list(map(int, axis))
+        axis = tuple(map(int, axis))
 
-        axis_mark = [False] * len(input.shape)
-        for a in axis:
-            axis_mark[a] = True
-        reduce_axis = tuple(
-            [i for i, m in zip(range(len(input.shape)), axis_mark) if not m]
-        )
+    axis_mark = [False] * len(input.shape)
+    for a in axis:
+        axis_mark[a] = True
+    reduce_axis = tuple(
+        [i for i, m in zip(range(len(input.shape)), axis_mark) if not m]
+    )
 
     p_inv = 1. / p
     return np.power(
         np.sum(np.power(np.abs(input), p), axis=reduce_axis, keepdims=keepdims),
         p_inv
     )
+
+
+def global_norm(inputs: Sequence[np.ndarray]) -> np.ndarray:
+    ret = 0.
+    for t in inputs:
+        ret += np.sum(t ** 2)
+    return np.sqrt(ret)
+
+
+def clip_by_norm(input: np.ndarray,
+                 clip_norm: float,
+                 axis: Optional[Union[int, Sequence[int]]] = None
+                 ) -> np.ndarray:
+    input_norm = norm(input, axis, keepdims=True)
+    return input * clip_norm / np.maximum(clip_norm, input_norm)
+
+
+def clip_by_global_norm(inputs: Sequence[np.ndarray],
+                        clip_norm: float) -> List[np.ndarray]:
+    inputs = list(inputs)
+    input_global_norm = global_norm(inputs)
+    return [t * clip_norm / np.maximum(clip_norm, input_global_norm)
+            for t in inputs]
+
+
+def l1_reg(inputs: List[np.ndarray]) -> float:
+    r = 0.
+    for t in inputs:
+        r += np.sum(np.abs(t))
+    return r
+
+
+def l2_reg(inputs: List[np.ndarray]) -> float:
+    r = 0.
+    for t in inputs:
+        r += np.sum(t ** 2)
+    r = np.sqrt(r)
+    return r

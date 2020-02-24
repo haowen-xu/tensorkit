@@ -1273,12 +1273,40 @@ class TensorCoreTestCase(TestCase):
                                  'least 2 samples'):
             _ = T.calculate_mean_and_var(T.zeros(shape=[]))
 
+        # test norm
+        for dtype in float_dtypes:
+            x_t = T.as_tensor(x, dtype=dtype)
+            for p, keepdims in itertools.product(
+                        (-2.0, -1.5, -1.0, 0.5, 1.0, 1.5, 2.0, 3.0),
+                        (True, False),
+                    ):
+                assert_allclose(
+                    T.norm(x_t, p=p, keepdims=keepdims),
+                    norm(x, p=p, keepdims=keepdims),
+                    rtol=1e-4, atol=1e-6
+                )
+            for axis, p, keepdims in itertools.product(
+                        ([], [-3], [2], [-1], [2], [-1, -2], None),
+                        (-2.0, -1.5, -1.0, 0.5, 1.0, 1.5, 2.0, 3.0),
+                        (True, False),
+                    ):
+                assert_allclose(
+                    T.norm(x_t, axis, p, keepdims),
+                    norm(x, axis, p, keepdims),
+                    err_msg=f'axis={axis}, p={p}, keepdims={keepdims}',
+                    rtol=1e-4, atol=1e-6
+                )
+
+            for axis in ([-4], [3], [-1, -4], [0, 3]):
+                with pytest.raises(Exception, match='`axis` out of range'):
+                    _ = T.norm_except_axis(x_t, axis=axis)
+
         # test norm_except_axis
         x = np.random.randn(3, 4, 5)
         for dtype in float_dtypes:
             x_t = T.as_tensor(x, dtype=dtype)
             for axis, p, keepdims in itertools.product(
-                        ([-3], [2], [-1], [2], [-1, -2], None),
+                        ([], [-3], [2], [-1], [2], [-1, -2]),
                         (-2.0, -1.5, -1.0, 0.5, 1.0, 1.5, 2.0, 3.0),
                         (True, False),
                     ):
@@ -1292,6 +1320,14 @@ class TensorCoreTestCase(TestCase):
             for axis in ([-4], [3], [-1, -4], [0, 3]):
                 with pytest.raises(Exception, match='`axis` out of range'):
                     _ = T.norm_except_axis(x_t, axis=axis)
+
+        # test global norm
+        assert_allclose(T.global_norm([]), 0.)
+        tensors = [np.random.randn(3, 4, 5), np.random.randn(7, 8)]
+        for dtype in float_dtypes:
+            tensors_t = [T.as_tensor(t, dtype=dtype) for t in tensors]
+            assert_allclose(T.global_norm(tensors_t), global_norm(tensors),
+                            rtol=1e-4, atol=1e-6)
 
     def test_logical_op(self):
         def read_bool(t):
@@ -1447,10 +1483,29 @@ class TensorCoreTestCase(TestCase):
         # test maybe_clip
         assert_equal(T.maybe_clip(t1), x)
         assert_equal(T.maybe_clip(t1, -0.5, 0.5), np.clip(x, -0.5, 0.5))
-        assert_equal(T.maybe_clip(t1, x_min=-0.5), np.maximum(x, -0.5))
-        assert_equal(T.maybe_clip(t1, x_max=0.5), np.minimum(x, 0.5))
-        assert_equal(T.maybe_clip(t1, x_min=-0.5, x_max=None), np.maximum(x, -0.5))
-        assert_equal(T.maybe_clip(t1, x_min=None, x_max=0.5), np.minimum(x, 0.5))
+        assert_equal(T.maybe_clip(t1, min_val=-0.5), np.maximum(x, -0.5))
+        assert_equal(T.maybe_clip(t1, max_val=0.5), np.minimum(x, 0.5))
+        assert_equal(T.maybe_clip(t1, min_val=-0.5, max_val=None), np.maximum(x, -0.5))
+        assert_equal(T.maybe_clip(t1, min_val=None, max_val=0.5), np.minimum(x, 0.5))
+
+        # test clip_by_norm
+        for clip_norm in [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 100.0]:
+            assert_allclose(
+                T.clip_by_norm(t1, clip_norm),
+                clip_by_norm(x, clip_norm),
+                rtol=1e-4, atol=1e-6,
+            )
+            for axis in [[], [0], [-1], [-3, 2]]:
+                assert_allclose(
+                    T.clip_by_norm(t1, clip_norm, axis),
+                    clip_by_norm(x, clip_norm, axis),
+                    rtol=1e-4, atol=1e-6,
+                )
+
+            a, b = T.clip_by_global_norm([t1, t2], clip_norm)
+            aa, bb = clip_by_global_norm([x, y], clip_norm)
+            assert_allclose(a, aa, rtol=1e-4, atol=1e-6)
+            assert_allclose(b, bb, rtol=1e-4, atol=1e-6)
 
     def test_sort(self):
         x = np.random.randn(5, 6, 7)

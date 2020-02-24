@@ -45,6 +45,9 @@ class UtilsTestCase(TestCase):
                     ('Leaky_ReLU', tk.layers.LeakyReLU, (), {'negative_slope': 0.2}, T.nn.leaky_relu(x, 0.2)),
                     ('Sigmoid', tk.layers.Sigmoid, (), {}, T.nn.sigmoid(x)),
                     ('Tanh', tk.layers.Tanh, (), {}, T.tanh(x)),
+                    ('HardTanh', tk.layers.HardTanh, (), {}, T.clip(x, -1., 1.)),
+                    ('HardTanh', tk.layers.HardTanh, (-2., 3.), {}, T.clip(x, -2., 3.)),
+                    ('HardTanh', tk.layers.HardTanh, (), {'min_val': -2., 'max_val': 3.}, T.clip(x, -2., 3.)),
                     ('Log_Softmax', tk.layers.LogSoftmax, (), {}, T.nn.log_softmax(x)),
                 ]:
             name_candidates = (None,) if origin_name is None else (

@@ -426,7 +426,8 @@ class SequentialBuilderTestCase(TestCase):
             )
 
     def test_activation(self):
-        for name in ['relu', 'leaky_relu', 'sigmoid', 'tanh', 'log_softmax']:
+        for name in ['relu', 'leaky_relu', 'sigmoid', 'tanh', 'hard_tanh',
+                     'log_softmax']:
             layer_cls = tk.layers.get_activation_class(name)
             for in_shape in ([5], [3, 4, 5]):
                 sequential_builder_standard_check(

@@ -14,6 +14,9 @@ __all__ = [
     'softmax', 'log_softmax',
     'softplus',
 
+    # regularization functions
+    'l1_regularization', 'l2_regularization',
+
     # cross entropy functions
     'binary_cross_entropy_with_logits', 'cross_entropy_with_logits',
     'sparse_cross_entropy_with_logits',
@@ -78,6 +81,28 @@ def log_softmax(x: Tensor, axis: int = -1) -> Tensor:
 @jit
 def softplus(x: Tensor) -> Tensor:
     return torch.nn.functional.softplus(x)
+
+
+# ---- regularization functions ----
+def l1_regularization(inputs: List[Tensor]) -> Tensor:
+    if len(inputs) == 0:
+        return float_scalar(0.)
+    else:
+        ret = torch.sum(torch.abs(inputs[0]))
+        for t in inputs[1:]:
+            ret += torch.sum(torch.abs(t))
+        return ret
+
+
+def l2_regularization(inputs: List[Tensor]) -> Tensor:
+    if len(inputs) == 0:
+        return float_scalar(0.)
+    else:
+        ret = torch.sum(inputs[0] ** 2)
+        for t in inputs[1:]:
+            ret += torch.sum(t ** 2)
+        ret = torch.sqrt(ret)
+        return ret
 
 
 # ---- cross entropy functions ----

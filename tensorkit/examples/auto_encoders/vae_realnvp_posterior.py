@@ -14,16 +14,19 @@ class Config(mltk.Config):
     flow_levels: int = 10
     flow_hidden_layer_count: int = 1
     flow_hidden_layer_units: int = 250
+    flow_coupling_layer_scale: str = 'sigmoid'
+    l2_reg: float = 0.0001
 
     # initialization parameters
     init_batch_count: int = 10
 
     # train parameters
-    max_epoch: int = 1000
+    max_epoch: int = 1200
     batch_size: int = 128
     initial_lr: float = 0.001
     lr_anneal_ratio: float = 0.1
     lr_anneal_epochs: int = 300
+    global_clip_norm: Optional[float] = 100.0
 
     # evaluation parameters
     test_n_z: int = 500
@@ -71,7 +74,8 @@ class VAE(tk.layers.BaseLayer):
                 ],
                 shared=b.build(),
             )
-            flows.append(tk.flows.CouplingLayer(shift_and_pre_scale, scale='sigmoid'))
+            flows.append(tk.flows.CouplingLayer(
+                shift_and_pre_scale, scale=config.flow_coupling_layer_scale))
 
             # feature rearrangement by invertible dense
             flows.append(tk.flows.InvertibleDense(config.z_dim))
@@ -131,6 +135,8 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0][0], exp.config)
+    weight_params = utils.get_weight_parameters(vae)
+    params, param_names = utils.get_parameters_and_names(vae)
 
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
@@ -140,8 +146,9 @@ def main(exp: mltk.Experiment[Config]):
     # define the train and evaluate functions
     def train_step(x):
         chain = vae.get_chain(x)
-        loss = chain.vi.training.sgvb(reduction='mean')
-        return {'loss': loss}
+        elbo = chain.vi.training.sgvb(reduction='mean')
+        loss = elbo + exp.config.l2_reg * T.nn.l2_regularization(weight_params)
+        return {'elbo': elbo, 'loss': loss}
 
     def eval_step(x, n_z=exp.config.test_n_z):
         with tk.layers.scoped_eval_mode(vae), T.no_grad():
@@ -166,7 +173,7 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the optimizer and the train loop
     loop = mltk.TrainLoop(max_epoch=exp.config.max_epoch)
-    optimizer = tk.optim.Adam(tk.layers.get_parameters(vae))
+    optimizer = tk.optim.Adam(params)
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
         loop=loop,
         optimizer=optimizer,
@@ -182,8 +189,10 @@ def main(exp: mltk.Experiment[Config]):
 
     # train the model
     tk.layers.set_train_mode(vae, True)
-    utils.fit_model(loop=loop, optimizer=optimizer, fn=train_step,
-                    stream=train_stream)
+    utils.fit_model(
+        loop=loop, optimizer=optimizer, fn=train_step, stream=train_stream,
+        global_clip_norm=exp.config.global_clip_norm, param_names=param_names,
+    )
 
     # do the final test
     results = mltk.TestLoop().run(eval_step, test_stream)

@@ -133,7 +133,7 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the optimizer and the train loop
     loop = mltk.TrainLoop(max_epoch=exp.config.max_epoch)
-    optimizer = tk.optim.Adam(tk.layers.get_parameters(vae))
+    optimizer = tk.optim.Adam(tk.layers.iter_parameters(vae))
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
         loop=loop,
         optimizer=optimizer,

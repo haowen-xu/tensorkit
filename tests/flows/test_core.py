@@ -328,7 +328,7 @@ class InvertibleMatrixTestCase(TestCase):
 
                 # check the gradient
                 matrix, log_det = m(inverse=False, compute_log_det=True)
-                params = list(tk.layers.get_parameters(m))
+                params = list(tk.layers.iter_parameters(m))
                 grads = T.grad(
                     [T.reduce_sum(matrix), T.reduce_sum(log_det)], params)
 

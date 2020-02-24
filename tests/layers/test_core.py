@@ -73,30 +73,30 @@ class UtilsAndConstantsTestCase(TestCase):
         c = get_buffer(layer, 'c')
         c2 = get_buffer(layer, 'c2')
 
-        self.assertListEqual(list(get_parameters(layer)), [w, w2])
-        self.assertDictEqual(dict(get_named_parameters(layer)), {'w': w, 'w2': w2})
-        self.assertListEqual(list(get_buffers(layer)), [c, c2])
-        self.assertDictEqual(dict(get_named_buffers(layer)), {'c': c, 'c2': c2})
+        self.assertListEqual(list(iter_parameters(layer)), [w, w2])
+        self.assertDictEqual(dict(iter_named_parameters(layer)), {'w': w, 'w2': w2})
+        self.assertListEqual(list(iter_buffers(layer)), [c, c2])
+        self.assertDictEqual(dict(iter_named_buffers(layer)), {'c': c, 'c2': c2})
 
         seq = _MyWrapper(layer)
-        self.assertListEqual(list(get_parameters(seq)), [w, w2])
-        self.assertListEqual(list(get_parameters(seq, recursive=False)), [])
-        self.assertDictEqual(dict(get_named_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
-        self.assertDictEqual(dict(get_named_parameters(seq, recursive=False)), {})
-        self.assertListEqual(list(get_buffers(seq)), [c, c2])
-        self.assertListEqual(list(get_buffers(seq, recursive=False)), [])
-        self.assertDictEqual(dict(get_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
-        self.assertDictEqual(dict(get_named_buffers(seq, recursive=False)), {})
+        self.assertListEqual(list(iter_parameters(seq)), [w, w2])
+        self.assertListEqual(list(iter_parameters(seq, recursive=False)), [])
+        self.assertDictEqual(dict(iter_named_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
+        self.assertDictEqual(dict(iter_named_parameters(seq, recursive=False)), {})
+        self.assertListEqual(list(iter_buffers(seq)), [c, c2])
+        self.assertListEqual(list(iter_buffers(seq, recursive=False)), [])
+        self.assertDictEqual(dict(iter_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
+        self.assertDictEqual(dict(iter_named_buffers(seq, recursive=False)), {})
 
     def test_layer_to_device(self):
         for device in [None, T.CPU_DEVICE]:
             layer = ResBlock2d(3, 4, kernel_size=2, device=device)
-            for param in tk.layers.get_parameters(layer):
+            for param in tk.layers.iter_parameters(layer):
                 self.assertEqual(T.get_device(param), device or T.current_device())
 
             for device2 in [None, T.CPU_DEVICE]:
                 layer2 = tk.layers.layer_to_device(layer, device=device2)
-                for param in tk.layers.get_parameters(layer2):
+                for param in tk.layers.iter_parameters(layer2):
                     self.assertEqual(T.get_device(param), device2 or T.current_device())
 
     def test_set_train_mode(self):

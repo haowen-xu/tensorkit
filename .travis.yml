@@ -10,8 +10,12 @@ install:
 script:
   # run tests with PyTorch 1.3.1
   - pip install torch==1.3.1
-  - TENSORKIT_BACKEND=PyTorch TENSORKIT_JIT_MODE=all coverage run -a -m pytest
-  - TENSORKIT_BACKEND=PyTorch TENSORKIT_JIT_MODE=none coverage run -a -m pytest
+  - TENSORKIT_BACKEND=PyTorch TENSORKIT_JIT_MODE=all
+    coverage run -a -m pytest
+  - TENSORKIT_BACKEND=PyTorch TENSORKIT_JIT_MODE=none
+    coverage run -a -m pytest
+  - TENSORKIT_BACKEND=PyTorch TENSORKIT_VALIDATE_TENSORS=true TENSORKIT_JIT_MODE=none
+    coverage run -a -m pytest
 #  # run tests with PyTorch 1.4.0
 #  - pip install torch==1.4.0
 #  - TENSORKIT_BACKEND=PyTorch TENSORKIT_DISABLE_JIT=true coverage run -a -m pytest

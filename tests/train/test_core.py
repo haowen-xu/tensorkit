@@ -27,7 +27,7 @@ class TorchCheckpointTestCase(TestCase):
 
             # test save
             layer = torch.nn.Linear(5, 3)
-            optimizer = tk.optim.Adam(tk.layers.get_parameters(layer))
+            optimizer = tk.optim.Adam(tk.layers.iter_parameters(layer))
 
             obj = SimpleStatefulObject()
             obj.value = 123456
@@ -36,7 +36,7 @@ class TorchCheckpointTestCase(TestCase):
 
             # test restore
             layer2 = torch.nn.Linear(5, 3)
-            optimizer2 = tk.optim.Adam(tk.layers.get_parameters(layer2))
+            optimizer2 = tk.optim.Adam(tk.layers.iter_parameters(layer2))
             obj2 = SimpleStatefulObject()
             ckpt2 = tk.train.Checkpoint(obj=obj2, optimizer=optimizer2, layer=layer2)
             ckpt2.restore(root_dir)
