@@ -1,10 +1,10 @@
 import copy
-import unittest
 from itertools import product
 
 import mock
 import pytest
 
+import tensorkit as tk
 from tensorkit import tensor as T
 from tensorkit.distributions import *
 from tensorkit.distributions.utils import copy_distribution
@@ -97,7 +97,7 @@ class DiscretizedLogisticTestCase(TestCase):
         )
         self.assertTrue(distrib.discretize_sample)
         self.assertFalse(distrib.reparameterized)
-        self.assertFalse(distrib.validate_tensors)
+        self.assertEqual(distrib.validate_tensors, tk.settings.validate_tensors)
 
         with mock.patch('tensorkit.distributions.discretized.copy_distribution',
                         wraps=copy_distribution) as f_copy:
