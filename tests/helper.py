@@ -104,7 +104,7 @@ def check_distribution_instance(ctx,
         ctx.assertEqual(getattr(d, attr), val)
     ctx.assertEqual(
         d.validate_tensors,
-        expected_attrs.get('validate_tensors', False)
+        expected_attrs.get('validate_tensors', settings.validate_tensors)
     )
 
     # check sample

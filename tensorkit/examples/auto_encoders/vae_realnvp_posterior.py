@@ -15,17 +15,19 @@ class Config(mltk.Config):
     flow_hidden_layer_count: int = 1
     flow_hidden_layer_units: int = 250
     flow_coupling_layer_scale: str = 'sigmoid'
+    strict_invertible: bool = True
+    qz_logstd_min: Optional[float] = -7
     l2_reg: float = 0.0001
 
     # initialization parameters
     init_batch_count: int = 10
 
     # train parameters
-    max_epoch: int = 1200
+    max_epoch: int = 1600
     batch_size: int = 128
     initial_lr: float = 0.001
     lr_anneal_ratio: float = 0.1
-    lr_anneal_epochs: int = 300
+    lr_anneal_epochs: int = 400
     global_clip_norm: Optional[float] = 100.0
 
     # evaluation parameters
@@ -78,7 +80,8 @@ class VAE(tk.layers.BaseLayer):
                 shift_and_pre_scale, scale=config.flow_coupling_layer_scale))
 
             # feature rearrangement by invertible dense
-            flows.append(tk.flows.InvertibleDense(config.z_dim))
+            flows.append(tk.flows.InvertibleDense(
+                config.z_dim, strict=config.strict_invertible))
         self.posterior_flow = tk.flows.SequentialFlow(flows)
 
         # nn for p(x|z)
@@ -97,6 +100,7 @@ class VAE(tk.layers.BaseLayer):
         hx = self.hx_for_qz(T.cast(x, dtype=T.float32))
         z_mean = self.qz_mean(hx)
         z_logstd = self.qz_logstd(hx)
+        z_logstd = T.maybe_clip(z_logstd, min_val=self.config.qz_logstd_min)
         qz = tk.FlowDistribution(
             tk.Normal(mean=z_mean, logstd=z_logstd, event_ndims=1),
             self.posterior_flow,
@@ -132,6 +136,9 @@ def main(exp: mltk.Experiment[Config]):
         use_y=False,
         mapper=utils.BernoulliSampler().as_mapper(),
     )
+
+    utils.print_experiment_summary(
+        exp, train_stream=train_stream, test_stream=test_stream)
 
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0][0], exp.config)

@@ -30,6 +30,11 @@ def main(exp: mltk.Experiment[Config]):
         x_range=(-1., 1.),
     )
 
+    utils.print_experiment_summary(
+        exp, train_stream=train_stream, val_stream=val_stream,
+        test_stream=test_stream
+    )
+
     # build the network
     net: T.Module = tk.layers.SequentialBuilder(784). \
         set_args('dense',

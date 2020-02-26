@@ -28,6 +28,9 @@ def main(exp: mltk.Experiment[Config]):
         x_range=(-1., 1.),
     )
 
+    utils.print_experiment_summary(
+        exp, train_stream=train_stream, test_stream=test_stream)
+
     # build the network
     net: T.Module = tk.layers.SequentialBuilder(train_stream.data_shapes[0]). \
         set_args('res_block2d',

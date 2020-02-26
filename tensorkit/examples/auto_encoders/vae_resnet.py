@@ -117,6 +117,9 @@ def main(exp: mltk.Experiment[Config]):
         mapper=utils.BernoulliSampler().as_mapper(),
     )
 
+    utils.print_experiment_summary(
+        exp, train_stream=train_stream, test_stream=test_stream)
+
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0], exp.config)
 
