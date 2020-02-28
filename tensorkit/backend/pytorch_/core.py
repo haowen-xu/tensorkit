@@ -667,36 +667,23 @@ def reshape(input: Tensor, shape: List[int]) -> Tensor:
 
 @jit
 def repeat(input: Tensor, repeats: List[int]) -> Tensor:
-    x_shape = input.shape
-    x_rank = len(x_shape)
-    repeats_len = len(repeats)
-    extra_len = repeats_len - x_rank
+    in_shape = list(input.shape)
+    in_shape_len, repeats_len = len(in_shape), len(repeats)
+    max_length = max(in_shape_len, repeats_len)
+    in_shape = [1] * (max_length - in_shape_len) + in_shape
+    repeats = [1] * (max_length - repeats_len) + repeats
 
-    # argument check
-    if extra_len < 0:
-        repeats = [1] * (len(x_shape) - len(repeats)) + repeats
-        extra_len = 0
+    mode = max([
+        (1 if repeats[i] != 1 else 0) + (1 if in_shape[i] != 1 else 0)
+        for i in range(max_length)
+    ])
 
-    # detect the repeat mode
-    mode = 0  # 0 = return directly, 1 = expand, 2 = repeat
-    if extra_len > 0:
-        mode = 1
-
-    for i in range(len(x_shape)):
-        a = x_shape[i]
-        b = repeats[i + extra_len]
-        if b != 1:
-            if a != 1:
-                mode = 2
-            else:
-                mode = max(1, mode)
-
-    # do repeat the tensor according to different mode
-    if mode == 0:
+    if mode == 0 and in_shape_len == max_length:
         return input
-    elif mode == 1:
+    elif mode < 2:
+        extra_len = max_length - in_shape_len
         expands = repeats[:extra_len] + \
-            list([-1 if a == 1 else a for a in repeats[extra_len:]])
+            [-1 if a == 1 else a for a in repeats[extra_len:]]
         return input.expand(expands)
     else:
         return input.repeat(repeats)
@@ -721,7 +708,7 @@ def squeeze(input: Tensor, axis: Optional[List[int]] = None) -> Tensor:
                 else:
                     raise ValueError('Axis {} cannot be squeezed, since its '
                                      'size is {} != 1'.format(a, old_shape[a]))
-            new_shape = torch.jit.annotate(List[int], [])
+            new_shape: List[int] = []
             for i in range(len(old_shape)):
                 if new_shape_mask[i]:
                     new_shape.append(old_shape[i])
@@ -747,27 +734,19 @@ def transpose(input: Tensor, axis: List[int]) -> Tensor:
 
 @jit
 def broadcast_shape(x: List[int], y: List[int]) -> List[int]:
-    common_len = min(len(x), len(y))
-
-    right = torch.jit.annotate(List[int], [])
-    for i in range(common_len):
-        a = x[i - common_len]
-        b = y[i - common_len]
-        if a == 1:
-            right.append(b)
-        elif b == 1:
-            right.append(a)
-        elif a != b:
-            raise ValueError('Shape x and y cannot broadcast against '
-                             'each other: {} vs {}.'.format(x, y))
-        else:
-            right.append(a)
-
-    if len(x) > common_len:
-        left = x[:len(x)-common_len]
-    else:
-        left = y[:len(y)-common_len]
-    return left + right
+    x_len, y_len = len(x), len(y)
+    max_length = max(x_len, y_len)
+    x_ex = [1] * (max_length - x_len) + x
+    y_ex = [1] * (max_length - y_len) + y
+    for i in range(max_length):
+        a, b = x_ex[i], y_ex[i]
+        if b != a and b != 1:
+            if a != 1:
+                raise ValueError('Shape x and y cannot broadcast against '
+                                 'each other: {} vs {}.'.format(x, y))
+            else:
+                x_ex[i] = b
+    return x_ex
 
 
 @jit

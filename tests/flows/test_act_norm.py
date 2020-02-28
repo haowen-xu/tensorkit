@@ -1,6 +1,3 @@
-import unittest
-from itertools import product
-
 import pytest
 
 import tensorkit as tk
