@@ -241,11 +241,12 @@ class LayerRecorderTestCase(TestCase):
 
             if compute_log_det:
                 tmp = -log_det if inverse else log_det
-                assert_allclose(rm.get(f'flow1.{pfx}log_det'), tmp)
+                assert_allclose(rm.get(f'flow1.{pfx}log_det'), tmp, rtol=1e-4, atol=1e-6)
 
                 if input_log_det is not None:
                     assert_allclose(out_log_det, tmp + input_log_det,
                                     rtol=1e-4, atol=1e-6)
                 else:
                     assert_allclose(out_log_det, tmp, rtol=1e-4, atol=1e-6)
-                assert_allclose(rm.get(f'flow1.{pfx}output_log_det'), out_log_det)
+                assert_allclose(rm.get(f'flow1.{pfx}output_log_det'), out_log_det,
+                                rtol=1e-4, atol=1e-6)
