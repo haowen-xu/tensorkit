@@ -160,7 +160,7 @@ def main(exp: mltk.Experiment[Config]):
         beta = min(loop.epoch / 100., 1.)
         log_qz_given_x = T.reduce_mean(chain.q['z'].log_prob())
         log_pz = T.reduce_mean(chain.p['z'].log_prob())
-        log_px_given_z = T.reduce_mean(chain.p['z'].log_prob())
+        log_px_given_z = T.reduce_mean(chain.p['x'].log_prob())
         loss = -(log_px_given_z + beta * (log_pz - log_qz_given_x))
 
         # add regularization
