@@ -771,60 +771,23 @@ def broadcast_shape(x: List[int], y: List[int]) -> List[int]:
 
 
 @jit
-def _broadcast_to_sub(t: Tensor,
-                      t_shape: List[int],
-                      out_shape: List[int]) -> Tensor:
-    t_rank = len(t_shape)
-    out_rank = len(out_shape)
-
-    if t_rank < out_rank:
-        t_shape = [1] * (out_rank - t_rank) + t_shape
-
-    t_repeats = torch.jit.annotate(List[int], [])
-    should_repeat = False
-    for i in range(out_rank):
-        a = t_shape[i]
-        b = out_shape[i]
-        if a == 1 and b != 1:
-            t_repeats.append(b)
-            should_repeat = True
-        else:
-            t_repeats.append(1)
-
-    if should_repeat:
-        t = t.repeat(t_repeats)
-    return t
-
-
-@jit
 def broadcast_to(input: Tensor, new_shape: List[int]) -> Tensor:
-    x_shape = list(input.shape)
-    x_rank = len(x_shape)
-    new_rank = len(new_shape)
-
-    if x_rank > new_rank:
-        raise ValueError('`x` cannot be broadcast to `new_shape`: shape(x) {} '
-                         'vs new_shape {}'.format(x_shape, new_shape))
-
-    for i in range(x_rank):
-        a = x_shape[-i - 1]
-        b = new_shape[-i - 1]
-        if a != 1 and a != b:
-            raise ValueError('`x` cannot be broadcast to `new_shape`: '
-                             'shape(x) {} vs new_shape {}'.
-                             format(x_shape, new_shape))
-
-    return _broadcast_to_sub(input, x_shape, new_shape)
+    # TODO: do we have a better way to calculate the final shape and do broadcast here?
+    if list(input.shape) != new_shape:
+        ret = input + torch.zeros(new_shape, dtype=input.dtype, device=input.device)
+        if list(ret.shape) != new_shape:
+            raise ValueError(
+                '`input` cannot be broadcast to `new_shape`: shape(input) {} '
+                'vs new_shape {}'.format(shape(input), new_shape))
+    else:
+        ret = input
+    return ret
 
 
 @jit
 def explicit_broadcast(x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
-    x_shape = list(x.shape)
-    y_shape = list(y.shape)
-    out_shape = broadcast_shape(x_shape, y_shape)
-    x = _broadcast_to_sub(x, x_shape, out_shape)
-    y = _broadcast_to_sub(y, y_shape, out_shape)
-    return x, y
+    ret = torch.broadcast_tensors(x, y)
+    return ret[0], ret[1]
 
 
 @jit

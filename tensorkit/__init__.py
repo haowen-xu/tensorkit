@@ -10,3 +10,5 @@ from .settings_ import *
 from .stochastic import *
 from .typing_ import WeightNormMode, PaddingMode
 # from .variational import *
+
+from . import debug

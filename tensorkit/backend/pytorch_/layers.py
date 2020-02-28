@@ -19,6 +19,7 @@ __all__ = [
     'jit_compile', 'jit_compile_children', 'is_jit_layer', 'layer_to_device',
     'add_parameter', 'get_parameter', 'iter_parameters', 'iter_named_parameters',
     'add_buffer', 'get_buffer', 'iter_buffers', 'iter_named_buffers',
+    'get_parameters', 'get_buffers',
     'set_train_mode', 'set_eval_mode',
 
     # parameter store modules
@@ -128,6 +129,10 @@ def iter_parameters(layer: Module, recursive: bool = True
     return layer.parameters(recurse=recursive)
 
 
+def get_parameters(layer: Module, recursive: bool = True) -> List[Variable]:
+    return list(iter_parameters(layer, recursive))
+
+
 def iter_named_parameters(layer: Module, recursive: bool = True
                           ) -> Iterator[Tuple[str, Variable]]:
     return layer.named_parameters(recurse=recursive)
@@ -148,6 +153,10 @@ def get_buffer(layer: Module, name: str) -> Optional[Tensor]:
 def iter_buffers(layer: Module, recursive: bool = True
                  ) -> Iterator[Tensor]:
     return layer.buffers(recurse=recursive)
+
+
+def get_buffers(layer: Module, recursive: bool = True) -> List[Variable]:
+    return list(iter_buffers(layer, recursive))
 
 
 def iter_named_buffers(layer: Module, recursive: bool = True

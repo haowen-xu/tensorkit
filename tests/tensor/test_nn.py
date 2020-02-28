@@ -245,7 +245,7 @@ class TensorNNTestCase(TestCase):
                 _f(logits), _f(labels), 'invalid')
 
         # validation for the shape of logits and labels
-        with pytest.raises(Exception, match='cannot broadcast'):
+        with pytest.raises(Exception, match='(cannot broadcast|shape|size)'):
             # logits and labels shape mismatch
             _ = T.nn.cross_entropy_with_logits(_f(logits), _f(labels[..., :-1]))
 
@@ -254,7 +254,7 @@ class TensorNNTestCase(TestCase):
             _ = T.nn.cross_entropy_with_logits(_f(logits[0, 0, 0, 0]),
                                                _f(labels[0, 0, 0]))
 
-        with pytest.raises(Exception, match='cannot broadcast'):
+        with pytest.raises(Exception, match='(cannot broadcast|shape|size)'):
             # logits and labels shape mismatch
             _ = T.nn.sparse_cross_entropy_with_logits(_f(logits[..., :-1]),
                                                       _f(sparse_labels))

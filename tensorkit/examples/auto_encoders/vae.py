@@ -101,6 +101,9 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0][0], exp.config)
+    params, param_names = utils.get_params_and_names(vae)
+    utils.print_parameters_summary(params, param_names)
+    print('')
 
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
@@ -136,6 +139,7 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the optimizer and the train loop
     loop = mltk.TrainLoop(max_epoch=exp.config.max_epoch)
+    loop.add_callback(mltk.callbacks.StopOnNaN())
     optimizer = tk.optim.Adam(tk.layers.iter_parameters(vae))
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
         loop=loop,

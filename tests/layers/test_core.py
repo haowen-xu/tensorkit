@@ -74,17 +74,21 @@ class UtilsAndConstantsTestCase(TestCase):
         c2 = get_buffer(layer, 'c2')
 
         self.assertListEqual(list(iter_parameters(layer)), [w, w2])
+        self.assertListEqual(get_parameters(layer), [w, w2])
         self.assertDictEqual(dict(iter_named_parameters(layer)), {'w': w, 'w2': w2})
         self.assertListEqual(list(iter_buffers(layer)), [c, c2])
+        self.assertListEqual(get_buffers(layer), [c, c2])
         self.assertDictEqual(dict(iter_named_buffers(layer)), {'c': c, 'c2': c2})
 
         seq = _MyWrapper(layer)
         self.assertListEqual(list(iter_parameters(seq)), [w, w2])
         self.assertListEqual(list(iter_parameters(seq, recursive=False)), [])
+        self.assertListEqual(get_parameters(seq, recursive=False), [])
         self.assertDictEqual(dict(iter_named_parameters(seq)), {'wrapped.w': w, 'wrapped.w2': w2})
         self.assertDictEqual(dict(iter_named_parameters(seq, recursive=False)), {})
         self.assertListEqual(list(iter_buffers(seq)), [c, c2])
         self.assertListEqual(list(iter_buffers(seq, recursive=False)), [])
+        self.assertListEqual(get_buffers(seq, recursive=False), [])
         self.assertDictEqual(dict(iter_named_buffers(seq)), {'wrapped.c': c, 'wrapped.c2': c2})
         self.assertDictEqual(dict(iter_named_buffers(seq, recursive=False)), {})
 

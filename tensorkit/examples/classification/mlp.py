@@ -45,6 +45,9 @@ def main(exp: mltk.Experiment[Config]):
         linear(10). \
         log_softmax(). \
         build()
+    params, param_names = utils.get_params_and_names(net)
+    utils.print_parameters_summary(params, param_names)
+    print('')
 
     # initialize the network with first few batches of train data
     init_x, _ = train_stream.get_arrays(max_batch=exp.config.init_batch_count)

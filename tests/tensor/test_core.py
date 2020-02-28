@@ -691,15 +691,15 @@ class TensorCoreTestCase(TestCase):
         assert_equal(t2, np.tile(x.reshape([1, 1, 2, 1]), [4, 5, 1, 1]))
 
         with pytest.raises(Exception,
-                           match='`x` cannot be broadcast to `new_shape`'):
+                           match='`input` cannot be broadcast to `new_shape`'):
             _ = T.broadcast_to(t, [2, 5])
 
         with pytest.raises(Exception,
-                           match='`x` cannot be broadcast to `new_shape`'):
+                           match='`input` cannot be broadcast to `new_shape`'):
             _ = T.broadcast_to(t, [1, 1, 1])
 
         with pytest.raises(Exception,
-                           match='`x` cannot be broadcast to `new_shape`'):
+                           match='`input` cannot be broadcast to `new_shape`'):
             _ = T.broadcast_to(t, [1, 5, 1])
 
         # test explicit_broadcast

@@ -11,11 +11,11 @@ from tensorkit.typing_ import TensorOrData
 class Config(mltk.Config):
     # model parameters
     z_dim: int = 40
-    flow_levels: int = 10
-    flow_hidden_layer_count: int = 1
-    flow_hidden_layer_units: int = 250
-    flow_coupling_layer_scale: str = 'sigmoid'
-    strict_invertible: bool = True
+    flow_levels: int = 20
+    coupling_hidden_layer_count: int = 1
+    coupling_hidden_layer_units: int = 250
+    coupling_layer_scale: str = 'sigmoid'
+    strict_invertible: bool = False
     qz_logstd_min: Optional[float] = -7
     l2_reg: float = 0.0001
 
@@ -23,11 +23,12 @@ class Config(mltk.Config):
     init_batch_count: int = 10
 
     # train parameters
-    max_epoch: int = 1600
+    max_epoch: int = 2400
     batch_size: int = 128
+    warmup_epochs: Optional[int] = 100
     initial_lr: float = 0.001
     lr_anneal_ratio: float = 0.1
-    lr_anneal_epochs: int = 400
+    lr_anneal_epochs: int = 800
     global_clip_norm: Optional[float] = 100.0
 
     # evaluation parameters
@@ -65,8 +66,8 @@ class VAE(tk.layers.BaseLayer):
             n1 = config.z_dim // 2
             n2 = config.z_dim - n1
             b = tk.layers.SequentialBuilder(n1, layer_args=layer_args)
-            for j in range(config.flow_levels):
-                b.dense(config.flow_hidden_layer_units)
+            for j in range(config.coupling_hidden_layer_count):
+                b.dense(config.coupling_hidden_layer_units)
             shift_and_pre_scale = tk.layers.Branch(
                 branches=[
                     # shift
@@ -77,7 +78,7 @@ class VAE(tk.layers.BaseLayer):
                 shared=b.build(),
             )
             flows.append(tk.flows.CouplingLayer(
-                shift_and_pre_scale, scale=config.flow_coupling_layer_scale))
+                shift_and_pre_scale, scale=config.coupling_layer_scale))
 
             # feature rearrangement by invertible dense
             flows.append(tk.flows.InvertibleDense(
@@ -142,8 +143,9 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0][0], exp.config)
-    weight_params = utils.get_weight_parameters(vae)
-    params, param_names = utils.get_parameters_and_names(vae)
+    params, param_names = utils.get_params_and_names(vae)
+    utils.print_parameters_summary(params, param_names)
+    print('')
 
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
@@ -153,16 +155,24 @@ def main(exp: mltk.Experiment[Config]):
     # define the train and evaluate functions
     def train_step(x):
         chain = vae.get_chain(x)
-        elbo = chain.vi.training.sgvb(reduction='mean')
-        loss = elbo + exp.config.l2_reg * T.nn.l2_regularization(weight_params)
-        return {'elbo': elbo, 'loss': loss}
+
+        # loss with beta
+        beta = min(loop.epoch / 100., 1.)
+        log_qz_given_x = T.reduce_mean(chain.q['z'].log_prob())
+        log_pz = T.reduce_mean(chain.p['z'].log_prob())
+        log_px_given_z = T.reduce_mean(chain.p['z'].log_prob())
+        loss = -(log_px_given_z + beta * (log_pz - log_qz_given_x))
+
+        # add regularization
+        loss = loss + exp.config.l2_reg * T.nn.l2_regularization(params)
+        return {'loss': loss}
 
     def eval_step(x, n_z=exp.config.test_n_z):
         with tk.layers.scoped_eval_mode(vae), T.no_grad():
             chain = vae.get_chain(x, n_z=n_z)
-            loss = chain.vi.training.sgvb(reduction='mean')
+            elbo = chain.vi.lower_bound.elbo(reduction='mean')
             nll = -chain.vi.evaluation.is_loglikelihood(reduction='mean')
-        return {'elbo': loss, 'nll': nll}
+        return {'elbo': elbo, 'nll': nll}
 
     def plot_samples(epoch=None):
         epoch = epoch or loop.epoch
@@ -180,6 +190,7 @@ def main(exp: mltk.Experiment[Config]):
 
     # build the optimizer and the train loop
     loop = mltk.TrainLoop(max_epoch=exp.config.max_epoch)
+    loop.add_callback(mltk.callbacks.StopOnNaN())
     optimizer = tk.optim.Adam(params)
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
         loop=loop,

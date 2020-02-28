@@ -781,19 +781,13 @@ class ExpScale(Scale):
                              compute_log_scale: bool
                              ) -> Tuple[Tensor, Optional[Tensor]]:
         log_scale: Optional[Tensor] = None
-        if inverse:
-            neg_pre_scale = -pre_scale
-            scale = self._maybe_assert_finite(
-                exp(neg_pre_scale), 'scale', inverse)
-            if compute_log_scale:
-                log_scale = self._maybe_assert_finite(
-                    neg_pre_scale, 'log_scale', inverse)
-        else:
-            scale = self._maybe_assert_finite(
-                exp(pre_scale), 'scale', inverse)
-            if compute_log_scale:
-                log_scale = self._maybe_assert_finite(
-                    pre_scale, 'log_scale', inverse)
+
+        the_pre_scale = -pre_scale if inverse else pre_scale
+        scale = self._maybe_assert_finite(exp(the_pre_scale), 'scale', inverse)
+        if compute_log_scale:
+            log_scale = self._maybe_assert_finite(
+                the_pre_scale, 'log_scale', inverse)
+
         return scale, log_scale
 
 
