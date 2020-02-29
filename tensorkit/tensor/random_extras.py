@@ -142,7 +142,7 @@ def truncated_normal(mean: Tensor,
     if mean.dtype != std.dtype:
         raise ValueError('`mean.dtype` != `std.dtype`: {} vs {}'.
                          format(mean.dtype, std.dtype))
-    param_shape = broadcast_shape(shape(mean), shape(std))
+    param_shape = get_broadcast_shape(shape(mean), shape(std))
     if n_samples is not None:
         param_shape = [n_samples] + param_shape
     r = truncated_randn(param_shape, low=low, high=high, dtype=get_dtype(mean),
@@ -235,7 +235,7 @@ def discretized_logistic(mean: Tensor,
         raise ValueError('`discretize` and `reparameterized` cannot be both True.')
 
     # sample from uniform distribution
-    sample_shape = broadcast_shape(shape(mean), shape(log_scale))
+    sample_shape = get_broadcast_shape(shape(mean), shape(log_scale))
     if n_samples is not None:
         sample_shape = [n_samples] + sample_shape
     mean_dtype = get_dtype(mean)
@@ -342,7 +342,7 @@ def discretized_logistic_log_prob(given: Tensor,
     if min_val is not None and max_val is not None:
         if biased_edges:
             # broadcasted given, shape == x_mid
-            broadcast_given = broadcast_to(given, shape(x_low))
+            broadcast_given = broadcast_to_shape(given, shape(x_low))
 
             # the left-edge bin case
             #   log(sigmoid(x_high) - sigmoid(-infinity))

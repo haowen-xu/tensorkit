@@ -170,7 +170,7 @@ class BaseNormal(Distribution):
         mean_shape = T.shape(mean)
         dtype = T.get_dtype(mean)
         stdx_shape = T.shape(stdx)
-        value_shape = T.broadcast_shape(mean_shape, stdx_shape)
+        value_shape = T.get_broadcast_shape(mean_shape, stdx_shape)
 
         # construct the object
         super().__init__(

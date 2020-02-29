@@ -521,7 +521,7 @@ class ScaleTestCase(TestCase):
                           T.random.randn([2, 1, 1]),
                           T.random.randn([2, 3, 4])]:
             expected_y = x * T.exp(pre_scale)
-            expected_log_det = T.broadcast_to(pre_scale, T.shape(x))
+            expected_log_det = T.broadcast_to_shape(pre_scale, T.shape(x))
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
     def test_SigmoidScale(self):
@@ -542,7 +542,7 @@ class ScaleTestCase(TestCase):
                               T.random.randn([2, 1, 1]),
                               T.random.randn([2, 3, 4])]:
                 expected_y = x * T.nn.sigmoid(pre_scale + pre_scale_bias)
-                expected_log_det = T.broadcast_to(
+                expected_log_det = T.broadcast_to_shape(
                     T.nn.log_sigmoid(pre_scale + pre_scale_bias), T.shape(x))
                 check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
@@ -557,7 +557,7 @@ class ScaleTestCase(TestCase):
                           T.random.randn([2, 1, 1]),
                           T.random.randn([2, 3, 4])]:
             expected_y = x * pre_scale
-            expected_log_det = T.broadcast_to(
+            expected_log_det = T.broadcast_to_shape(
                 T.log(T.abs(pre_scale)), T.shape(x))
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 

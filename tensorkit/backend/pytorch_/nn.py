@@ -126,13 +126,12 @@ def cross_entropy_with_logits(logits: Tensor,
                               labels: Tensor,
                               reduction: str = 'none',  # {'sum', 'mean' or 'none'}
                               negative: bool = False) -> Tensor:
-
     if logits.shape[:-1] != labels.shape:
         logits_shape = list(logits.shape)
         labels_shape = list(labels.shape)
-        b_shape = broadcast_shape(logits_shape[:-1], labels_shape)
-        logits = broadcast_to(logits, b_shape + logits_shape[-1:])
-        labels = broadcast_to(labels, b_shape)
+        b_shape = get_broadcast_shape(logits_shape[:-1], labels_shape)
+        logits = broadcast_to_shape(logits, b_shape + logits_shape[-1:])
+        labels = broadcast_to_shape(labels, b_shape)
 
     if len(logits.shape) < 2 or len(labels.shape) < 1:
         raise ValueError('`logits` must be at least 2d, and `labels` must '

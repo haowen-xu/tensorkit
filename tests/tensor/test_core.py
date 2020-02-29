@@ -661,43 +661,61 @@ class TensorCoreTestCase(TestCase):
                     np.transpose(x, perm),
                 )
 
-        # test broadcast_shape
+        # test get_broadcast_shape
         self.assertEqual(
-            T.broadcast_shape([3, 4, 2, 1], [4, 1, 5]),
+            T.get_broadcast_shape([3, 4, 2, 1], [4, 1, 5]),
             [3, 4, 2, 5]
         )
         self.assertEqual(
-            T.broadcast_shape([4, 1, 5], [3, 4, 2, 1]),
+            T.get_broadcast_shape([4, 1, 5], [3, 4, 2, 1]),
             [3, 4, 2, 5]
         )
         self.assertEqual(
-            T.broadcast_shape([3, 4, 2, 1], []),
+            T.get_broadcast_shape([3, 4, 2, 1], []),
             [3, 4, 2, 1]
         )
         self.assertEqual(
-            T.broadcast_shape([], [4, 1, 5]),
+            T.get_broadcast_shape([], [4, 1, 5]),
             [4, 1, 5]
         )
 
         with pytest.raises(Exception, match='cannot broadcast'):
-            _ = T.broadcast_shape([2], [3])
+            _ = T.get_broadcast_shape([2], [3])
 
-        # test broadcast_to
+        # test broadcast_to_shape
         x = np.random.randn(1, 2, 1)
         t = T.as_tensor(x)
+        g = lambda shape: T.ones(shape, dtype=T.boolean)
 
-        t2 = T.broadcast_to(t, [4, 5, 2, 1])
+        t2 = T.broadcast_to(t, g([4, 5, 2, 1]))
         self.assertEqual(T.shape(t2), [4, 5, 2, 1])
         assert_equal(t2, np.tile(x.reshape([1, 1, 2, 1]), [4, 5, 1, 1]))
 
         with pytest.raises(Exception, match='(shape|size)'):
-            _ = T.broadcast_to(t, [2, 5])
+            _ = T.broadcast_to(t, g([2, 5]))
 
         with pytest.raises(Exception, match='(shape|size)'):
-            _ = T.broadcast_to(t, [1, 1, 1])
+            _ = T.broadcast_to(t, g([1, 1, 1]))
 
         with pytest.raises(Exception, match='(shape|size)'):
-            _ = T.broadcast_to(t, [1, 5, 1])
+            _ = T.broadcast_to(t, g([1, 5, 1]))
+
+        # test broadcast_to_shape
+        x = np.random.randn(1, 2, 1)
+        t = T.as_tensor(x)
+
+        t2 = T.broadcast_to_shape(t, [4, 5, 2, 1])
+        self.assertEqual(T.shape(t2), [4, 5, 2, 1])
+        assert_equal(t2, np.tile(x.reshape([1, 1, 2, 1]), [4, 5, 1, 1]))
+
+        with pytest.raises(Exception, match='(shape|size)'):
+            _ = T.broadcast_to_shape(t, [2, 5])
+
+        with pytest.raises(Exception, match='(shape|size)'):
+            _ = T.broadcast_to_shape(t, [1, 1, 1])
+
+        with pytest.raises(Exception, match='(shape|size)'):
+            _ = T.broadcast_to_shape(t, [1, 5, 1])
 
         # test explicit_broadcast
         def explicit_broadcast(x, y):

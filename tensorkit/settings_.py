@@ -86,19 +86,6 @@ class Settings(Config):
                     'not take effect.'
     )
 
-    @field_checker('jit_mode', pre=True)
-    def _jit_mode_pre_checker(self, v):
-        if isinstance(v, bool):
-            v = JitMode.ALL if v else JitMode.NONE
-        elif isinstance(v, str):
-            if v.lower() in ('1', 'yes', 'on', 'true', 'all'):
-                v = JitMode.ALL
-            elif v.lower() in ('0', 'no', 'off', 'false', 'none'):
-                v = JitMode.NONE
-            elif v.lower() in ('func', 'function', 'func_only', 'function_only'):
-                v = JitMode.FUNCTION_ONLY
-        return v
-
 
 settings = Settings()
 """The global configuration for TensorKit."""

@@ -139,7 +139,7 @@ def normal(mean: Tensor,
     if mean.dtype != std.dtype:
         raise ValueError('`mean.dtype` != `std.dtype`: {} vs {}'.
                          format(mean.dtype, std.dtype))
-    param_shape = broadcast_shape(shape(mean), shape(std))
+    param_shape = get_broadcast_shape(shape(mean), shape(std))
     if n_samples is not None:
         param_shape = [n_samples] + param_shape
     r = std * torch.randn(param_shape, dtype=mean.dtype, device=mean.device) + mean

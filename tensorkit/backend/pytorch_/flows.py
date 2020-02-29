@@ -175,7 +175,7 @@ class Flow(BaseValidateTensorLayer):
 
         if output_log_det is not None:
             if output_log_det.dim() < len(log_det_shape):
-                output_log_det = broadcast_to(output_log_det, log_det_shape)
+                output_log_det = broadcast_to_shape(output_log_det, log_det_shape)
 
             if shape(output_log_det) != log_det_shape:
                 raise ValueError(
@@ -725,10 +725,15 @@ class Scale(BaseValidateTensorLayer):
         output = input * scale
 
         if log_scale is not None:
-            log_scale = broadcast_to(
-                log_scale,
-                broadcast_shape(shape(log_scale), event_shape)
-            )
+            if shape(log_scale) != event_shape:
+                log_scale = log_scale + zeros_like(log_scale, shape=event_shape)
+
+            # Note: equivalent as the above two lines, but compiles much slower
+            #       on PyTorch 1.3.1 with JIT engine.
+            # log_scale = broadcast_to_shape(
+            #     log_scale,
+            #     get_broadcast_shape(shape(log_scale), event_shape)
+            # )
 
             # the last `event_ndims` dimensions must match the `event_shape`
             log_scale_shape = shape(log_scale)
@@ -754,7 +759,7 @@ class Scale(BaseValidateTensorLayer):
                         format(shape(output_log_det), log_det_shape)
                     )
             else:
-                output_log_det = broadcast_to(log_scale, log_det_shape)
+                output_log_det = broadcast_to_shape(log_scale, log_det_shape)
         else:
             output_log_det = None
 
@@ -867,6 +872,7 @@ class LinearScale(Scale):
                              ) -> Tuple[Tensor, Optional[Tensor]]:
         log_scale: Optional[Tensor] = None
         epsilon = float_scalar_like(self.epsilon, pre_scale)
+
         if inverse:
             scale = self._maybe_assert_finite(1. / pre_scale, 'scale', inverse)
             if compute_log_scale:

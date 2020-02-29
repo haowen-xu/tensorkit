@@ -115,7 +115,7 @@ class DiscretizedLogistic(Distribution):
 
         # infer the batch shape
         try:
-            batch_shape = T.broadcast_shape(T.shape(mean), T.shape(log_scale))
+            batch_shape = T.get_broadcast_shape(T.shape(mean), T.shape(log_scale))
         except Exception:
             raise ValueError(
                 f'The shape of `mean` and `log_scale` cannot be broadcasted '

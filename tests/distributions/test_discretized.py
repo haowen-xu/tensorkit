@@ -20,7 +20,7 @@ class DiscretizedLogisticTestCase(TestCase):
         def do_check(**kwargs):
             d = DiscretizedLogistic(mean, log_scale, **kwargs)
             event_ndims = kwargs.get('event_ndims', 0)
-            value_shape = T.broadcast_shape(T.shape(mean), T.shape(log_scale))
+            value_shape = T.get_broadcast_shape(T.shape(mean), T.shape(log_scale))
             log_prob_fn_kwargs = copy.copy(kwargs)
             log_prob_fn_kwargs.pop('discretize_sample', None)
             log_prob_fn_kwargs['discretize'] = \

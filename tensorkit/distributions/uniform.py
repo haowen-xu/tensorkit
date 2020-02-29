@@ -45,7 +45,7 @@ class Uniform(Distribution):
 
         Args:
             shape: Shape of the unit normal distribution, prepended to
-                the front of ``broadcast_shape(low, high)``.  Defaults to `[]`.
+                the front of ``get_broadcast_shape(low, high)``.  Defaults to `[]`.
             low: The lower-bound of the uniform distribution.
                 If both `low` and `high` are not specified, the uniform
                 distribution will be ``[0, 1)``.  Specifying only one of
@@ -87,7 +87,7 @@ class Uniform(Distribution):
 
             dtype = T.get_dtype(low)
             value_shape = (value_shape +
-                           T.broadcast_shape(T.shape(low), T.shape(high)))
+                           T.get_broadcast_shape(T.shape(low), T.shape(high)))
             device = device or T.get_device(low)
         else:
             device = T.current_device()
@@ -147,14 +147,14 @@ class Uniform(Distribution):
                   reduce_ndims: int) -> T.Tensor:
         low = self.low if self.low is not None else 0.
         high = self.high if self.high is not None else 1.
-        b_shape = T.broadcast_shape(T.shape(given), self.value_shape)
+        b_shape = T.get_broadcast_shape(T.shape(given), self.value_shape)
         log_pdf = self._get_neg_log_high_minus_low()
         log_pdf = log_pdf_mask(
             T.logical_and(low <= given, given <= high),
             log_pdf,
             self.log_zero,
         )
-        log_pdf = T.broadcast_to(log_pdf, b_shape)
+        log_pdf = T.broadcast_to_shape(log_pdf, b_shape)
         if reduce_ndims > 0:
             log_pdf = T.reduce_sum(log_pdf, axis=list(range(-reduce_ndims, 0)))
         return log_pdf

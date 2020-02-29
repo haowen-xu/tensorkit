@@ -52,7 +52,8 @@ __all__ = [
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
     'swap_axes', 'transpose',
-    'broadcast_shape', 'broadcast_to', 'explicit_broadcast', 'flatten_to_ndims',
+    'get_broadcast_shape', 'broadcast_to_shape', 'broadcast_to',
+    'explicit_broadcast', 'flatten_to_ndims',
     'unflatten_from_ndims', 'reshape_tail',
 
     # split / join / indexing / gathering ...
@@ -733,7 +734,7 @@ def transpose(input: Tensor, axis: List[int]) -> Tensor:
 
 
 @jit
-def broadcast_shape(x: List[int], y: List[int]) -> List[int]:
+def get_broadcast_shape(x: List[int], y: List[int]) -> List[int]:
     x_len, y_len = len(x), len(y)
     max_length = max(x_len, y_len)
     x_ex = [1] * (max_length - x_len) + x
@@ -750,17 +751,28 @@ def broadcast_shape(x: List[int], y: List[int]) -> List[int]:
 
 
 @jit
-def broadcast_to(input: Tensor, new_shape: List[int]) -> Tensor:
+def broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
     # TODO: do we have a better way to calculate the final shape and do broadcast here?
-    if list(input.shape) != new_shape:
-        ret = input + torch.zeros(new_shape, dtype=input.dtype, device=input.device)
-        if list(ret.shape) != new_shape:
+    output = input
+    if list(output.shape) != new_shape:
+        output = output + torch.zeros(new_shape, dtype=output.dtype, device=output.device)
+        if list(output.shape) != new_shape:
             raise ValueError(
                 '`input` cannot be broadcast to `new_shape`: shape(input) {} '
                 'vs new_shape {}'.format(shape(input), new_shape))
-    else:
-        ret = input
-    return ret
+    return output
+
+
+@jit
+def broadcast_to(input: Tensor, target: Tensor) -> Tensor:
+    output = input
+    if output.shape != target.shape:
+        output = output + torch.zeros(target.shape, dtype=output.dtype, device=output.device)
+        if output.shape != target.shape:
+            raise ValueError(
+                '`input` cannot be broadcast to `target`: shape(input) {} '
+                'vs shape(target) {}'.format(shape(input), shape(target)))
+    return output
 
 
 @jit

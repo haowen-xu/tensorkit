@@ -836,7 +836,7 @@ class TensorRandomTestCase(TestCase):
         def get_samples(mean, log_scale, n_samples=None, **kwargs):
             seed = next_seed()
             kwargs.setdefault('epsilon', 1e-7)
-            sample_shape = T.broadcast_shape(T.shape(mean), T.shape(log_scale))
+            sample_shape = T.get_broadcast_shape(T.shape(mean), T.shape(log_scale))
             if n_samples is not None:
                 sample_shape = [n_samples] + sample_shape
 
@@ -870,7 +870,7 @@ class TensorRandomTestCase(TestCase):
                            dtype: str):
             mean_t = T.as_tensor(mean, dtype=dtype)
             log_scale_t = T.as_tensor(log_scale, dtype=dtype)
-            value_shape = T.broadcast_shape(T.shape(mean_t), T.shape(log_scale_t))
+            value_shape = T.get_broadcast_shape(T.shape(mean_t), T.shape(log_scale_t))
 
             # sample
             sample_shape = [n_samples] if n_samples is not None else []
@@ -938,7 +938,7 @@ class TensorRandomTestCase(TestCase):
 
         mean_t = T.as_tensor(mean, dtype=T.float32)
         log_scale_t = T.as_tensor(log_scale, dtype=T.float32)
-        given_t = T.zeros(T.broadcast_shape(T.shape(mean_t), T.shape(log_scale_t)))
+        given_t = T.zeros(T.get_broadcast_shape(T.shape(mean_t), T.shape(log_scale_t)))
 
         with pytest.raises(Exception,
                            match='`min_val` and `max_val` must be both None or neither None'):
