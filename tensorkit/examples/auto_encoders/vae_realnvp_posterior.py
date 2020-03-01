@@ -161,18 +161,30 @@ def main(exp: mltk.Experiment[Config]):
         log_qz_given_x = T.reduce_mean(chain.q['z'].log_prob())
         log_pz = T.reduce_mean(chain.p['z'].log_prob())
         log_px_given_z = T.reduce_mean(chain.p['x'].log_prob())
-        loss = -(log_px_given_z + beta * (log_pz - log_qz_given_x))
+        kl = log_pz - log_qz_given_x
+        elbo = log_px_given_z + beta * kl
 
         # add regularization
-        loss = loss + exp.config.l2_reg * T.nn.l2_regularization(params)
-        return {'loss': loss}
+        loss = -elbo + exp.config.l2_reg * T.nn.l2_regularization(params)
+
+        # construct the train metrics
+        ret = {'loss': loss, 'kl': kl, 'log p(x|z)': log_px_given_z,
+               'log q(z|x)': log_qz_given_x, 'log p(z)': log_pz}
+        if loop.epoch >= 100:
+            ret['elbo'] = elbo
+        return ret
 
     def eval_step(x, n_z=exp.config.test_n_z):
         with tk.layers.scoped_eval_mode(vae), T.no_grad():
             chain = vae.get_chain(x, n_z=n_z)
-            elbo = chain.vi.lower_bound.elbo(reduction='mean')
+            log_qz_given_x = T.reduce_mean(chain.q['z'].log_prob())
+            log_pz = T.reduce_mean(chain.p['z'].log_prob())
+            log_px_given_z = T.reduce_mean(chain.p['x'].log_prob())
+            kl = log_pz - log_qz_given_x
+            elbo = log_px_given_z + kl
             nll = -chain.vi.evaluation.is_loglikelihood(reduction='mean')
-        return {'elbo': elbo, 'nll': nll}
+        return {'elbo': elbo, 'nll': nll, 'kl': kl, 'log p(x|z)': log_px_given_z,
+               'log q(z|x)': log_qz_given_x, 'log p(z)': log_pz}
 
     def plot_samples(epoch=None):
         epoch = epoch or loop.epoch

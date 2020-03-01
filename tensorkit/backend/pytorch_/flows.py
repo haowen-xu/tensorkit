@@ -158,15 +158,15 @@ class Flow(BaseValidateTensorLayer):
                 'is {}.'.format(event_ndims, shape(input))
             )
 
-        input_shape = shape(input)
+        input_shape = input.shape
         log_det_shape = input_shape[: len(input_shape) - event_ndims]
 
         if input_log_det is not None:
-            if shape(input_log_det) != log_det_shape:
+            if input_log_det.shape != log_det_shape:
                 raise ValueError(
                     'The shape of `input_log_det` is not expected: '
                     'expected to be {}, but got {}.'.
-                    format(log_det_shape, shape(input_log_det))
+                    format(list(log_det_shape), shape(input_log_det))
                 )
 
         # compute the transformed output and log-det
@@ -174,14 +174,15 @@ class Flow(BaseValidateTensorLayer):
             input, input_log_det, inverse, compute_log_det)
 
         if output_log_det is not None:
-            if output_log_det.dim() < len(log_det_shape):
-                output_log_det = broadcast_to_shape(output_log_det, log_det_shape)
+            if output_log_det.shape != log_det_shape:
+                output_log_det = output_log_det + torch.zeros(
+                    log_det_shape, dtype=output_log_det.dtype, device=output_log_det.device)
 
-            if shape(output_log_det) != log_det_shape:
+            if output_log_det.shape != log_det_shape:
                 raise ValueError(
                     'The shape of `output_log_det` is not expected: '
                     'expected to be {}, but got {}.'.
-                    format(log_det_shape, shape(output_log_det))
+                    format(list(log_det_shape), shape(output_log_det))
                 )
 
         return output, output_log_det
@@ -706,17 +707,17 @@ class Scale(BaseValidateTensorLayer):
                 format(shape(input), shape(pre_scale))
             )
 
-        input_shape = shape(input)
+        input_shape = input.shape
         event_ndims_start = len(input_shape) - event_ndims
         event_shape = input_shape[event_ndims_start:]
         log_det_shape = input_shape[: event_ndims_start]
 
         if input_log_det is not None:
-            if shape(input_log_det) != log_det_shape:
+            if input_log_det.shape != log_det_shape:
                 raise ValueError(
                     'The shape of `input_log_det` is not expected: '
                     'expected to be {}, but got {}'.
-                    format(log_det_shape, shape(input_log_det))
+                    format(list(log_det_shape), shape(input_log_det))
                 )
 
         scale, log_scale = self._scale_and_log_scale(
@@ -725,26 +726,25 @@ class Scale(BaseValidateTensorLayer):
         output = input * scale
 
         if log_scale is not None:
-            if shape(log_scale) != event_shape:
-                log_scale = log_scale + zeros_like(log_scale, shape=event_shape)
-
-            # Note: equivalent as the above two lines, but compiles much slower
-            #       on PyTorch 1.3.1 with JIT engine.
-            # log_scale = broadcast_to_shape(
-            #     log_scale,
-            #     get_broadcast_shape(shape(log_scale), event_shape)
-            # )
-
             # the last `event_ndims` dimensions must match the `event_shape`
-            log_scale_shape = shape(log_scale)
-            log_scale_event_shape = \
-                log_scale_shape[len(log_scale_shape) - event_ndims:]
-            if log_scale_event_shape != event_shape:
-                raise ValueError(
-                    'The shape of the final {}d of `log_scale` is not expected: '
-                    'expected to be {}, but got {}.'.
-                    format(event_ndims, event_shape, log_scale_event_shape)
-                )
+            r = log_scale.dim()
+            if r < event_ndims or log_scale.shape[r - event_ndims:] != event_shape:
+                # Note: equivalent as the following two lines, but compiles much slower
+                #       on PyTorch 1.3.1 with JIT engine.
+                # log_scale = broadcast_to_shape(
+                #     log_scale,
+                #     get_broadcast_shape(shape(log_scale), event_shape)
+                # )
+                log_scale = log_scale + torch.zeros(
+                    event_shape, device=log_scale.device, dtype=log_scale.dtype)
+
+                r = log_scale.dim()
+                if log_scale.shape[r - event_ndims:] != event_shape:
+                    raise ValueError(
+                        'The shape of the final {}d of `log_scale` is not '
+                        'expected: expected to be {}, but got {}.'.
+                        format(event_ndims, event_shape, log_scale.shape[r - event_ndims:])
+                    )
 
             # reduce the last `event_ndims` of log_scale
             log_scale = reduce_sum(log_scale, axis=int_range(-event_ndims, 0))
@@ -752,14 +752,20 @@ class Scale(BaseValidateTensorLayer):
             # now add to input_log_det, or broadcast `log_scale` to `log_det_shape`
             if input_log_det is not None:
                 output_log_det = input_log_det + log_scale
-                if shape(output_log_det) != log_det_shape:
-                    raise ValueError(
-                        'The shape of the computed `output_log_det` is not expected: '
-                        'expected to be {}, but got {}.'.
-                        format(shape(output_log_det), log_det_shape)
-                    )
             else:
-                output_log_det = broadcast_to_shape(log_scale, log_det_shape)
+                output_log_det = log_scale
+                if output_log_det.shape != log_det_shape:
+                    output_log_det = output_log_det + torch.zeros(
+                        log_det_shape, device=output_log_det.device,
+                        dtype=output_log_det.dtype
+                    )
+
+            if output_log_det.shape != log_det_shape:
+                raise ValueError(
+                    'The shape of the computed `output_log_det` is not expected: '
+                    'expected to be {}, but got {}.'.
+                    format(shape(output_log_det), list(log_det_shape))
+                )
         else:
             output_log_det = None
 
