@@ -17,9 +17,7 @@ class IdentityFlow(Flow):
                    input_log_det: Optional[Tensor],
                    inverse: bool,
                    compute_log_det: bool) -> Tuple[Tensor, Optional[Tensor]]:
-        output = input
-        output_log_det = input_log_det
         if compute_log_det:
-            if output_log_det is None:
-                output_log_det = float_scalar_like(0., input)
-        return output, output_log_det
+            if input_log_det is None:
+                input_log_det = float_scalar_like(0., input)
+        return input, input_log_det

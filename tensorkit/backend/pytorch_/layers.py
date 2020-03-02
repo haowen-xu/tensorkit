@@ -55,6 +55,7 @@ DEFAULT_BIAS_INIT = init.zeros
 # ---- utils ----
 def jit_compile(m: Module) -> Module:
     if is_module_jit_enabled():
+        m = jit_compile_children(m)
         m = torch_script(m)
     return m
 
@@ -77,9 +78,16 @@ def jit_compile_children(m: Module,
             if attr in excludes:
                 continue
             val = getattr(m, attr)
-            if isinstance(val, Module) and \
+            if isinstance(val, ModuleList):
+                # Here we specially deal with module list.  This allows us
+                # to use a module list inside `T.jit_ignore` decorated method,
+                # while still enjoying its compiled children.
+                val = ModuleList([jit_compile(c) for c in val])
+                setattr(m, attr, val)
+            elif isinstance(val, Module) and \
                     not isinstance(val, torch.jit.ScriptModule):
-                setattr(m, attr, jit_compile(val))
+                val = jit_compile(val)
+                setattr(m, attr, val)
     return m
 
 
@@ -236,6 +244,7 @@ class SimpleParamStore(ParamStore):
     def get(self) -> Tensor:
         return self.value
 
+    @jit_ignore
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             assign_data(self.value, value)
@@ -243,7 +252,7 @@ class SimpleParamStore(ParamStore):
 
 @jit
 def weight_norm_decompose(weight: Tensor,
-                          norm_axis: int,
+                          reduce_axis: List[int],
                           epsilon: float
                           ) -> Tuple[Tensor, Tensor]:
     """
@@ -252,93 +261,101 @@ def weight_norm_decompose(weight: Tensor,
 
     Args:
         weight: The weight to be decomposed.
-        norm_axis: The axis, along with to calculate the weight norm.
+        reduce_axis: The axis to be reduced when calculating the weight norm.
         epsilon: Infinitesimal constant to avoid dividing zero.
 
     Returns:
         A tuple of `(v, v_norm)`.
     """
-    v_norm = norm_except_axis(weight, axis=[norm_axis], keepdims=True)
+    v_norm = torch.sqrt(reduce_sum(weight ** 2, axis=reduce_axis, keepdims=True))
     v = weight / torch.max(v_norm, float_scalar_like(epsilon, v_norm))
     return v, v_norm
 
 
-class NormedWeightStore(ParamStore):
-    """A module that carries the weight-normed `weight`, without `g`."""
+class _BaseNormedWeightStore(ParamStore):
 
-    __constants__ = ParamStore.__constants__ + ('feature_axis', 'epsilon')
+    __constants__ = ParamStore.__constants__ + ('reduce_axis', 'epsilon')
 
-    norm_axis: int
+    reduce_axis: List[int]
     epsilon: float
 
     def __init__(self,
                  shape: List[int],
+                 axis: int = 1,
+                 epsilon: float = EPSILON):
+        shape = list(map(int, shape))
+        r = len(shape)
+        if axis < -r or axis >= r:
+            raise ValueError(f'`axis` out of range: `axis` {axis} vs '
+                             f'shape` {shape!r}.')
+        if axis < 0:
+            axis += r
+
+        super().__init__(shape)
+        self.reduce_axis = [a for a in range(0, r) if a != axis]
+        self.epsilon = epsilon
+
+
+class NormedWeightStore(_BaseNormedWeightStore):
+    """A module that carries the weight-normed `weight`, without `g`."""
+
+    def __init__(self,
+                 shape: List[int],
                  initializer: TensorInitArgType,
-                 norm_axis: int = 1,
+                 axis: int = 1,
                  device: Optional[str] = None,
                  epsilon: float = EPSILON):
         device = device or current_device()
-
-        super().__init__(shape)
-        self.norm_axis = norm_axis
-        self.epsilon = epsilon
-
         weight = variable(shape, initializer=initializer, device=device)
+        super().__init__(shape, axis, epsilon)
         with no_grad():
-            v, _ = weight_norm_decompose(weight, norm_axis, epsilon)
+            v, _ = weight_norm_decompose(weight, self.reduce_axis, epsilon)
         add_parameter(self, 'v', v)
 
     @jit_method
     def get(self) -> Tensor:
-        v, _ = weight_norm_decompose(self.v, self.norm_axis, self.epsilon)
+        v, _ = weight_norm_decompose(self.v, self.reduce_axis, self.epsilon)
         return v
 
+    @jit_ignore
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             v, _ = weight_norm_decompose(
                 as_tensor(value, dtype=get_dtype(self.v), device=get_device(self.v)),
-                self.norm_axis,
+                self.reduce_axis,
                 self.epsilon,
             )
             assign_data(self.v, v)
 
 
-class NormedAndScaledWeightStore(ParamStore):
+class NormedAndScaledWeightStore(_BaseNormedWeightStore):
     """A module that carries the weight-normed `weight`, with `v` and `g`."""
-
-    __constants__ = ParamStore.__constants__ + ('feature_axis', 'epsilon')
-
-    norm_axis: int
-    epsilon: float
 
     def __init__(self,
                  shape: List[int],
                  initializer: TensorInitArgType,
-                 norm_axis: int = 1,
+                 axis: int = 1,
                  device: Optional[str] = None,
                  epsilon: float = EPSILON):
         device = device or current_device()
-
-        super().__init__(shape)
-        self.norm_axis = norm_axis
-        self.epsilon = epsilon
-
         weight = variable(shape, initializer=initializer, device=device)
+        super().__init__(shape, axis, epsilon)
         with no_grad():
-            v, g = weight_norm_decompose(weight, norm_axis, epsilon)
+            v, g = weight_norm_decompose(weight, self.reduce_axis, epsilon)
         add_parameter(self, 'v', v)
         add_parameter(self, 'g', g)
 
     @jit_method
     def get(self) -> Tensor:
-        v, _ = weight_norm_decompose(self.v, self.norm_axis, self.epsilon)
+        v, _ = weight_norm_decompose(self.v, self.reduce_axis, self.epsilon)
         return self.g * v
 
+    @jit_ignore
     def set(self, value: TensorOrData) -> None:
         with no_grad():
             v, g = weight_norm_decompose(
                 as_tensor(value, dtype=get_dtype(self.v), device=get_device(self.v)),
-                self.norm_axis,
+                self.reduce_axis,
                 self.epsilon,
             )
             assign_data(self.v, v)
@@ -471,8 +488,9 @@ class CoreLinear(BaseLayer):
 
         # attributes
         'in_features', 'out_features', 'in_channels', 'out_channels',
-        'kernel_size', 'stride', 'padding', '_symmetric_padding',
-        'output_padding', 'dilation', 'use_bias',
+        'kernel_size', 'stride', 'padding', 'output_padding', 'dilation',
+        'use_bias',
+        '_manual_padding', '_conv_padding', '_is_manual_padding', '_unpad_axis',
     )
 
     weight_store: Module
@@ -522,21 +540,6 @@ class CoreLinear(BaseLayer):
     def __repr__(self):
         return f'{self.__class__.__qualname__}({self.extra_repr()})'
 
-    def _linear_transform(self,
-                          input: Tensor,
-                          weight: Tensor,
-                          bias: Optional[Tensor]
-                          ) -> Tensor:
-        raise NotImplementedError()
-
-    def forward(self, input: Tensor) -> Tensor:
-        weight = self.weight_store()
-        if self.use_bias:
-            bias: Optional[Tensor] = self.bias_store()
-        else:
-            bias: Optional[Tensor] = None
-        return self._linear_transform(input, weight, bias)
-
 
 class Linear(CoreLinear):
 
@@ -570,14 +573,20 @@ class Linear(CoreLinear):
             device=device,
         )
 
-    @jit_method
-    def _linear_transform(self,
-                          input: Tensor,
-                          weight: Tensor,
-                          bias: Optional[Tensor]
-                          ) -> Tensor:
-        output = torch.nn.functional.linear(input, weight, bias)
-        return output
+    def forward(self, input: Tensor) -> Tensor:
+        weight = self.weight_store()
+        if self.use_bias:
+            bias: Optional[Tensor] = self.bias_store()
+        else:
+            bias: Optional[Tensor] = None
+        return torch.nn.functional.linear(input, weight, bias)
+
+
+def _get_manual_and_conv_padding(padding: List[Tuple[int, int]]):
+    if all(p1 == p2 for p1, p2 in padding):
+        return [], [p1 for p1, _ in padding],
+    else:
+        return sum([[p1, p2] for p1, p2 in reversed(padding)], []), [0] * len(padding)
 
 
 class LinearConvNd(CoreLinear):
@@ -587,8 +596,10 @@ class LinearConvNd(CoreLinear):
     kernel_size: List[int]
     stride: List[int]
     padding: List[Tuple[int, int]]
-    _symmetric_padding: Optional[List[int]]
     dilation: List[int]
+    _manual_padding: List[int]
+    _conv_padding: List[int]
+    _is_manual_padding: bool
 
     def __init__(self,
                  in_channels: int,
@@ -611,15 +622,7 @@ class LinearConvNd(CoreLinear):
         stride = validate_conv_size('stride', stride, spatial_ndims)
         dilation = validate_conv_size('dilation', dilation, spatial_ndims)
         padding = validate_padding(padding, kernel_size, dilation, spatial_ndims)
-        _symmetric_padding = maybe_as_symmetric_padding(padding)
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.dilation = dilation
-        self.padding = padding
-        self._symmetric_padding = _symmetric_padding
+        _manual_padding, _conv_padding = _get_manual_and_conv_padding(padding)
 
         super().__init__(
             weight_shape=[out_channels, in_channels] + kernel_size,
@@ -632,6 +635,35 @@ class LinearConvNd(CoreLinear):
             device=device,
         )
 
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.dilation = dilation
+        self.padding = padding
+        self._manual_padding = _manual_padding
+        self._conv_padding = _conv_padding
+        self._is_manual_padding = len(_manual_padding) > 0
+
+    def forward(self, input: Tensor) -> Tensor:
+        weight = self.weight_store()
+        if self.use_bias:
+            bias: Optional[Tensor] = self.bias_store()
+        else:
+            bias: Optional[Tensor] = None
+        if self._is_manual_padding:
+            input = torch.nn.functional.pad(
+                input, self._manual_padding, mode='constant', value=0.)
+        return self._conv_transform(input, weight, bias)
+
+    @jit_method
+    def _conv_transform(self,
+                        input: Tensor,
+                        weight: Tensor,
+                        bias: Optional[Tensor]
+                        ) -> Tensor:
+        raise NotImplementedError()
+
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
@@ -642,22 +674,15 @@ class LinearConv1d(LinearConvNd):
         return 1
 
     @jit_method
-    def _linear_transform(self,
+    def _conv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv1d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding, dilation=self.dilation
-            )
-        else:
-            output = pad(input, self.padding, value=0.)
-            return torch.nn.functional.conv1d(
-                input=output, weight=weight, bias=bias, stride=self.stride,
-                padding=0, dilation=self.dilation,
-            )
+        return torch.nn.functional.conv1d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, dilation=self.dilation
+        )
 
 
 class LinearConv2d(LinearConvNd):
@@ -666,22 +691,15 @@ class LinearConv2d(LinearConvNd):
         return 2
 
     @jit_method
-    def _linear_transform(self,
+    def _conv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv2d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding, dilation=self.dilation
-            )
-        else:
-            output = pad(input, self.padding, value=0.)
-            return torch.nn.functional.conv2d(
-                input=output, weight=weight, bias=bias, stride=self.stride,
-                padding=0, dilation=self.dilation,
-            )
+        return torch.nn.functional.conv2d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, dilation=self.dilation
+        )
 
 
 class LinearConv3d(LinearConvNd):
@@ -690,22 +708,15 @@ class LinearConv3d(LinearConvNd):
         return 3
 
     @jit_method
-    def _linear_transform(self,
+    def _conv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv3d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding, dilation=self.dilation
-            )
-        else:
-            output = pad(input, self.padding, value=0.)
-            return torch.nn.functional.conv3d(
-                input=output, weight=weight, bias=bias, stride=self.stride,
-                padding=0, dilation=self.dilation,
-            )
+        return torch.nn.functional.conv3d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, dilation=self.dilation
+        )
 
 
 class LinearConvTransposeNd(CoreLinear):
@@ -715,9 +726,12 @@ class LinearConvTransposeNd(CoreLinear):
     kernel_size: List[int]
     stride: List[int]
     padding: List[Tuple[int, int]]
-    is_symmetric_padding: bool
     dilation: List[int]
     output_padding: List[int]
+    _manual_padding: List[int]
+    _conv_padding: List[int]
+    _is_manual_padding: bool
+    _unpad_axis: List[int]
 
     def __init__(self,
                  in_channels: int,
@@ -741,18 +755,9 @@ class LinearConvTransposeNd(CoreLinear):
         stride = validate_conv_size('stride', stride, spatial_ndims)
         dilation = validate_conv_size('dilation', dilation, spatial_ndims)
         padding = validate_padding(padding, kernel_size, dilation, spatial_ndims)
-        _symmetric_padding = maybe_as_symmetric_padding(padding)
         output_padding = validate_output_padding(
             output_padding, stride, dilation, spatial_ndims)
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self._symmetric_padding = _symmetric_padding
-        self.output_padding = output_padding
-        self.dilation = dilation
+        _manual_padding, _conv_padding = _get_manual_and_conv_padding(padding)
 
         super().__init__(
             weight_shape=[in_channels, out_channels] + kernel_size,
@@ -765,23 +770,45 @@ class LinearConvTransposeNd(CoreLinear):
             device=device,
         )
 
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.output_padding = output_padding
+        self.dilation = dilation
+        self._manual_padding = _manual_padding
+        self._conv_padding = _conv_padding
+        self._is_manual_padding = len(_manual_padding) > 0
+        self._unpad_axis = list(range(-1, -(spatial_ndims + 1), -1))
+
     def _get_spatial_ndims(self) -> int:
         raise NotImplementedError()
 
+    @jit_method
+    def _deconv_transform(self,
+                          input: Tensor,
+                          weight: Tensor,
+                          bias: Optional[Tensor]
+                          ) -> Tensor:
+        raise NotImplementedError()
 
-@jit
-def unpad_output(input: Tensor,
-                 axis: List[int],
-                 padding: List[Tuple[int, int]]) -> Tensor:
-    output = input
-    for a in axis:
-        p1, p2 = padding[a]
-        length = output.shape[a] - p1 - p2
-        if length < 0:
-            raise ValueError('Too large `padding` at axis {}: {}'.
-                             format(axis, padding))
-        output = torch.narrow(output, a, p1, length)
-    return output
+    def forward(self, input: Tensor) -> Tensor:
+        weight = self.weight_store()
+        if self.use_bias:
+            bias: Optional[Tensor] = self.bias_store()
+        else:
+            bias: Optional[Tensor] = None
+        input = self._deconv_transform(input, weight, bias)
+        if self._is_manual_padding:
+            for a in self._unpad_axis:
+                p1, p2 = self.padding[a]
+                length = input.shape[a] - p1 - p2
+                if length < 0:
+                    raise ValueError('Too large `padding` at axis {}: ({}, {})'.
+                                     format(a, p1, p2))
+                input = torch.narrow(input, a, p1, length)
+        return input
 
 
 class LinearConvTranspose1d(LinearConvTransposeNd):
@@ -790,24 +817,16 @@ class LinearConvTranspose1d(LinearConvTransposeNd):
         return 1
 
     @jit_method
-    def _linear_transform(self,
+    def _deconv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv_transpose1d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding,
-                output_padding=self.output_padding, dilation=self.dilation
-            )
-        else:
-            output = torch.nn.functional.conv_transpose1d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=0, output_padding=self.output_padding,
-                dilation=self.dilation
-            )
-            return unpad_output(output, [-1], self.padding)
+        return torch.nn.functional.conv_transpose1d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, output_padding=self.output_padding,
+            dilation=self.dilation
+        )
 
 
 class LinearConvTranspose2d(LinearConvTransposeNd):
@@ -816,24 +835,16 @@ class LinearConvTranspose2d(LinearConvTransposeNd):
         return 2
 
     @jit_method
-    def _linear_transform(self,
+    def _deconv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv_transpose2d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding,
-                output_padding=self.output_padding, dilation=self.dilation
-            )
-        else:
-            output = torch.nn.functional.conv_transpose2d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=0, output_padding=self.output_padding,
-                dilation=self.dilation
-            )
-            return unpad_output(output, [-1, -2], self.padding)
+        return torch.nn.functional.conv_transpose2d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, output_padding=self.output_padding,
+            dilation=self.dilation
+        )
 
 
 class LinearConvTranspose3d(LinearConvTransposeNd):
@@ -842,24 +853,16 @@ class LinearConvTranspose3d(LinearConvTransposeNd):
         return 3
 
     @jit_method
-    def _linear_transform(self,
+    def _deconv_transform(self,
                           input: Tensor,
                           weight: Tensor,
                           bias: Optional[Tensor]
                           ) -> Tensor:
-        if self._symmetric_padding is not None:
-            return torch.nn.functional.conv_transpose3d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=self._symmetric_padding,
-                output_padding=self.output_padding, dilation=self.dilation
-            )
-        else:
-            output = torch.nn.functional.conv_transpose3d(
-                input=input, weight=weight, bias=bias, stride=self.stride,
-                padding=0, output_padding=self.output_padding,
-                dilation=self.dilation
-            )
-            return unpad_output(output, [-1, -2, -3], self.padding)
+        return torch.nn.functional.conv_transpose3d(
+            input=input, weight=weight, bias=bias, stride=self.stride,
+            padding=self._conv_padding, output_padding=self.output_padding,
+            dilation=self.dilation
+        )
 
 
 # ---- normalizer layers ----
@@ -962,15 +965,14 @@ class Dropout1d(BaseLayer):
                              'input shape is {}.'.format(shape(input)))
 
         device = input.device
-        output = input
         if self.training:
-            noise_shape = output.shape[:-1] + (1,)
-            noise = torch.zeros(noise_shape, dtype=output.dtype, device=device)
-            keep_prob = torch.as_tensor(self._keep_prob, dtype=output.dtype, device=device)
+            noise_shape = input.shape[:-1] + (1,)
+            noise = torch.zeros(noise_shape, dtype=input.dtype, device=device)
+            keep_prob = torch.as_tensor(self._keep_prob, dtype=input.dtype, device=device)
             noise = torch.bernoulli(keep_prob.expand(noise_shape), out=noise)
             noise = noise.detach()
-            output = output * noise / keep_prob
-        return output
+            input = input * noise / keep_prob
+        return input
 
 
 Dropout2d = torch_nn.Dropout2d

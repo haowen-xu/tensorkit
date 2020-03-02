@@ -219,15 +219,13 @@ def cast(input: Tensor,
             target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
 
     if target_dtype != input.dtype and device is not None:
-        output = input.to(dtype=target_dtype, device=device)
+        input = input.to(dtype=target_dtype, device=device)
     elif target_dtype != input.dtype:
-        output = input.to(dtype=target_dtype)
+        input = input.to(dtype=target_dtype)
     elif device is not None:
-        output = input.to(device=device)
-    else:
-        output = input
+        input = input.to(device=device)
 
-    return output
+    return input
 
 
 @jit
@@ -754,10 +752,9 @@ def get_broadcast_shape(x: List[int], y: List[int]) -> List[int]:
 @jit
 def broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
     # TODO: do we have a better way to calculate the final shape and do broadcast here?
-    output = input
-    if list(output.shape) != new_shape:
-        output = output + torch.zeros(new_shape, dtype=output.dtype, device=output.device)
-    return output
+    if list(input.shape) != new_shape:
+        input = input + torch.zeros(new_shape, dtype=input.dtype, device=input.device)
+    return input
 
 
 @jit
@@ -772,10 +769,9 @@ def strict_broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
 
 @jit
 def broadcast_to(input: Tensor, target: Tensor) -> Tensor:
-    output = input
-    if output.shape != target.shape:
-        output = output + torch.zeros(target.shape, dtype=output.dtype, device=output.device)
-    return output
+    if input.shape != target.shape:
+        input = input + torch.zeros(target.shape, dtype=input.dtype, device=input.device)
+    return input
 
 
 @jit
@@ -920,18 +916,16 @@ def slice(input: Tensor,
             format(shape(input), slice_start, slice_length)
         )
     if slice_length is None:
-        output = input
         for i in range(-1, -(slice_count + 1), -1):
-            output = slice_axis(output, i, slice_start[i])
+            input = slice_axis(input, i, slice_start[i])
     else:
         if slice_count != len(slice_length):
             raise ValueError('`len(slice_start)` != `len(slice_length)`: '
                              'got slice_start {}, slice_length {}.'.
                              format(slice_start, slice_length))
-        output = input
         for i in range(-1, -(slice_count + 1), -1):
-            output = slice_axis(output, i, slice_start[i], slice_length[i])
-    return output
+            input = slice_axis(input, i, slice_start[i], slice_length[i])
+    return input
 
 
 @jit
@@ -978,22 +972,20 @@ def shift_axis(input: Tensor,
         raise ValueError('`shift` out of range: expected to be >= {} '
                          'and <= {}.'.format(-size, size))
     if shift < 0:
-        output = pad_axis(
+        input = pad_axis(
             torch.narrow(input, axis, -shift, size + shift),
             axis,
             (0, -shift),
             fill_value
         )
     elif shift > 0:
-        output = pad_axis(
+        input = pad_axis(
             torch.narrow(input, axis, 0, size - shift),
             axis,
             (shift, 0),
             fill_value
         )
-    else:
-        output = input
-    return output
+    return input
 
 
 @jit
@@ -1007,7 +999,6 @@ def shift(input: Tensor,
                          format(shift, shape(input)))
 
     padding: List[int] = []
-    output = input
     need_pad: bool = False
 
     for axis in range(-1, -(shift_length + 1), -1):
@@ -1021,12 +1012,12 @@ def shift(input: Tensor,
         if s < 0:
             padding.append(0)
             padding.append(-s)
-            output = torch.narrow(output, axis, -s, size + s)
+            input = torch.narrow(input, axis, -s, size + s)
             need_pad = True
         elif s > 0:
             padding.append(s)
             padding.append(0)
-            output = torch.narrow(output, axis, 0, size - s)
+            input = torch.narrow(input, axis, 0, size - s)
             need_pad = True
         else:
             padding.append(0)
@@ -1034,10 +1025,10 @@ def shift(input: Tensor,
         axis -= 1
 
     if need_pad:
-        output = torch.nn.functional.pad(
-            output, padding, mode='constant', value=fill_value)
+        input = torch.nn.functional.pad(
+            input, padding, mode='constant', value=fill_value)
 
-    return output
+    return input
 
 
 @jit
@@ -1305,7 +1296,7 @@ def norm(input: Tensor,
 
 @jit
 def norm_except_axis(input: Tensor,
-                     axis: List[int],
+                     axis: int,
                      p: float = 2,
                      keepdims: bool = False) -> Tensor:
     """
@@ -1323,29 +1314,16 @@ def norm_except_axis(input: Tensor,
         The Lp-norm of the tensor.
     """
     r = rank(input)
-    if len(axis) == 1:
-        # compute the axis to reduce in a fast manner
-        a = axis[0]
-        if a < -r or a >= r:
-            raise ValueError(
-                f'`axis` out of range: `axis` is {axis}, '
-                f'while the shape of `input` is {shape(input)}.')
-        if a < 0:
-            a = a + r
-        axis_reduce = int_range(0, a) + int_range(a + 1, r)
-    else:
-        # compute the axis to reduce in a slow manner
-        axis_mask: List[bool] = [True] * r
-        for a in axis:
-            if a < -r or a >= r:
-                raise ValueError(
-                    f'`axis` out of range: `axis` is {axis}, '
-                    f'while the shape of `input` is {shape(input)}.')
-            axis_mask[a] = False
-        axis_reduce: List[int] = []
-        for i in range(r):
-            if axis_mask[i]:
-                axis_reduce.append(i)
+    if axis < -r or axis >= r:
+        raise ValueError(
+            f'`axis` out of range: `axis` is {axis}, '
+            f'while the shape of `input` is {shape(input)}.')
+    if axis < 0:
+        axis = axis + r
+    axis_reduce: List[int] = []
+    for a in range(0, r):
+        if a != axis:
+            axis_reduce.append(a)
     return norm(input, axis_reduce, p, keepdims)
 
 

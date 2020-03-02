@@ -733,8 +733,6 @@ class Scale(BaseValidateTensorLayer):
         scale, log_scale = self._scale_and_log_scale(
             pre_scale, inverse, compute_log_det)
 
-        output = input * scale
-
         if log_scale is not None:
             # the last `event_ndims` dimensions must match the `event_shape`
             r = log_scale.dim()
@@ -779,7 +777,7 @@ class Scale(BaseValidateTensorLayer):
         else:
             output_log_det = None
 
-        return output, output_log_det
+        return input * scale, output_log_det
 
 
 class ExpScale(Scale):

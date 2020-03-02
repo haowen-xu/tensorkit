@@ -272,14 +272,14 @@ def space_to_depth1d(input: Tensor, block_size: int) -> Tensor:
     channel_size = input_shape[-2]
     L_reduced = L // block_size
 
-    output = input.reshape(batch_shape + [channel_size, L_reduced, block_size])
-    output = output.permute(
+    input = input.reshape(batch_shape + [channel_size, L_reduced, block_size])
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-1, -3, -2]
     )
-    output = output.reshape(batch_shape + [-1, L_reduced])
+    input = input.reshape(batch_shape + [-1, L_reduced])
 
-    return output
+    return input
 
 
 @jit
@@ -305,17 +305,17 @@ def space_to_depth2d(input: Tensor, block_size: int) -> Tensor:
     H_reduced = H // block_size
     W_reduced = W // block_size
 
-    output = input.reshape(
+    input = input.reshape(
         batch_shape +
         [channel_size, H_reduced, block_size, W_reduced, block_size]
     )
-    output = output.permute(
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-3, -1, -5, -4, -2]
     )
-    output = output.reshape(batch_shape + [-1, H_reduced, W_reduced])
+    input = input.reshape(batch_shape + [-1, H_reduced, W_reduced])
 
-    return output
+    return input
 
 
 @jit
@@ -343,18 +343,18 @@ def space_to_depth3d(input: Tensor, block_size: int) -> Tensor:
     H_reduced = H // block_size
     W_reduced = W // block_size
 
-    output = input.reshape(
+    input = input.reshape(
         batch_shape +
         [channel_size, D_reduced, block_size, H_reduced, block_size,
          W_reduced, block_size]
     )
-    output = output.permute(
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-5, -3, -1, -7, -6, -4, -2]
     )
-    output = output.reshape(batch_shape + [-1, D_reduced, H_reduced, W_reduced])
+    input = input.reshape(batch_shape + [-1, D_reduced, H_reduced, W_reduced])
 
-    return output
+    return input
 
 
 @jit
@@ -376,14 +376,14 @@ def depth_to_space1d(input: Tensor, block_size: int) -> Tensor:
     batch_shape = input_shape[: -2]
     L = input_shape[-1]
 
-    output = input.reshape(batch_shape + [block_size, -1, L])
-    output = output.permute(
+    input = input.reshape(batch_shape + [block_size, -1, L])
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-2, -1, -3]
     )
-    output = output.reshape(batch_shape + [-1, L * block_size])
+    input = input.reshape(batch_shape + [-1, L * block_size])
 
-    return output
+    return input
 
 
 @jit
@@ -407,14 +407,14 @@ def depth_to_space2d(input: Tensor, block_size: int) -> Tensor:
     H = input_shape[-2]
     W = input_shape[-1]
 
-    output = input.reshape(batch_shape + [block_size, block_size, -1, H, W])
-    output = output.permute(
+    input = input.reshape(batch_shape + [block_size, block_size, -1, H, W])
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-3, -2, -5, -1, -4]
     )
-    output = output.reshape(batch_shape + [-1, H * block_size, W * block_size])
+    input = input.reshape(batch_shape + [-1, H * block_size, W * block_size])
 
-    return output
+    return input
 
 
 @jit
@@ -439,16 +439,16 @@ def depth_to_space3d(input: Tensor, block_size: int) -> Tensor:
     H = input_shape[-2]
     W = input_shape[-1]
 
-    output = input.reshape(
+    input = input.reshape(
         batch_shape + [block_size, block_size, block_size, -1, D, H, W])
-    output = output.permute(
+    input = input.permute(
         int_range(0, len(batch_shape)) +
         [-4, -3, -7, -2, -6, -1, -5]
     )
-    output = output.reshape(
+    input = input.reshape(
         batch_shape + [-1, D * block_size, H * block_size, W * block_size])
 
-    return output
+    return input
 
 
 # ---- pooling functions ----

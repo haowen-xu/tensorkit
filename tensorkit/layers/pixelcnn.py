@@ -167,10 +167,9 @@ class AddLeadingContext(BaseLayer):
                 context: Optional[List[Tensor]] = None) -> Tensor:
         if context is None:  # pragma: no cover
             raise RuntimeError('`context` is required.')
-        output = input
         for i in range(self.first_n):
-            output = output + context[i]
-        return output
+            input = input + context[i]
+        return input
 
 
 class IgnoreLeadingContext(BaseLayer):

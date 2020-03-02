@@ -27,11 +27,10 @@ class AddContext(BaseLayer):
     def forward(self,
                 input: Tensor,
                 context: Optional[List[Tensor]] = None) -> Tensor:
-        output = input
         if context is not None:
             for t in context:
-                output = output + t
-        return output
+                input = input + t
+        return input
 
 
 class MultiplyContext(BaseLayer):
@@ -42,8 +41,7 @@ class MultiplyContext(BaseLayer):
     def forward(self,
                 input: Tensor,
                 context: Optional[List[Tensor]] = None) -> Tensor:
-        output = input
         if context is not None:
             for t in context:
-                output = output * t
-        return output
+                input = input * t
+        return input

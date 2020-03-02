@@ -1322,7 +1322,7 @@ class TensorCoreTestCase(TestCase):
                     rtol=1e-4, atol=1e-6
                 )
 
-            for axis in ([-4], [3], [-1, -4], [0, 3]):
+            for axis in (-4, 3):
                 with pytest.raises(Exception, match='`axis` out of range'):
                     _ = T.norm_except_axis(x_t, axis=axis)
 
@@ -1331,7 +1331,7 @@ class TensorCoreTestCase(TestCase):
         for dtype in float_dtypes:
             x_t = T.as_tensor(x, dtype=dtype)
             for axis, p, keepdims in itertools.product(
-                        ([], [-3], [2], [-1], [2], [-1, -2]),
+                        range(-3, 3),
                         (-2.0, -1.5, -1.0, 0.5, 1.0, 1.5, 2.0, 3.0),
                         (True, False),
                     ):
@@ -1342,7 +1342,7 @@ class TensorCoreTestCase(TestCase):
                     rtol=1e-4, atol=1e-6
                 )
 
-            for axis in ([-4], [3], [-1, -4], [0, 3]):
+            for axis in (-4, 3):
                 with pytest.raises(Exception, match='`axis` out of range'):
                     _ = T.norm_except_axis(x_t, axis=axis)
 

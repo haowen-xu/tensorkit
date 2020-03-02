@@ -28,6 +28,32 @@ class _MyWrapper(BaseLayer):
         return self.wrapped(input)
 
 
+class _MyWrapper2(tk.layers.BaseLayer):
+
+    __constants__ = ('layers',)
+
+    layers: tk.layers.ModuleList
+
+    def __init__(self, layers):
+        super().__init__()
+        self.layers2 = list(layers)
+        self.layers = tk.layers.ModuleList(self.layers2)
+
+    @T.jit_ignore
+    def my_check(self) -> bool:
+        ret = True
+        for l in self.layers:
+            if not tk.layers.is_jit_layer(l):
+                ret = False
+                break
+        return ret
+
+    def forward(self, input: Tensor) -> Tensor:
+        for l in self.layers:
+            input = l(input)
+        return input
+
+
 class _MyGetTraining(BaseLayer):
 
     def forward(self) -> bool:
@@ -146,37 +172,42 @@ class UtilsAndConstantsTestCase(TestCase):
         initial_value = np.random.randn(2, 3, 4)
         new_value = np.random.randn(2, 3, 4)
 
-        for norm_axis in [-3, -2, -1, 0, 1, 2]:
+        for axis in [-3, -2, -1, 0, 1, 2]:
             store = NormedWeightStore(
-                [2, 3, 4], initializer=initial_value, norm_axis=norm_axis)
+                [2, 3, 4], initializer=initial_value, axis=axis)
             self.assertEqual(repr(store), 'NormedWeightStore(shape=[2, 3, 4])')
             expected_value = T.as_tensor(initial_value) / T.norm_except_axis(
-                T.as_tensor(initial_value), axis=[norm_axis], keepdims=True)
+                T.as_tensor(initial_value), axis=axis, keepdims=True)
             assert_allclose(store.get(), expected_value, rtol=1e-4)
             assert_allclose(store(), expected_value, rtol=1e-4)
             assert_allclose(store.v, expected_value, rtol=1e-4)
 
             store.set(T.as_tensor(new_value))
             expected_value = T.as_tensor(new_value) / T.norm_except_axis(
-                T.as_tensor(new_value), axis=[norm_axis], keepdims=True)
+                T.as_tensor(new_value), axis=axis, keepdims=True)
             assert_allclose(store.get(), expected_value, rtol=1e-4)
             assert_allclose(store(), expected_value, rtol=1e-4)
             assert_allclose(store.v, expected_value, rtol=1e-4)
+
+        for axis in (-4, 3):
+            with pytest.raises(ValueError, match='`axis` out of range.'):
+                _ = NormedWeightStore(
+                    [2, 3, 4], initializer=initial_value, axis=axis)
 
     def test_NormedAndScaledWeightStore(self):
         initial_value = np.random.randn(2, 3, 4)
         new_value = np.random.randn(2, 3, 4)
 
-        for norm_axis in [-3, -2, -1, 0, 1, 2]:
+        for axis in [-3, -2, -1, 0, 1, 2]:
             store = NormedAndScaledWeightStore(
-                [2, 3, 4], initializer=initial_value, norm_axis=norm_axis)
+                [2, 3, 4], initializer=initial_value, axis=axis)
             self.assertEqual(
                 repr(store), 'NormedAndScaledWeightStore(shape=[2, 3, 4])')
             assert_allclose(store.get(), initial_value, rtol=1e-4)
             assert_allclose(store(), initial_value, rtol=1e-4)
             assert_allclose(
                 store.g,
-                T.norm_except_axis(T.as_tensor(initial_value), axis=[norm_axis],
+                T.norm_except_axis(T.as_tensor(initial_value), axis=axis,
                                    keepdims=True),
                 rtol=1e-4
             )
@@ -187,11 +218,16 @@ class UtilsAndConstantsTestCase(TestCase):
             assert_allclose(store(), new_value, rtol=1e-4)
             assert_allclose(
                 store.g,
-                T.norm_except_axis(T.as_tensor(new_value), axis=[norm_axis],
+                T.norm_except_axis(T.as_tensor(new_value), axis=axis,
                                    keepdims=True),
                 rtol=1e-4
             )
             assert_allclose(store.v, T.as_tensor(new_value) / store.g, rtol=1e-4)
+
+        for axis in (-4, 3):
+            with pytest.raises(ValueError, match='`axis` out of range.'):
+                _ = NormedAndScaledWeightStore(
+                    [2, 3, 4], initializer=initial_value, axis=axis)
 
     def test_get_weight_store(self):
         for wn in (True, WeightNormMode.FULL, 'full'):
@@ -325,6 +361,18 @@ class BaseLayersTestCase(TestCase):
         self.assertIn('b=2.5, a=\'hello\'', repr(layer))
         self.assertNotIn('internal=', repr(layer))
         self.assertNotIn('weight=', repr(layer))
+
+
+class ModuleListJitCompileTestCase(unittest.TestCase):
+
+    def test_jit_compiled(self):
+        if T.is_module_jit_enabled():
+            layers = [tk.layers.Linear(3, 5), tk.layers.Linear(5, 4)]
+            wrapper = _MyWrapper2(layers)
+            wrapper = tk.layers.jit_compile(wrapper)
+            x = T.random.randn([1, 3])
+            assert_allclose(wrapper(x), layers[1](layers[0](x)))
+            self.assertTrue(wrapper.my_check())
 
 
 class SequentialTestCase(TestCase):
