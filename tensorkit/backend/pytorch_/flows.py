@@ -335,17 +335,14 @@ class SequentialFlow(Flow):
     #    more time to compile the module by JIT, and will double the number
     #    of parameters returned from `state_dict()`.
     @jit_ignore
-    def _call_chain(self,
-                   input: Tensor,
-                   input_log_det: Optional[Tensor],
-                   inverse: bool,
-                   compute_log_det: bool
-                   ) -> Tuple[Tensor, Optional[Tensor]]:
-        output, output_log_det = input, input_log_det
-        chain = self._chain[::-1] if inverse else self._chain
-        for flow in chain:
+    def _call_inverse_chain(self,
+                            output: Tensor,
+                            output_log_det: Optional[Tensor],
+                            compute_log_det: bool
+                            ) -> Tuple[Tensor, Optional[Tensor]]:
+        for flow in self._chain[::-1]:
             output, output_log_det = flow(
-                output, output_log_det, inverse, compute_log_det)
+                output, output_log_det, True, compute_log_det)
         return output, output_log_det
 
     def _transform(self,
@@ -364,8 +361,15 @@ class SequentialFlow(Flow):
         else:
             batch_shape: Optional[List[int]] = None
 
-        output, output_log_det = self._call_chain(
-            output, output_log_det, inverse, compute_log_det)
+        if inverse:
+            output, output_log_det = self._call_inverse_chain(
+                output, output_log_det, compute_log_det)
+        else:
+            # since the forward chain is more likely to be used in training then
+            # the inverse chain, we choose to optimize the forward chain by JIT.
+            for flow in self._chain:
+                output, output_log_det = flow(
+                    output, output_log_det, False, compute_log_det)
 
         if batch_shape is not None:
             output = unflatten_from_ndims(output, batch_shape)
@@ -625,7 +629,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
         # compute the log_det
         output_log_det = input_log_det
         if log_det is not None:
-            log_det *= torch.prod(
+            log_det = log_det * torch.prod(
                 torch.as_tensor(input.shape[input.dim() - spatial_ndims:],
                                 dtype=log_det.dtype, device=log_det.device))
             if input_log_det is not None:

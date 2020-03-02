@@ -49,10 +49,12 @@ def main(exp: mltk.Experiment[Config]):
     utils.print_parameters_summary(params, param_names)
     print('')
 
-    # initialize the network with first few batches of train data
+    # initialize the network
     init_x, _ = train_stream.get_arrays(max_batch=exp.config.init_batch_count)
-    _ = net(T.as_tensor(init_x))
+    init_x = T.as_tensor(init_x)
+    _ = net(init_x)  # trigger initialization
     net = tk.layers.jit_compile(net)
+    _ = net(init_x)  # trigger JIT
     mltk.print_with_time('Network initialized')
 
     # define the train and evaluate functions

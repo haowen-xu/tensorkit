@@ -52,8 +52,10 @@ class VAE(tk.layers.BaseLayer):
         self.px_logits = p_builder.dense(500).dense(500).linear(x_dim).build(True)
 
     def initialize(self, x):
-        _ = self.get_chain(T.as_tensor(x)).vi.training.sgvb()
+        x = T.as_tensor(x)
+        _ = self.get_chain(x).vi.training.sgvb()  # trigger initialization
         tk.layers.jit_compile_children(self)
+        _ = self.get_chain(x).vi.training.sgvb()  # trigger JIT
 
     def q(self,
           x: T.Tensor,

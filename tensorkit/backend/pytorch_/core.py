@@ -1369,7 +1369,7 @@ def global_norm(inputs: List[Tensor]) -> Tensor:
     else:
         ret: Tensor = torch.sum(inputs[0] ** 2)
         for t in inputs[1:]:
-            ret += torch.sum(t ** 2)
+            ret = ret + torch.sum(t ** 2)
         return torch.sqrt(ret)
 
 

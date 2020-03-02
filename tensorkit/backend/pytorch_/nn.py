@@ -90,7 +90,7 @@ def l1_regularization(inputs: List[Tensor]) -> Tensor:
     else:
         ret = torch.sum(torch.abs(inputs[0]))
         for t in inputs[1:]:
-            ret += torch.sum(torch.abs(t))
+            ret = ret + torch.sum(torch.abs(t))
         return ret
 
 
@@ -100,7 +100,7 @@ def l2_regularization(inputs: List[Tensor]) -> Tensor:
     else:
         ret = torch.sum(inputs[0] ** 2)
         for t in inputs[1:]:
-            ret += torch.sum(t ** 2)
+            ret = ret + torch.sum(t ** 2)
         ret = torch.sqrt(ret)
         return ret
 
