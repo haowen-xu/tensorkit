@@ -342,7 +342,7 @@ def discretized_logistic_log_prob(given: Tensor,
     if min_val is not None and max_val is not None:
         if biased_edges:
             # broadcasted given, shape == x_mid
-            broadcast_given = broadcast_to_shape(given, shape(x_low))
+            broadcast_given = broadcast_to(given, x_low)
 
             # the left-edge bin case
             #   log(sigmoid(x_high) - sigmoid(-infinity))

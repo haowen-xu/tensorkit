@@ -148,6 +148,8 @@ class Flow(BaseValidateTensorLayer):
             the previous flow layer and this layer.
         """
         if inverse:
+            if not self.explicitly_invertible:
+                raise RuntimeError('Flow is not explicitly invertible.')
             event_ndims = self.y_event_ndims
         else:
             event_ndims = self.x_event_ndims
@@ -291,16 +293,9 @@ class _NotInvertibleFlow(Module):
 
 class SequentialFlow(Flow):
 
-    __constants__ = Flow.__constants__ + ('_chain', '_inverse_chain')
+    __constants__ = Flow.__constants__ + ('_chain',)
 
     _chain: ModuleList
-
-    # The inverse chain is provided, such that JIT support is still okay.
-    # TODO: This separated inverse chain will cause `state_dict()` to have
-    #       duplicated weights.  Deal with this issue.
-    _inverse_chain: ModuleList
-
-    flatten_to_ndims: bool
 
     def __init__(self,
                  *flows: Union[Module, Sequence[Module]]):
@@ -331,11 +326,27 @@ class SequentialFlow(Flow):
         )
 
         self._chain = ModuleList(flows)
-        if self.explicitly_invertible:
-            self._inverse_chain = ModuleList(reversed(flows))
-        else:
-            self._inverse_chain = ModuleList([_NotInvertibleFlow()])
-        self.flatten_to_ndims = bool(flatten_to_ndims)
+
+    # The following method is not compiled by JIT, because:
+    #
+    # 1. PyTorch JIT does not support "self._chain[::-1]" yet, nor does it
+    #    support subscription in ModuleList.
+    # 2. If we provide a separated "_inverse_chain", then it will cost much
+    #    more time to compile the module by JIT, and will double the number
+    #    of parameters returned from `state_dict()`.
+    @jit_ignore
+    def _call_chain(self,
+                   input: Tensor,
+                   input_log_det: Optional[Tensor],
+                   inverse: bool,
+                   compute_log_det: bool
+                   ) -> Tuple[Tensor, Optional[Tensor]]:
+        output, output_log_det = input, input_log_det
+        chain = self._chain[::-1] if inverse else self._chain
+        for flow in chain:
+            output, output_log_det = flow(
+                output, output_log_det, inverse, compute_log_det)
+        return output, output_log_det
 
     def _transform(self,
                    input: Tensor,
@@ -346,21 +357,15 @@ class SequentialFlow(Flow):
         output, output_log_det = input, input_log_det
         event_ndims = self.y_event_ndims if inverse else self.x_event_ndims
 
-        if rank(output) > event_ndims:
+        if rank(output) > event_ndims + 1:
             output, batch_shape = flatten_to_ndims(output, event_ndims + 1)
             if output_log_det is not None:
                 output_log_det = reshape(output_log_det, [-1])
         else:
             batch_shape: Optional[List[int]] = None
 
-        if inverse:
-            for flow in self._inverse_chain:
-                output, output_log_det = flow(
-                    output, output_log_det, True, compute_log_det)
-        else:
-            for flow in self._chain:
-                output, output_log_det = flow(
-                    output, output_log_det, False, compute_log_det)
+        output, output_log_det = self._call_chain(
+            output, output_log_det, inverse, compute_log_det)
 
         if batch_shape is not None:
             output = unflatten_from_ndims(output, batch_shape)
@@ -612,7 +617,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
         weight, log_det = self.invertible_matrix(
             inverse=inverse, compute_log_det=compute_log_det)
         spatial_ndims = self.x_event_ndims - 1
-        weight = reshape(weight, shape(weight) + [1] * spatial_ndims)
+        weight = torch.reshape(weight, weight.shape + (1,) * spatial_ndims)
 
         # compute the output
         output = self._affine_transform(input, weight)
@@ -620,8 +625,9 @@ class InvertibleLinearNd(FeatureMappingFlow):
         # compute the log_det
         output_log_det = input_log_det
         if log_det is not None:
-            for axis in int_range(-spatial_ndims, 0):
-                log_det = log_det * float(input.shape[axis])
+            log_det *= torch.prod(
+                torch.as_tensor(input.shape[input.dim() - spatial_ndims:],
+                                dtype=log_det.dtype, device=log_det.device))
             if input_log_det is not None:
                 output_log_det = input_log_det + log_det
             else:

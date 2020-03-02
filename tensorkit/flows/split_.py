@@ -131,28 +131,28 @@ class SplitFlow(Flow):
                    inverse: bool,
                    compute_log_det: bool
                    ) -> Tuple[Tensor, Optional[Tensor]]:
+        sections: List[int] = []
         if inverse:
-            out_left, out_right = split(
-                input, sections=self.y_sections, axis=self.y_axis)
+            sections.extend(self.y_sections)
+            axis = self.y_axis
             join_axis = self.x_axis
         else:
-            out_left, out_right = split(
-                input, sections=self.x_sections, axis=self.x_axis)
+            sections.extend(self.x_sections)
+            axis = self.x_axis
             join_axis = self.y_axis
 
-        # apply the left transformation
+        out_left, out_right = split(input, sections=sections, axis=axis)
         out_left, output_log_det = self.left(
             input=out_left, input_log_det=input_log_det, inverse=inverse,
             compute_log_det=compute_log_det,
         )
-
         if self.right is not None:
             out_right, output_log_det = self.right(
                 input=out_right, input_log_det=output_log_det, inverse=inverse,
                 compute_log_det=compute_log_det,
             )
-        output = concat([out_left, out_right], axis=join_axis)
 
+        output = concat([out_left, out_right], axis=join_axis)
         return output, output_log_det
 
 

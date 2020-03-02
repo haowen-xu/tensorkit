@@ -77,10 +77,14 @@ class ReshapeFlow(Flow):
                    inverse: bool,
                    compute_log_det: bool
                    ) -> Tuple[Tensor, Optional[Tensor]]:
+        target_shape: List[int] = []
         if inverse:
-            output = reshape_tail(input, self.y_event_ndims, self.x_event_shape)
+            source_ndims = self.y_event_ndims
+            target_shape.extend(self.x_event_shape)
         else:
-            output = reshape_tail(input, self.x_event_ndims, self.y_event_shape)
+            source_ndims = self.x_event_ndims
+            target_shape.extend(self.y_event_shape)
+        output = reshape_tail(input, source_ndims, target_shape)
 
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:

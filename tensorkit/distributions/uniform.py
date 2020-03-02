@@ -147,14 +147,15 @@ class Uniform(Distribution):
                   reduce_ndims: int) -> T.Tensor:
         low = self.low if self.low is not None else 0.
         high = self.high if self.high is not None else 1.
-        b_shape = T.get_broadcast_shape(T.shape(given), self.value_shape)
         log_pdf = self._get_neg_log_high_minus_low()
         log_pdf = log_pdf_mask(
             T.logical_and(low <= given, given <= high),
             log_pdf,
             self.log_zero,
         )
-        log_pdf = T.broadcast_to_shape(log_pdf, b_shape)
+
+        # broadcast against given if required
+        log_pdf = T.broadcast_to(log_pdf, given)
         if reduce_ndims > 0:
             log_pdf = T.reduce_sum(log_pdf, axis=list(range(-reduce_ndims, 0)))
         return log_pdf

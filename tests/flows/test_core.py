@@ -124,11 +124,9 @@ class BaseFlowTestCase(TestCase):
 
         # test output_log_det shape error
         flow = tk.layers.jit_compile(_MyBadFlow())
-        with pytest.raises(Exception,
-                           match='The shape of `output_log_det` is not expected'):
+        with pytest.raises(Exception, match='(shape|size)'):
             _ = flow(x)
-        with pytest.raises(Exception,
-                           match='The shape of `output_log_det` is not expected'):
+        with pytest.raises(Exception, match='(shape|size)'):
             _ = flow(x, inverse=True)
 
 
@@ -278,7 +276,7 @@ class SequentialFlowTestCase(TestCase):
         flow = tk.layers.jit_compile(SequentialFlow(flows))
 
         with pytest.raises(Exception,
-                           match='Not an explicitly invertible flow'):
+                           match='Flow is not explicitly invertible'):
             _ = flow(x, inverse=True)
 
 
@@ -521,7 +519,7 @@ class ScaleTestCase(TestCase):
                           T.random.randn([2, 1, 1]),
                           T.random.randn([2, 3, 4])]:
             expected_y = x * T.exp(pre_scale)
-            expected_log_det = T.broadcast_to_shape(pre_scale, T.shape(x))
+            expected_log_det = T.strict_broadcast_to_shape(pre_scale, T.shape(x))
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
     def test_SigmoidScale(self):
@@ -542,7 +540,7 @@ class ScaleTestCase(TestCase):
                               T.random.randn([2, 1, 1]),
                               T.random.randn([2, 3, 4])]:
                 expected_y = x * T.nn.sigmoid(pre_scale + pre_scale_bias)
-                expected_log_det = T.broadcast_to_shape(
+                expected_log_det = T.strict_broadcast_to_shape(
                     T.nn.log_sigmoid(pre_scale + pre_scale_bias), T.shape(x))
                 check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 
@@ -557,7 +555,7 @@ class ScaleTestCase(TestCase):
                           T.random.randn([2, 1, 1]),
                           T.random.randn([2, 3, 4])]:
             expected_y = x * pre_scale
-            expected_log_det = T.broadcast_to_shape(
+            expected_log_det = T.strict_broadcast_to_shape(
                 T.log(T.abs(pre_scale)), T.shape(x))
             check_scale(self, scale, x, pre_scale, expected_y, expected_log_det)
 

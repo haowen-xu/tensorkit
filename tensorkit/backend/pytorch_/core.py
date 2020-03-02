@@ -52,9 +52,9 @@ __all__ = [
     # shape utils
     'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
     'swap_axes', 'transpose',
-    'get_broadcast_shape', 'broadcast_to_shape', 'broadcast_to',
-    'explicit_broadcast', 'flatten_to_ndims',
-    'unflatten_from_ndims', 'reshape_tail',
+    'get_broadcast_shape', 'broadcast_to_shape', 'strict_broadcast_to_shape',
+    'broadcast_to', 'strict_broadcast_to', 'explicit_broadcast',
+    'flatten_to_ndims', 'unflatten_from_ndims', 'reshape_tail',
 
     # split / join / indexing / gathering ...
     'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
@@ -316,13 +316,14 @@ def as_tensor(data,
 
     if isinstance(data, Tensor):
         # input `data` may be `StochasticTensor`, `Tensor` or `numpy.ndarray`
-        kwargs = {}
-        if data.dtype != target_dtype:
-            kwargs['dtype'] = target_dtype
-        if str(data.device) != device:
-            kwargs['device'] = device
-        if kwargs:
-            data = data.to(**kwargs)
+        from_dev = str(data.device)
+        if data.dtype != target_dtype and from_dev != device:
+            data = data.to(device=device, dtype=target_dtype)
+        elif data.dtype != target_dtype:
+            data = data.to(target_dtype)
+        elif from_dev != device:
+            data = data.to(device=device)
+
         if force_copy:
             data = data.clone()
         return data
@@ -756,10 +757,16 @@ def broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
     output = input
     if list(output.shape) != new_shape:
         output = output + torch.zeros(new_shape, dtype=output.dtype, device=output.device)
-        if list(output.shape) != new_shape:
-            raise ValueError(
-                '`input` cannot be broadcast to `new_shape`: shape(input) {} '
-                'vs new_shape {}'.format(shape(input), new_shape))
+    return output
+
+
+@jit
+def strict_broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
+    output = broadcast_to_shape(input, new_shape)
+    if list(output.shape) != new_shape:
+        raise ValueError(
+            '`input` cannot be broadcast to `new_shape`: shape(input) {} '
+            'vs new_shape {}'.format(shape(input), new_shape))
     return output
 
 
@@ -768,10 +775,16 @@ def broadcast_to(input: Tensor, target: Tensor) -> Tensor:
     output = input
     if output.shape != target.shape:
         output = output + torch.zeros(target.shape, dtype=output.dtype, device=output.device)
-        if output.shape != target.shape:
-            raise ValueError(
-                '`input` cannot be broadcast to `target`: shape(input) {} '
-                'vs shape(target) {}'.format(shape(input), shape(target)))
+    return output
+
+
+@jit
+def strict_broadcast_to(input: Tensor, target: Tensor) -> Tensor:
+    output = broadcast_to(input, target)
+    if output.shape != target.shape:
+        raise ValueError(
+            '`input` cannot be broadcast to `target`: shape(input) {} '
+            'vs shape(target) {}'.format(shape(input), shape(target)))
     return output
 
 

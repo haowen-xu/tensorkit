@@ -65,10 +65,8 @@ class FeatureShufflingFlow(FeatureMappingFlow):
                    inverse: bool,
                    compute_log_det: bool
                    ) -> Tuple[Tensor, Optional[Tensor]]:
-        if inverse:
-            output = index_select(input, self.inv_permutation, axis=self.axis)
-        else:
-            output = index_select(input, self.permutation, axis=self.axis)
+        perm = self.inv_permutation if inverse else self.permutation
+        output = index_select(input, perm, axis=self.axis)
         output_log_det = input_log_det
         if compute_log_det and output_log_det is None:
             output_log_det = float_scalar_like(0., input)
