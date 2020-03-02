@@ -1312,9 +1312,21 @@ class TensorCoreTestCase(TestCase):
                 )
             for axis, p, keepdims in itertools.product(
                         ([], [-3], [2], [-1], [2], [-1, -2], None),
-                        (-2.0, -1.5, -1.0, 0.5, 1.0, 1.5, 2.0, 3.0),
+                        (-2.0, -1.5, -1.0, 0.5, 1, 1.5, 2, 3.0),
                         (True, False),
                     ):
+                if p == 1:
+                    assert_allclose(
+                        T.l1_norm(x_t, axis, keepdims),
+                        norm(x, axis, p, keepdims),
+                        rtol=1e-4, atol=1e-6
+                    )
+                if p == 2:
+                    assert_allclose(
+                        T.l2_norm(x_t, axis, keepdims),
+                        norm(x, axis, p, keepdims),
+                        rtol=1e-4, atol=1e-6
+                    )
                 assert_allclose(
                     T.norm(x_t, axis, p, keepdims),
                     norm(x, axis, p, keepdims),

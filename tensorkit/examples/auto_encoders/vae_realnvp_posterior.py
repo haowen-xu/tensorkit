@@ -148,6 +148,7 @@ def main(exp: mltk.Experiment[Config]):
     params, param_names = utils.get_params_and_names(vae)
     utils.print_parameters_summary(params, param_names)
     print('')
+    mltk.print_with_time('Network constructed.')
 
     # initialize the network with first few batches of train data
     [init_x] = train_stream.get_arrays(max_batch=exp.config.init_batch_count)

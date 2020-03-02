@@ -54,9 +54,20 @@ DEFAULT_BIAS_INIT = init.zeros
 
 # ---- utils ----
 def jit_compile(m: Module) -> Module:
+    """
+    Compile `m` and all children modules of `m`  with JIT.
+
+    Args:
+        m: The module.
+
+    Returns:
+        The compiled `m` module.
+    """
     if is_module_jit_enabled():
-        m = jit_compile_children(m)
-        m = torch_script(m)
+        if isinstance(m, Module) and \
+                not isinstance(m, torch.jit.ScriptModule):
+            m = jit_compile_children(m)
+            m = torch_script(m)
     return m
 
 

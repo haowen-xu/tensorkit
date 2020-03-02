@@ -40,7 +40,7 @@ class Branch(BaseLayer):
 
     def forward(self, input: Tensor) -> List[Tensor]:
         outputs: List[Tensor] = []
-        shared_output = self.shared(input)
+        input = self.shared(input)
         for branch in self.branches:
-            outputs.append(branch(shared_output))
+            outputs.append(branch(input))
         return outputs

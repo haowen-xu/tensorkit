@@ -1,7 +1,7 @@
 from typing import *
 
 from ..arg_check import *
-from ..tensor import Tensor, Module, jit_method
+from ..tensor import Tensor, Module
 from ..typing_ import *
 from .contextual import *
 from .core import *
@@ -406,14 +406,8 @@ class ResBlockNd(BaseLayer):
         if context is None:
             context = []
 
-        # feed the input into both the shortcut and the residual path
-        residual = shortcut = input
-
-        # compute the shortcut path
-        shortcut = self.shortcut(shortcut)
-
         # compute the residual path
-        residual = self.pre_conv0(residual)
+        residual = self.pre_conv0(input)
         residual = self.conv0(residual)
         residual = self.merge_context0(residual, context)
         residual = self.pre_conv1(residual)
@@ -421,10 +415,8 @@ class ResBlockNd(BaseLayer):
         residual = self.merge_context1(residual, context)
         residual = self.post_conv1(residual)
 
-        # sum up the shortcut path and the residual path
-        output = shortcut + residual
-
-        return output
+        # sum up the shortcut path and the residual path as the final output
+        return self.shortcut(input) + residual
 
 
 class ResBlockConvNd(ResBlockNd):

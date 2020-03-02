@@ -71,7 +71,8 @@ __all__ = [
     'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
     'argmax', 'argmin', 'log_sum_exp', 'log_mean_exp',
     # 'all', 'any',
-    'calculate_mean_and_var', 'norm', 'norm_except_axis', 'global_norm',
+    'calculate_mean_and_var', 'l1_norm', 'l2_norm', 'norm',
+    'norm_except_axis', 'global_norm',
 
     # logical operators
     'logical_not', 'logical_and', 'logical_or', 'logical_xor', 'multiply_mask',
@@ -1264,6 +1265,20 @@ def calculate_mean_and_var(input: Tensor,
 
 
 @jit
+def l1_norm(input: Tensor,
+            axis: Optional[List[int]] = None,
+            keepdims: bool = False) -> Tensor:
+    return reduce_sum(torch.abs(input), axis=axis, keepdims=keepdims)
+
+
+@jit
+def l2_norm(input: Tensor,
+            axis: Optional[List[int]] = None,
+            keepdims: bool = False) -> Tensor:
+    return torch.sqrt(reduce_sum(input ** 2, axis=axis, keepdims=keepdims))
+
+
+@jit
 def norm(input: Tensor,
          axis: Optional[List[int]] = None,
          p: float = 2,
@@ -1283,9 +1298,9 @@ def norm(input: Tensor,
         The Lp-norm of the tensor.
     """
     if p == 2:
-        return sqrt(reduce_sum(input ** 2, axis=axis, keepdims=keepdims))
+        return l2_norm(input, axis, keepdims)
     elif p == 1:
-        return reduce_sum(abs(input), axis=axis, keepdims=keepdims)
+        return l1_norm(input, axis, keepdims)
     else:
         p_inv = 1. / p
         return pow(
@@ -1456,7 +1471,7 @@ def clip(x: Tensor, min_val: float, max_val: float) -> Tensor:
 def clip_by_norm(input: Tensor,
                  clip_norm: float,
                  axis: Optional[List[int]] = None) -> Tensor:
-    input_norm = norm(input, axis=axis, keepdims=True)
+    input_norm = l2_norm(input, axis=axis, keepdims=True)
     scale = torch.min(
         clip_norm / input_norm,
         float_scalar_like(1.0, input)
