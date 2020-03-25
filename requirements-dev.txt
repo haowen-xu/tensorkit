@@ -1,11 +1,12 @@
 -r requirements.txt
 
-coverage >= 4.3.4
+pytest
+pytest-cov
+pytest-doctest-import >= 0.1.1
+coveralls >= 1.11.1
+
 mock >= 2.0.0
 numba
-pytest >= 3.0
-pytest-doctest-import >= 0.1.1
-
 
 # dependencies required only for running the examples
 imageio >= 2.3.0
