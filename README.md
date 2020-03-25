@@ -1,5 +1,8 @@
 ## TensorKit
 
+[![](https://github.com/haowen-xu/tensorkit/workflows/unittest/badge.svg?branch=master)](https://github.com/haowen-xu/tensorkit/actions)
+[![](https://coveralls.io/repos/github/haowen-xu/tensorkit/badge.svg?branch=master)](https://coveralls.io/github/haowen-xu/tensorkit?branch=master)
+
 ### Dependencies
 
 * Python: 3.6/3.7
@@ -8,7 +11,7 @@
 ### Installation
 
 ```bash
-pip install git+https://github.com/haowen-xu/ml-essentials.git
+pip install git+https://github.com/haowen-xu/tensorkit.git
 pip install git+https://github.com/haowen-xu/tensorkit.git
 ```
 

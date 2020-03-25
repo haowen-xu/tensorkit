@@ -1,4 +1,4 @@
-name: UnitTest
+name: unittest
 
 on: [push]
 
@@ -30,7 +30,7 @@ jobs:
 
       # Test with PyTorch 1.3.1
       - name: Install PyTorch 1.3.1
-        run: pip install torch == 1.3.1
+        run: pip install "torch==1.3.1"
 
       - name: Test with PyTorch 1.3.1
         run: |
