@@ -17,7 +17,6 @@ jobs:
         run: |
           sudo docker run -t --rm \
             -v "$(pwd)":/prj \
-            --build-arg CACHEBURST="$(date +%s)" \
             --env COVERALLS_SERVICE_NAME=github \
             --env COVERALLS_REPO_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             --env COVERALLS_GIT_BRANCH="${{ github.ref }}"
