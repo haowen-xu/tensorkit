@@ -18,8 +18,8 @@ jobs:
           sudo docker run -t --rm \
             -v "$(pwd)":/prj \
             --env COVERALLS_SERVICE_NAME=github \
-            --env COVERALLS_REPO_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            --env COVERALLS_GIT_BRANCH="${{ github.ref }}"
-            --env COVERALLS_GIT_COMMIT="${{ github.sha }}"
-            "haowenxu/ml-runtime2:cpu-py${{ matrix.python-version }}"
+            --env COVERALLS_REPO_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            --env COVERALLS_GIT_BRANCH="${{ github.ref }}" \
+            --env COVERALLS_GIT_COMMIT="${{ github.sha }}" \
+            "haowenxu/ml-runtime2:cpu-py${{ matrix.python-version }}" \
             bash /prj/.github/workflows/unittest.sh
