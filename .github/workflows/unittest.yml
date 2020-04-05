@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +22,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+
+      - name: Install graph-tool
+        run: |
+          echo "deb http://downloads.skewed.de/apt/bionic bionic universe" | sudo tee /etc/apt/sources.list
+          sudo apt-key adv --keyserver keys.openpgp.org --recv-key 612DEFB798507F25
+          sudo apt-get update
+          sudo apt-get install -y python3-graph-tool
 
       - name: Print Python package versions
         run: |

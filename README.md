@@ -15,6 +15,9 @@ pip install git+https://github.com/haowen-xu/tensorkit.git
 pip install git+https://github.com/haowen-xu/tensorkit.git
 ```
 
+You may also need to install [graph-tool](https://git.skewed.de/count0/graph-tool/-/wikis/installation-instructions) 
+to enable certain utilities of graph neural networks.
+
 ### Examples
 
 * Classification:

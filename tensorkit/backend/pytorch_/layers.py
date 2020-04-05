@@ -23,7 +23,7 @@ __all__ = [
     'set_train_mode', 'set_eval_mode',
 
     # parameter store modules
-    'ParamStore', 'SimpleParamStore',
+    'ParamStore', 'SimpleParamStore', 'NullParamStore',
     'NormedWeightStore', 'NormedAndScaledWeightStore',
     'get_weight_store', 'get_bias_store',
 
@@ -194,7 +194,7 @@ def set_eval_mode(layer: Module):
 
 
 # ---- weight wrapper: a simple weight, or a normed weight ----
-class _NullParamStore(Module):
+class NullParamStore(Module):
     # This module is actually not used in any context.
     # It is just a place-holder module, to gain JIT support.
 
@@ -526,7 +526,7 @@ class CoreLinear(BaseLayer):
         bias_store = get_bias_store(
             bias_shape, initializer=bias_init, use_bias=use_bias, device=device)
         if bias_store is None:
-            bias_store = _NullParamStore(device=device)
+            bias_store = NullParamStore(device=device)
 
         if data_init is not None:
             if not isinstance(data_init, init.DataDependentInitializer) and \

@@ -85,6 +85,14 @@ class Settings(Config):
                     'Changing the value of this configuration at runtime will '
                     'not take effect.'
     )
+    sparse_enable_jit: Optional[bool] = ConfigField(
+        default=None,
+        envvar='TENSORKIT_SPARSE_ENABLE_JIT',
+        description='Whether or not to enable JIT engine on sparse functions '
+                    'and modules?  If not specified, determined by the backend. '
+                    'Changing the value of this configuration at runtime will '
+                    'not take effect.'
+    )
 
 
 settings = Settings()

@@ -410,6 +410,33 @@ class TensorCoreTestCase(TestCase):
                     with pytest.raises(Exception, match='`axis` out of range'):
                         _ = T.one_hot(T.as_tensor(x), n_classes, axis=axis)
 
+        # eye
+        for n, m in zip([2, 3, 4], [2, 3, 4]):
+            for dtype in number_dtypes:
+                t = T.eye(n, m, dtype)
+                self.assertEqual(T.get_dtype(t), dtype)
+                assert_allclose(t, np.eye(n, m))
+
+        with T.use_device(T.CPU_DEVICE):
+            t = T.eye(5)
+            self.assertEqual(T.get_dtype(t), T.float_x())
+            self.assertEqual(T.get_device(t), T.CPU_DEVICE)
+            assert_allclose(t, np.eye(5))
+
+        # diag
+        for dtype in number_dtypes:
+            v = T.arange(0, 5, dtype=dtype)
+            for k in [-1, 0, 1]:
+                t = T.diag(v, k)
+                self.assertEqual(T.get_dtype(t), dtype)
+                assert_allclose(t, np.diag(T.to_numpy(v), k))
+
+        with T.use_device(T.CPU_DEVICE):
+            v = T.random.randn([5])
+            t = T.diag(v)
+            self.assertEqual(T.get_device(t), T.CPU_DEVICE)
+            assert_allclose(t, np.diag(T.to_numpy(v)))
+
     def test_to_numpy(self):
         x = np.random.randn(2, 3, 4)
         t = T.as_tensor(x)
@@ -550,11 +577,11 @@ class TensorCoreTestCase(TestCase):
                     T.assign_data(x, T.zeros([2], dtype=dtype))
 
     def test_shape_utils(self):
-        # test shape
+        # test shape and length
         x = np.random.randn(2, 3, 4)
         t = T.as_tensor(x)
-        s = T.shape(t)
-        self.assertEqual(s, [2, 3, 4])
+        self.assertEqual(T.shape(t), [2, 3, 4])
+        self.assertEqual(T.length(t), 2)
 
         # test rank
         self.assertEqual(T.rank(t), 3)
@@ -1516,6 +1543,8 @@ class TensorCoreTestCase(TestCase):
         self.assertTrue(np.any(x < -0.5))
         self.assertTrue(np.any(x > 0.5))
         assert_equal(T.clip(t1, -0.5, 0.5), np.clip(x, -0.5, 0.5))
+        assert_equal(T.clip_right(t1, 0.5), np.minimum(x, 0.5))
+        assert_equal(T.clip_left(t1, -0.5), np.maximum(x, -0.5))
 
         # test maybe_clip
         assert_equal(T.maybe_clip(t1), x)

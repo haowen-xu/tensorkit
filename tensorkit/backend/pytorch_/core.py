@@ -5,6 +5,7 @@ from typing import *
 import numpy as np
 import torch
 import torch.jit
+import torch.sparse
 import torch.nn.functional
 
 from ...settings_ import settings, JitMode
@@ -14,11 +15,11 @@ __all__ = [
     'IS_CHANNEL_LAST', 'EPSILON', 'CPU_DEVICE',
 
     # typing
-    'Tensor', 'Variable', 'Module',
+    'Tensor', 'SparseTensor', 'Variable', 'Module',
 
     # ordinary module base classes
     # jit
-    'is_function_jit_enabled', 'is_module_jit_enabled',
+    'is_function_jit_enabled', 'is_module_jit_enabled', 'is_sparse_jit_enabled',
     'jit', 'jit_ignore', 'jit_method',
 
     # device
@@ -38,7 +39,7 @@ __all__ = [
     'as_tensor', 'from_numpy',
     'float_scalar', 'float_scalar_like', 'int_scalar', 'int_scalar_like',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
-    'arange', 'one_hot',
+    'arange', 'one_hot', 'eye', 'diag',
 
     # to_numpy
     'to_numpy',
@@ -50,8 +51,8 @@ __all__ = [
     'fill', 'fill_zeros', 'assign', 'assign_data',
 
     # shape utils
-    'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze', 'expand_dim',
-    'swap_axes', 'transpose',
+    'length', 'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze',
+    'expand_dim', 'swap_axes', 'transpose',
     'get_broadcast_shape', 'broadcast_to_shape', 'strict_broadcast_to_shape',
     'broadcast_to', 'strict_broadcast_to', 'explicit_broadcast',
     'flatten_to_ndims', 'unflatten_from_ndims', 'reshape_tail',
@@ -80,7 +81,8 @@ __all__ = [
 
     # comparison operators (resulting in `boolean` dtype)
     'equal', 'not_equal', 'less', 'less_equal', 'greater', 'greater_equal',
-    'minimum', 'maximum', 'clip', 'maybe_clip', 'clip_by_norm',
+    'minimum', 'maximum',
+    'clip', 'clip_right', 'clip_left', 'maybe_clip', 'clip_by_norm',
     'clip_by_global_norm',
 
     # sort operators
@@ -110,6 +112,7 @@ CPU_DEVICE = 'cpu'
 
 # ---- typing ----
 Tensor = torch.Tensor
+SparseTensor = torch.Tensor
 Variable = torch.Tensor
 Module = torch.nn.Module
 
@@ -121,6 +124,10 @@ def is_function_jit_enabled() -> bool:
 
 def is_module_jit_enabled() -> bool:
     return settings.jit_mode is not None and settings.jit_mode == JitMode.ALL
+
+
+def is_sparse_jit_enabled() -> bool:
+    return settings.sparse_enable_jit is not False
 
 
 def jit(fn):
@@ -534,6 +541,31 @@ def one_hot(input: Tensor,
     return ret
 
 
+@jit
+def eye(n: int,
+        m: Optional[int] = None,
+        dtype: str = settings.float_x,
+        device: Optional[str] = None):
+    if dtype == 'float32':
+        target_dtype = torch.float32
+    elif dtype == 'int32':
+        target_dtype = torch.int32
+    else:
+        target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+
+    if m is None:
+        m = n
+    if device is None:
+        device = current_device()
+
+    return torch.eye(n, m, dtype=target_dtype, device=device)
+
+
+@jit
+def diag(v: Tensor, k: int = 0) -> Tensor:
+    return torch.diag(v, k)
+
+
 # ---- to_numpy ----
 @jit_ignore
 def to_numpy(input: Tensor) -> np.ndarray:
@@ -651,6 +683,11 @@ def assign_data(dst: Tensor, src) -> Tensor:
 
 
 # ---- shape utils ----
+@jit
+def length(input: Tensor) -> int:
+    return input.shape[0]
+
+
 @jit
 def shape(input: Tensor) -> List[int]:
     return list(input.shape)
@@ -1465,6 +1502,16 @@ def maximum(x: Tensor, y: Tensor) -> Tensor:
 @jit
 def clip(x: Tensor, min_val: float, max_val: float) -> Tensor:
     return torch.clamp(x, min_val, max_val)
+
+
+@jit
+def clip_right(x: Tensor, max_val: float) -> Tensor:
+    return torch.min(x, float_scalar_like(max_val, x))
+
+
+@jit
+def clip_left(x: Tensor, min_val: float) -> Tensor:
+    return torch.max(x, float_scalar_like(min_val, x))
 
 
 @jit

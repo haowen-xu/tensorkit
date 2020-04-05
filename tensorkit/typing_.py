@@ -78,6 +78,6 @@ PaddingArgType = Union[Sequence[Union[Tuple[int, int], int]], int, str,
 
 
 # import these types for type annotation
-from .backend.core import Module
+from .backend.core import Tensor, Module
 from .backend.init import DataDependentInitializer
 from .stochastic import StochasticTensor
