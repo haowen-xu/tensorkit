@@ -13,15 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Generate docker file
-        run: |
-          cat ./.github/workflows/Dockerfile >> Dockerfile
-          sed -i 's/py3.6/py${{ matrix.python-version }}/g' Dockerfile
-          cat Dockerfile
-
       - name: Run the test via docker
         run: |
-          sudo docker build -t tensorkit-pytest .
           sudo docker run -t --rm \
             -v "$(pwd)":/prj \
             --build-arg CACHEBURST="$(date +%s)" \
@@ -29,4 +22,5 @@ jobs:
             --env COVERALLS_REPO_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             --env COVERALLS_GIT_BRANCH="${{ github.ref }}"
             --env COVERALLS_GIT_COMMIT="${{ github.sha }}"
-            tensorkit-pytest
+            "haowenxu/ml-runtime2:cpu-py${{ matrix.python-version }}"
+            bash /prj/.github/workflows/unittest.sh
