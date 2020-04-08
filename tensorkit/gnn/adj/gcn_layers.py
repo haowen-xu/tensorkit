@@ -8,7 +8,7 @@ from ...layers import (DEFAULT_WEIGHT_INIT, DEFAULT_BIAS_INIT,
                        BaseLayer, ModuleList, ParamStore, Identity,
                        NullParamStore, Sequential, Linear, SimpleParamStore)
 from ...tensor import (IS_CHANNEL_LAST, Module, Tensor, shape,
-                       reshape, concat)
+                       reshape, concat, add_n)
 from ...tensor.sparse import matmul, sparse_jit_method
 from ...typing_ import *
 
@@ -245,15 +245,12 @@ class PartitionedGCNLayer(BaseGCNLayer):
         # compute the outputs of modules
         merge_mode = self.merge_mode
         outputs: List[Tensor] = []
-        output: Tensor = input
         output_shape = (
             [-1] +
             input_shape[i_rank - self.feature_matrix_ndims + 1:]
         )
 
         i = 0
-        first_output = True
-
         for m in self.partition_modules:
             # apply the adjacency matrix A_i
             m_output = matmul(adj[i], input)
@@ -264,14 +261,7 @@ class PartitionedGCNLayer(BaseGCNLayer):
 
             # apply the `f_i()` transformation
             m_output = m(m_output)
-            if merge_mode == 0:  # add
-                if first_output:
-                    output = m_output
-                    first_output = False
-                else:
-                    output = output + m_output
-            else:
-                outputs.append(m_output)
+            outputs.append(m_output)
 
             # move to next module
             i += 1
@@ -281,26 +271,25 @@ class PartitionedGCNLayer(BaseGCNLayer):
             if not two_dimensional_case:
                 input = reshape(input, output_shape)
             m_output = self.self_module(input)
-            if merge_mode == 0:  # since `modules` cannot be empty
-                output = output + m_output
-            else:
-                outputs.append(m_output)
+            outputs.append(m_output)
 
-        # merge if "concat"
-        if merge_mode == 1:
-            output = concat(outputs, axis=self.feature_axis)
+        # merge if "concat", or sum if "add"
+        if merge_mode == 0:
+            input = add_n(outputs)
+        else:
+            input = concat(outputs, axis=self.feature_axis)
 
         # de-reference intermediate results to free the memory immediately
         outputs = []
-        input = m_output = output
+        m_output = input
 
         # add bias
         if self.use_bias:
-            input = m_output = output = input + self.bias_store()
+            m_output = input = input + self.bias_store()
 
         # apply post-linear
         if self.use_post_linear:
-            input = m_output = output = self.post_linear(input)
+            m_output = input = self.post_linear(input)
 
         # reshape to the final output shape: `(N, B1, B2, ..., K1, K2, ...)`
         if not two_dimensional_case:
@@ -308,7 +297,7 @@ class PartitionedGCNLayer(BaseGCNLayer):
                 input_shape[:i_rank - self.feature_matrix_ndims + 1] +
                 shape(input)[1:]
             )
-            input = m_output = output = reshape(input, output_shape)
+            m_output = input = reshape(input, output_shape)
 
         return input
 

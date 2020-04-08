@@ -1,11 +1,13 @@
+import math
+from functools import partial
 from typing import *
 
 import torch
+from mltk import NOT_SET
 from torch import nn as torch_nn
 from torch.jit import script as torch_script
 from torch.nn import ModuleList
 
-from ...settings_ import settings
 from ...typing_ import *
 from ...arg_check import *
 from . import init
@@ -43,6 +45,9 @@ __all__ = [
 
     # dropout layers
     'Dropout', 'Dropout1d', 'Dropout2d', 'Dropout3d',
+
+    # embedding layers
+    'Embedding', 'Embedding1d', 'Embedding2d', 'Embedding3d',
 ]
 
 
@@ -988,3 +993,77 @@ class Dropout1d(BaseLayer):
 
 Dropout2d = torch_nn.Dropout2d
 Dropout3d = torch_nn.Dropout3d
+
+
+# ---- embedding layers ----
+class Embedding(BaseLayer):
+
+    __constants__ = ('weight',)
+
+    def __init__(self,
+                 n_embeddings: int,
+                 embedding_size: Union[int, List[int]],
+                 initializer: TensorInitArgType = NOT_SET,
+                 freeze: bool = False,
+                 device: Optional[str] = None,
+                 ):
+        n_embeddings = int(n_embeddings)
+
+        if hasattr(embedding_size, '__iter__'):
+            embedding_size = list(map(int, embedding_size))
+        else:
+            embedding_size = [int(embedding_size)]
+        if not embedding_size:
+            raise ValueError(f'`embedding_size` must not be empty.')
+
+        if initializer is NOT_SET:
+            std = 1. / math.sqrt(embedding_size[0])
+            a = math.sqrt(3.0) * std  # such that U(-a, a) will have standard deviation `std`
+            initializer = partial(init.uniform, low=-a, high=a)
+
+        super().__init__()
+        w = variable(shape=[n_embeddings] + embedding_size, device=device,
+                     initializer=initializer)
+        add_parameter(self, 'weight', w, requires_grad=not freeze)
+
+    def forward(self, input: Tensor) -> Tensor:
+        return embedding(self.weight, input)
+
+
+class EmbeddingNd(Embedding):
+
+    def __init__(self,
+                 n_embeddings: int,
+                 embedding_size: List[int],
+                 initializer: TensorInitArgType = NOT_SET,
+                 freeze: bool = False,
+                 device: Optional[str] = None,
+                 ):
+        spatial_ndims = self._get_spatial_ndims()
+        if len(embedding_size) != spatial_ndims + 1:
+            raise ValueError(
+                f'`embedding_size` must be a int list with {spatial_ndims + 1} '
+                f'elements: got {embedding_size!r}.')
+        embedding_size = list(map(int, embedding_size))
+        super().__init__(n_embeddings, embedding_size, initializer, freeze, device)
+
+    def _get_spatial_ndims(self) -> int:
+        raise NotImplementedError()
+
+
+class Embedding1d(EmbeddingNd):
+
+    def _get_spatial_ndims(self) -> int:
+        return 1
+
+
+class Embedding2d(EmbeddingNd):
+
+    def _get_spatial_ndims(self) -> int:
+        return 2
+
+
+class Embedding3d(EmbeddingNd):
+
+    def _get_spatial_ndims(self) -> int:
+        return 3

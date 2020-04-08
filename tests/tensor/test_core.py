@@ -1125,6 +1125,21 @@ class TensorCoreTestCase(TestCase):
         assert_equal(T.flip_axis(x_t, 0), x[::-1])
         assert_equal(T.flip_axis(x_t, 1), x[:, ::-1])
 
+        # embedding
+        for w_shape in ([5, 7], [5, 6, 7]):
+            weight = np.random.randn(*w_shape)
+            for i_shape in ([3], [3, 4]):
+                indices = np.random.randint(0, 5, i_shape)
+                expected = weight[indices.reshape([-1])].reshape(i_shape + w_shape[1:])
+                for dtype in (T.int32, T.int64):
+                    output = T.embedding(
+                        T.as_tensor(weight), T.as_tensor(indices, dtype=dtype))
+                    assert_allclose(output, expected, rtol=1e-4, atol=1e-6)
+
+        with pytest.raises(Exception, match='`weight` must be at least 2d'):
+            _ = T.embedding(T.random.randn([3]),
+                            T.random.randint(0, 3, shape=[1]))
+
     def test_math_univariate_op(self):
         x = np.random.randn(2, 3)
         u = np.random.rand(2, 3)

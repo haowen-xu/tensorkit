@@ -677,3 +677,85 @@ class DropoutTestCase(TestCase):
             y = layer(x)
             self.assertTrue(np.all(T.to_numpy(y) != 0))
             assert_allclose(y, x, rtol=1e-4, atol=1e-6)
+
+
+class EmbeddingTestCase(TestCase):
+
+    def test_embedding(self):
+        n_channels = 3
+        n_embeddings = n_samples
+
+        for spatial_ndims in (0, 1, 2, 3):
+            w_shape = make_conv_shape([], n_channels, [4, 5, 6][:spatial_ndims])
+            w_size = int(np.prod(w_shape))
+
+            layer = getattr(tk.layers, (f'Embedding{spatial_ndims}d'
+                                        if spatial_ndims > 0 else 'Embedding'))(
+                n_embeddings,
+                w_shape
+            )
+            weight = layer.weight
+
+            # check the weight
+            self.assertEqual(T.shape(weight), [n_embeddings] + w_shape)
+            reduce_axis = list(range(len(w_shape) + 1))
+            reduce_axis.pop(-1 if T.IS_CHANNEL_LAST else 1)
+            w_mean = np.average(T.to_numpy(weight), axis=tuple(reduce_axis))
+            np.testing.assert_array_less(
+                w_mean,
+                3. / np.sqrt(n_samples * w_size / n_channels)
+            )
+
+            # check the output
+            layer = jit_compile(layer)
+            weight_array = T.to_numpy(weight)
+
+            for in_shape in ([7], [7, 8]):
+                indices = T.random.randint(0, n_samples, in_shape)
+                indices = T.concat([indices, indices[:3]], axis=0)
+
+                # check the output
+                output = layer(indices)
+                assert_allclose(output, T.embedding(weight, indices))
+
+                # check the grad
+                if spatial_ndims in (0, 1):
+                    out_sum = T.reduce_sum(output ** 2)
+                    [grad] = T.grad([out_sum], [weight])
+                    expected_grad = np.zeros(T.shape(weight))
+                    for idx in T.to_numpy(indices).reshape([-1]):
+                        expected_grad[idx] += 2. * weight_array[idx]
+                    assert_allclose(grad, expected_grad)
+
+            # test the constructor error
+            if spatial_ndims > 0:
+                with pytest.raises(ValueError,
+                                   match=f'`embedding_size` must be a int list '
+                                         f'with {spatial_ndims + 1} elements'):
+                    _ = getattr(tk.layers, f'Embedding{spatial_ndims}d')(
+                        n_embeddings,
+                        w_shape[:-1]
+                    )
+
+        # test no grad
+        layer = Embedding(n_embeddings, n_channels, freeze=True)
+        weight = layer.weight
+        self.assertEqual(T.shape(weight), [n_embeddings, n_channels])
+
+        layer = jit_compile(layer)
+        indices = T.random.randint(0, n_samples, [7, 8])
+        output = layer(indices)
+        assert_allclose(output, T.embedding(weight, indices))
+
+        out_sum = T.reduce_sum(output ** 2)
+        try:
+            [grad] = T.grad([out_sum], [weight])
+        except Exception:
+            pass
+        else:
+            self.assertTrue(T.is_null_grad(weight, grad))
+
+        # test errors
+        with pytest.raises(ValueError,
+                           match='`embedding_size` must not be empty'):
+            _ = Embedding(n_embeddings, [])

@@ -12,7 +12,7 @@ __all__ = [
     'seed', 'set_deterministic',
 
     # uniform
-    'rand', 'uniform',
+    'rand', 'uniform', 'randint',
 
     # shuffle and random permutation
     'shuffle', 'random_permutation',
@@ -72,6 +72,26 @@ def uniform(shape: List[int], low: float, high: float,
                          format(low, high))
     scale = high - low
     return rand(shape, dtype, device=device) * scale + low
+
+
+@jit
+def randint(low: int, high: int, shape: List[int],
+            dtype: str = 'int32',
+            device: Optional[str] = None) -> Tensor:
+    if low >= high:
+        raise ValueError('`low` < `high` does not hold: low == {}, high == {}'.
+                         format(low, high))
+
+    if dtype == 'float32':
+        target_dtype = torch.float32
+    elif dtype == 'int32':
+        target_dtype = torch.int32
+    else:
+        target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+
+    if device is None:
+        device = current_device()
+    return torch.randint(low, high, size=shape, dtype=target_dtype, device=device)
 
 
 # ---- shuffle and random permutation ----

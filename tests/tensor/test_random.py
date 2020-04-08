@@ -84,6 +84,38 @@ class TensorRandomTestCase(TestCase):
                            match='`low` < `high` does not hold'):
             _ = T.random.uniform([2, 3, 4], low=2., high=1.)
 
+    def test_randint(self):
+        for low, high in [(0, 5), (-3, 4)]:
+            for dtype, device in product(number_dtypes, [None, T.CPU_DEVICE]):
+                # test sample dtype and shape
+                t = T.random.randint(
+                    low=low, high=high, shape=[n_samples, 2, 3, 4], dtype=dtype,
+                    device=device
+                )
+                self.assertEqual(T.get_dtype(t), dtype)
+                self.assertEqual(T.get_device(t), device or T.current_device())
+                self.assertEqual(T.shape(t), [n_samples, 2, 3, 4])
+                x = T.to_numpy(t).astype(np.int32)
+
+                # test sample value range
+                r = list(range(low, high))
+                self.assertTrue(all(
+                    (int(v) in r) for v in set(x.reshape([-1]).tolist())
+                ))
+
+                # test the prob of each value
+                p = 1. / len(r)
+                size = 1. * np.size(x)
+                for i in r:
+                    self.assertLessEqual(
+                        abs(np.sum(x == i) / size - p),
+                        5. * np.sqrt(p * (1. - p)) / np.sqrt(size)
+                    )
+
+        with pytest.raises(Exception,
+                           match='`low` < `high` does not hold'):
+            _ = T.random.randint(low=2, high=1, shape=[2, 3, 4])
+
     def test_shuffle_and_random_permutation(self):
         x = np.arange(24).reshape([2, 3, 4])
 

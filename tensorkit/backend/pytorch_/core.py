@@ -59,7 +59,7 @@ __all__ = [
 
     # split / join / indexing / gathering ...
     'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
-    'pad', 'pad_axis', 'shift', 'shift_axis', 'flip', 'flip_axis',
+    'pad', 'pad_axis', 'shift', 'shift_axis', 'flip', 'flip_axis', 'embedding',
 
     # math operators
     'floor', 'ceil', 'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin',
@@ -1077,6 +1077,31 @@ def flip_axis(input: Tensor, axis: int) -> Tensor:
 @jit
 def flip(input: Tensor, axis: List[int]) -> Tensor:
     return torch.flip(input, axis)
+
+
+@jit
+def embedding(weight: Tensor, indices: Tensor) -> Tensor:
+    # ensure `input` is int64
+    if indices.dtype != torch.int64:
+        indices = indices.to(torch.int64)
+
+    # `torch.embedding` only supports 2d `weight`, thus we must reshape to 2d.
+    if weight.dim() != 2:
+        if weight.dim() < 2:
+            raise ValueError('`weight` must be at least 2d: got shape {}'.
+                             format(weight.shape))
+        back_shape: Optional[List[int]] = list(weight.shape[1:])
+        weight = weight.reshape((weight.shape[0], -1))
+    else:
+        back_shape: Optional[List[int]] = None
+
+    # do embedding lookup
+    weight = torch.embedding(weight, indices)
+
+    # reshape back to match the shape of `weight`
+    if back_shape is not None:
+        weight = weight.reshape(list(indices.shape) + back_shape)
+    return weight
 
 
 # ---- univariate element-wise math operations ----
