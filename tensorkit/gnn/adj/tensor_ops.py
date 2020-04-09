@@ -4,17 +4,20 @@ from ... import tensor as T
 
 __all__ = [
     'add_self_loop_to_adj', 'transpose_adj', 'normalize_adj',
-    'merge_adj', 'split_adj',
+    'normalize_partitioned_adj', 'merge_adj', 'split_adj',
 ]
 
 
 # ---- adjacency matrix ops ----
-def _check_adj_matrix(adj_matrix: T.SparseTensor):
+def _check_adj_matrix(adj_matrix: T.SparseTensor,
+                      size: Optional[int] = None
+                      ) -> int:
     s = T.sparse.shape(adj_matrix)
-    if len(s) != 2 or s[0] != s[1]:
+    if len(s) != 2 or s[0] != s[1] or (size is not None and s[0] != size):
         raise ValueError(
             '`adj_matrix` is required to be a matrix with equal sizes '
             'in its dimensions: got shape {}.'.format(s))
+    return s[0]
 
 
 @T.jit_ignore
@@ -54,7 +57,7 @@ def _col_div(m: T.SparseTensor, v: T.Tensor) -> T.SparseTensor:
 @T.jit_ignore
 def normalize_adj(adj_matrix: T.SparseTensor,
                   undirected: bool = False,
-                  epsilon: float = 1e-7) -> T.SparseTensor:
+                  epsilon: float = T.EPSILON) -> T.SparseTensor:
     _check_adj_matrix(adj_matrix)
     adj_matrix = T.sparse.coalesce(adj_matrix)
 
@@ -72,6 +75,39 @@ def normalize_adj(adj_matrix: T.SparseTensor,
         adj_matrix = _row_div(adj_matrix, degree)
 
     return adj_matrix
+
+
+@T.jit_ignore
+def normalize_partitioned_adj(adj_matrices: List[T.SparseTensor],
+                              undirected: bool = False,
+                              epsilon: float = T.EPSILON
+                              ) -> List[T.SparseTensor]:
+    # check the size
+    if not adj_matrices:
+        raise ValueError(f'`adj_matrices` must not be empty.')
+    size = _check_adj_matrix(adj_matrices[0])
+    for adj_matrix in adj_matrices[1:]:
+        _check_adj_matrix(adj_matrix, size)
+
+    # do coalesce
+    adj_matrices = [T.sparse.coalesce(adj) for adj in adj_matrices]
+
+    # normalize the adj matrices
+    degree = T.add_n([
+        T.sparse.to_dense(T.sparse.reduce_sum(adj, axis=-1))
+        for adj in adj_matrices
+    ])
+    if epsilon != 0.:
+        degree = T.clip_left(degree, epsilon)
+
+    if undirected:
+        degree_sqrt = T.sqrt(degree)
+        adj_matrices = [_row_div(a, degree_sqrt) for a in adj_matrices]
+        adj_matrices = [_col_div(a, degree_sqrt) for a in adj_matrices]
+    else:
+        adj_matrices = [_row_div(a, degree) for a in adj_matrices]
+
+    return adj_matrices
 
 
 @T.jit_ignore

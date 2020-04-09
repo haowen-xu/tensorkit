@@ -36,30 +36,58 @@ class AdjMatrixTestCase(TestCase):
         assert_adj_matrix_shape(gnn.transpose_adj)
 
     def test_normalize_adj(self):
+        def D(t):
+            return np.diag(1. / t)
+
         node_count = 50
         eps = 1e-6
 
         # directed
-        x = make_random_adj_matrix(node_count)
-        y = T.sparse.to_numpy(x)
-        d = np.diag(1. / np.maximum(np.sum(y, axis=-1), eps))
+        def G(d, y):
+            return np.dot(D(d), y)
 
-        assert_allclose(
-            gnn.normalize_adj(x, epsilon=eps),
-            np.dot(d, y),
-            atol=1e-4, rtol=1e-6
-        )
+        x_list = [make_random_adj_matrix(node_count) for _ in range(3)]
+        y_list = [T.sparse.to_numpy(x) for x in x_list]
+        d_list = [np.maximum(np.sum(y, axis=-1), eps) for y in y_list]
+        d_sum = sum(d_list, 0.)
+
+        for x, y, d in zip(x_list, y_list, d_list):
+            assert_allclose(
+                gnn.normalize_adj(x, epsilon=eps),
+                G(d, y),
+                atol=1e-4, rtol=1e-6
+            )
+
+        out_list = gnn.normalize_partitioned_adj(x_list, epsilon=eps)
+        for y, out in zip(y_list, out_list):
+            assert_allclose(out, G(d_sum, y), atol=1e-4, rtol=1e-6)
 
         # undirected
-        x = make_random_adj_matrix(node_count, directed=False)
-        y = T.sparse.to_numpy(x)
-        d = np.diag(1. / np.sqrt(np.maximum(np.sum(y, axis=-1), eps)))
+        def G(d, y):
+            d = D(np.sqrt(d))
+            return np.dot(np.dot(d, y), d)
 
-        assert_allclose(
-            gnn.normalize_adj(x, undirected=True, epsilon=eps),
-            np.dot(np.dot(d, y), d),
-            atol=1e-4, rtol=1e-6
-        )
+        x_list = [make_random_adj_matrix(node_count, directed=False)
+                  for _ in range(3)]
+        y_list = [T.sparse.to_numpy(x) for x in x_list]
+        d_list = [np.maximum(np.sum(y, axis=-1), eps) for y in y_list]
+        d_sum = sum(d_list, 0.)
+
+        for x, y, d in zip(x_list, y_list, d_list):
+            assert_allclose(
+                gnn.normalize_adj(x, undirected=True, epsilon=eps),
+                G(d, y),
+                atol=1e-4, rtol=1e-6
+            )
+
+        out_list = gnn.normalize_partitioned_adj(
+            x_list, undirected=True, epsilon=eps)
+        for y, out in zip(y_list, out_list):
+            assert_allclose(out, G(d_sum, y), atol=1e-4, rtol=1e-6)
+
+        # errors
+        with pytest.raises(Exception, match='`adj_matrices` must not be empty'):
+            _ = gnn.normalize_partitioned_adj([])
 
     def test_merge_split_adj(self):
         node_counts = [20, 30, 40]
