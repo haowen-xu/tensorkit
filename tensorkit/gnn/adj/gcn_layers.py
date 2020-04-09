@@ -13,7 +13,7 @@ from ...tensor.sparse import matmul, sparse_jit_method
 from ...typing_ import *
 
 __all__ = [
-    'BaseGCNLayer',
+    'GCNMergeMode',
     'GCNIdentity', 'GCNSequential', 'PartitionedGCNSequential',
 
     # multiple partitions GCN layers
@@ -31,20 +31,12 @@ __all__ = [
 ]
 
 
-class BaseGCNLayer(BaseLayer):
-    """
-    Base class for the graph convolution layers.
-
-    .. math::
-
-        \\begin{align}
-            \\hat{\\mathbf{H}}^{(l)} &= \\mathbf{A} \\mathbf{H}^{(l)} \\
-            \\mathbf{H}^{(l + 1)} &= f(\\hat{\\mathbf{H}}^{(l)})
-        \\end{align}
-    """
+class GCNMergeMode(str, Enum):
+    ADD = 'add'
+    CONCAT = 'concat'
 
 
-class GCNIdentity(BaseGCNLayer):
+class GCNIdentity(BaseLayer):
     """A GCN layer that returns the `input` tensor without modification."""
 
     def forward(self,
@@ -53,7 +45,7 @@ class GCNIdentity(BaseGCNLayer):
         return input
 
 
-class GCNSequential(BaseGCNLayer):
+class GCNSequential(BaseLayer):
     """A GCN layer that sequentially calls its children GCN layers."""
 
     __constants__ = ('gcn_modules',)
@@ -70,7 +62,7 @@ class GCNSequential(BaseGCNLayer):
         return input
 
 
-class PartitionedGCNSequential(BaseGCNLayer):
+class PartitionedGCNSequential(BaseLayer):
     """
     A partitioned GCN layer that sequentially calls its children partitioned
     GCN layers.
@@ -91,12 +83,7 @@ class PartitionedGCNSequential(BaseGCNLayer):
 
 
 # ---- multi-relational GCN layer ----
-class GCNMergeMode(str, Enum):
-    ADD = 'add'
-    CONCAT = 'concat'
-
-
-class PartitionedGCNLayer(BaseGCNLayer):
+class PartitionedGCNLayer(BaseLayer):
     """
     Graph convolution layer, whose edges can be partitioned into multiple
     groups, such that its adjacency matrix can be decomposed as:
@@ -384,7 +371,7 @@ class GCNLayer3d(GCNLayer):
 
 
 # ---- GCN layer with `A` === `I` ----
-class GCNSelfLoop(BaseGCNLayer):
+class GCNSelfLoop(BaseLayer):
     """
     Graph convolution layer that uses an ordinary layer as the `f()`
     transformation of the GCN layer, with the adjacency matrix `A`
