@@ -1,4 +1,5 @@
-from .core import Tensor, jit, rank, length, shape, reduce_sum, reduce_mean
+from .core import (Tensor, jit, rank, length, shape, reduce_sum,
+                   reduce_sum_axis, reduce_mean, reduce_mean_axis)
 from .nn import log_sigmoid, softplus
 
 __all__ = ['negative_sampling']
@@ -18,7 +19,7 @@ def negative_sampling(pos_logits: Tensor,
             format(shape(pos_logits), shape(neg_logits)))
 
     pos_logits = log_sigmoid(pos_logits)
-    neg_logits = reduce_sum(softplus(neg_logits), axis=[-1])
+    neg_logits = reduce_sum_axis(softplus(neg_logits), axis=-1)
 
     if negative:
         output = neg_logits - pos_logits

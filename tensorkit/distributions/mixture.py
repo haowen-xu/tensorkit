@@ -195,7 +195,7 @@ class Mixture(Distribution):
         c_samples = [c.sample(n_samples).tensor for c in self.components]
         c_samples = T.stack(c_samples, axis=-1)
 
-        samples = T.reduce_sum(mask * c_samples, axis=[-1])
+        samples = T.reduce_sum_axis(mask * c_samples, axis=-1)
 
         if not reparameterized:
             samples = T.stop_grad(samples)
@@ -217,7 +217,7 @@ class Mixture(Distribution):
             [c.log_prob(given) for c in self.components],
             axis=-1
         )
-        log_prob = T.log_sum_exp(cat_log_prob + c_log_prob, axis=[-1])
+        log_prob = T.log_sum_exp_axis(cat_log_prob + c_log_prob, axis=-1)
         if reduce_ndims > 0:
             log_prob = T.reduce_sum(log_prob, axis=T.int_range(-reduce_ndims, 0))
         return log_prob

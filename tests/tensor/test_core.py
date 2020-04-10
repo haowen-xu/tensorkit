@@ -1342,6 +1342,13 @@ class TensorCoreTestCase(TestCase):
                                    match='`axis` must not be an empty list'):
                     _ = T_op(t, axis=[])
 
+            # test the per-axis version
+            T_op = getattr(T, f'reduce_{name}_axis', getattr(T, f'{name}_axis', None))
+            if T_op is not None:
+                assert_allclose(T_op(t, axis=-1), np_op(x, axis=-1))
+                assert_allclose(T_op(t, axis=-1, keepdims=True),
+                                np_op(x, axis=-1, keepdims=True))
+
         # test argmax, argmin
         def np_argmaxmin(fn, x, axis, keepdims=False):
             r_shape = list(x.shape)

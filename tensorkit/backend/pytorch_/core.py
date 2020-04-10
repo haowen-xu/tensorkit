@@ -71,8 +71,10 @@ __all__ = [
     'add_n',
 
     # reduce operators
-    'reduce_sum', 'reduce_mean', 'reduce_max', 'reduce_min',
-    'argmax', 'argmin', 'log_sum_exp', 'log_mean_exp',
+    'reduce_sum', 'reduce_sum_axis', 'reduce_mean', 'reduce_mean_axis',
+    'reduce_max', 'reduce_max_axis', 'reduce_min', 'reduce_min_axis',
+    'argmax', 'argmin', 'log_sum_exp', 'log_sum_exp_axis',
+    'log_mean_exp', 'log_mean_exp_axis',
     # 'all', 'any',
     'calculate_mean_and_var', 'l1_norm', 'l2_norm', 'norm',
     'norm_except_axis', 'global_norm',
@@ -1253,6 +1255,11 @@ def reduce_sum(input: Tensor,
 
 
 @jit
+def reduce_sum_axis(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.sum(input, dim=axis, keepdim=keepdims)
+
+
+@jit
 def reduce_mean(input: Tensor,
                 axis: Optional[List[int]] = None,
                 keepdims: bool = False) -> Tensor:
@@ -1266,6 +1273,11 @@ def reduce_mean(input: Tensor,
             return input
         else:
             return torch.mean(input, dim=axis, keepdim=keepdims)
+
+
+@jit
+def reduce_mean_axis(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.mean(input, dim=axis, keepdim=keepdims)
 
 
 @jit
@@ -1291,6 +1303,11 @@ def reduce_max(input: Tensor,
 
 
 @jit
+def reduce_max_axis(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.max(input, dim=axis, keepdim=keepdims)[0]
+
+
+@jit
 def reduce_min(input: Tensor,
                axis: Optional[List[int]] = None,
                keepdims: bool = False) -> Tensor:
@@ -1310,6 +1327,11 @@ def reduce_min(input: Tensor,
             if not keepdims:
                 input = squeeze(input, axis)
             return input
+
+        
+@jit
+def reduce_min_axis(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return torch.min(input, dim=axis, keepdim=keepdims)[0]
 
 
 @jit
@@ -1339,6 +1361,13 @@ def log_sum_exp(input: Tensor,
 
 
 @jit
+def log_sum_exp_axis(input: Tensor,
+                     axis: int,
+                     keepdims: bool = False) -> Tensor:
+    return torch.logsumexp(input, dim=axis, keepdim=keepdims)
+
+
+@jit
 def log_mean_exp(input: Tensor,
                  axis: Optional[List[int]] = None,
                  keepdims: bool = False) -> Tensor:
@@ -1351,6 +1380,20 @@ def log_mean_exp(input: Tensor,
     else:
         x_max = x_max_keepdims
     mean_exp = reduce_mean(
+        torch.exp(input - x_max_keepdims), axis=axis, keepdims=keepdims)
+    return x_max + torch.log(mean_exp)
+
+
+@jit
+def log_mean_exp_axis(input: Tensor,
+                      axis: int,
+                      keepdims: bool = False) -> Tensor:
+    x_max_keepdims = reduce_max_axis(input, axis=axis, keepdims=True)
+    if not keepdims:
+        x_max = torch.squeeze(x_max_keepdims, dim=axis)
+    else:
+        x_max = x_max_keepdims
+    mean_exp = reduce_mean_axis(
         torch.exp(input - x_max_keepdims), axis=axis, keepdims=keepdims)
     return x_max + torch.log(mean_exp)
 
