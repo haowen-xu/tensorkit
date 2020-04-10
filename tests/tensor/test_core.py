@@ -1166,6 +1166,15 @@ class TensorCoreTestCase(TestCase):
         assert_equal(T.flip_axis(x_t, 0), x[::-1])
         assert_equal(T.flip_axis(x_t, 1), x[:, ::-1])
 
+        # roll and roll_axis
+        assert_equal(T.roll(x_t, [], []), x_t)
+        assert_equal(T.roll(x_t, [2, -1], [-2, 0]), np.roll(x, [2, -1], [-2, 0]))
+
+        for a in range(-2, 2):
+            for s in range(-5, 5):
+                assert_equal(T.roll(x_t, [s], [a]), np.roll(x, s, a))
+                assert_equal(T.roll_axis(x_t, s, a), np.roll(x, s, a))
+
         # embedding
         for w_shape in ([5, 7], [5, 6, 7]):
             weight = np.random.randn(*w_shape)

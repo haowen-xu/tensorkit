@@ -60,7 +60,8 @@ __all__ = [
 
     # split / join / indexing / gathering ...
     'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
-    'pad', 'pad_axis', 'shift', 'shift_axis', 'flip', 'flip_axis', 'embedding',
+    'pad', 'pad_axis', 'shift', 'shift_axis', 'flip', 'flip_axis', 'roll',
+    'roll_axis', 'embedding',
 
     # math operators
     'floor', 'ceil', 'abs', 'neg', 'square', 'exp', 'log', 'log1p', 'sin',
@@ -1116,6 +1117,18 @@ def flip_axis(input: Tensor, axis: int) -> Tensor:
 @jit
 def flip(input: Tensor, axis: List[int]) -> Tensor:
     return torch.flip(input, axis)
+
+
+@jit
+def roll_axis(input: Tensor, shift: int, axis: int) -> Tensor:
+    return torch.roll(input, shift, axis)
+
+
+@jit
+def roll(input: Tensor, shift: List[int], axis: List[int]) -> Tensor:
+    if len(axis) != 0:
+        input = torch.roll(input, shift, axis)
+    return input
 
 
 @jit
