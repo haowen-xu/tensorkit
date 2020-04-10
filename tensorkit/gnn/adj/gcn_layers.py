@@ -27,7 +27,7 @@ __all__ = [
     'GCNSelfLoop', 'GCNSelfLoop1d', 'GCNSelfLoop2d', 'GCNSelfLoop3d',
 
     # standard GCN layers for easy creation
-    'GCNDense',
+    'GCNDense', 'PartitionedGCNDense',
 ]
 
 
@@ -511,6 +511,114 @@ class GCNDense(GCNLayer):
 
         super().__init__(
             module=module, self_module=self_module, self_weight=self_weight,
+            bias_store=bias_store, normalizer=normalizer, activation=activation,
+            merge_mode=merge_mode,
+        )
+class GCNDense(GCNLayer):
+    """A standard dense GCN layer."""
+
+    def __init__(self,
+                 in_features: int,
+                 out_features: int,
+                 use_self_loop: bool = False,
+                 self_weight: float = 1.,
+                 merge_mode: Union[str, GCNMergeMode] = 'add',
+                 use_bias: Optional[bool] = None,
+                 normalizer: Optional[NormalizerOrNormalizerFactory] = None,
+                 activation: Optional[LayerOrLayerFactory] = None,
+                 weight_norm: WeightNormArgType = False,
+                 weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
+                 bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
+                 data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
+                 ):
+        if use_bias is None:
+            use_bias = normalizer is None
+        linear_kwargs = dict(
+            use_bias=False,
+            weight_norm=weight_norm,
+            weight_init=weight_init,
+            data_init=data_init,
+            device=device,
+        )
+        module = Linear(in_features, out_features, **linear_kwargs)
+        self_module = (Linear(in_features, out_features, **linear_kwargs)
+                       if use_self_loop else None)
+
+        if use_bias:
+            out_dup = (1 + int(use_self_loop)
+                       if merge_mode == 'concat' else 1)
+            bias_shape = [out_features * out_dup]
+            bias_store = SimpleParamStore(
+                bias_shape, initializer=bias_init, device=device)
+        else:
+            bias_store = None
+
+        if normalizer is not None:
+            normalizer = get_layer_from_layer_or_factory(
+                'normalizer', normalizer, args=(out_features,))
+
+        if activation is not None:
+            activation = get_layer_from_layer_or_factory('activation', activation)
+
+        super().__init__(
+            module=module, self_module=self_module, self_weight=self_weight,
+            bias_store=bias_store, normalizer=normalizer, activation=activation,
+            merge_mode=merge_mode,
+        )
+
+
+class PartitionedGCNDense(PartitionedGCNLayer):
+    """Partitioned dense GCN layer."""
+
+    def __init__(self,
+                 in_features: int,
+                 out_features: int,
+                 n_partitions: int,
+                 use_self_loop: bool = False,
+                 self_weight: float = 1.,
+                 merge_mode: Union[str, GCNMergeMode] = 'add',
+                 use_bias: Optional[bool] = None,
+                 normalizer: Optional[NormalizerOrNormalizerFactory] = None,
+                 activation: Optional[LayerOrLayerFactory] = None,
+                 weight_norm: WeightNormArgType = False,
+                 weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
+                 bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
+                 data_init: Optional[DataInitArgType] = None,
+                 device: Optional[str] = None,
+                 ):
+        if use_bias is None:
+            use_bias = normalizer is None
+        linear_kwargs = dict(
+            use_bias=False,
+            weight_norm=weight_norm,
+            weight_init=weight_init,
+            data_init=data_init,
+            device=device,
+        )
+        modules = [Linear(in_features, out_features, **linear_kwargs)
+                   for _ in range(n_partitions)]
+        self_module = (Linear(in_features, out_features, **linear_kwargs)
+                       if use_self_loop else None)
+
+        if use_bias:
+            out_dup = (len(modules) + int(use_self_loop)
+                       if merge_mode == 'concat' else 1)
+            bias_shape = [out_features * out_dup]
+            bias_store = SimpleParamStore(
+                bias_shape, initializer=bias_init, device=device)
+        else:
+            bias_store = None
+
+        if normalizer is not None:
+            normalizer = get_layer_from_layer_or_factory(
+                'normalizer', normalizer, args=(out_features,))
+
+        if activation is not None:
+            activation = get_layer_from_layer_or_factory('activation', activation)
+
+        super().__init__(
+            modules=modules, self_module=self_module, self_weight=self_weight,
             bias_store=bias_store, normalizer=normalizer, activation=activation,
             merge_mode=merge_mode,
         )

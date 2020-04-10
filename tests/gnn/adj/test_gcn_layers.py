@@ -268,29 +268,48 @@ class PartitionedGCNLayerTestCase(TestCase):
     def test_gcn_dense(self):
         def h(x, adj, in_features, out_features, use_self_loop, self_weight,
               merge_mode, use_bias, normalizer, activation, bias_init,
-              weight_norm):
+              weight_norm, n_partitions):
             T.random.seed(1234)
-            m = gnn.GCNDense(
+            kwargs = {}
+
+            if n_partitions == 1:
+                cls = gnn.GCNDense
+            else:
+                cls = gnn.PartitionedGCNDense
+                kwargs['n_partitions'] = n_partitions
+
+            if use_bias:
+                kwargs['use_bias'] = use_bias
+
+            m = cls(
                 in_features=in_features, out_features=out_features,
                 use_self_loop=use_self_loop, self_weight=self_weight,
                 merge_mode=merge_mode,
                 normalizer=normalizer, activation=activation,
                 weight_norm=weight_norm, bias_init=bias_init,
-                **({'use_bias': use_bias} if use_bias is not None else {})
+                **kwargs
             )
-            m(x, adj)
+            a = adj[0] if n_partitions == 1 else adj
+            m(x, a)
             tk.layers.set_eval_mode(m)
-            return jit_compile(m)(x, adj)
+            return jit_compile(m)(x, a)
 
         def g(x, adj, in_features, out_features, use_self_loop, self_weight,
               merge_mode, use_bias, normalizer, activation, bias_init,
-              weight_norm):
+              weight_norm, n_partitions):
             T.random.seed(1234)
             linear_kwargs = dict(use_bias=False, weight_norm=weight_norm)
             if use_bias is None:
                 use_bias = normalizer is None
-            m = gnn.GCNLayer(
-                module=Linear(in_features, out_features, **linear_kwargs),
+
+            out_dup = (n_partitions + int(use_self_loop)
+                       if merge_mode == 'concat' else 1)
+
+            m = gnn.PartitionedGCNLayer(
+                modules=[
+                    Linear(in_features, out_features, **linear_kwargs)
+                    for _ in range(n_partitions)
+                ],
                 self_module=(
                     Linear(in_features, out_features, **linear_kwargs)
                     if use_self_loop else None),
@@ -302,41 +321,42 @@ class PartitionedGCNLayerTestCase(TestCase):
                     if normalizer is not None else None
                 ),
                 activation=activation,
-                bias_store=(
-                    SimpleParamStore(
-                        [out_features * (1 + int(use_self_loop and merge_mode == 'concat'))],
-                        initializer=bias_init
-                    )
-                    if use_bias else None),
+                bias_store=(SimpleParamStore([out_features * out_dup],
+                                             initializer=bias_init)
+                            if use_bias else None),
             )
-            m(x, adj)
+            a = adj[:n_partitions]
+            m(x, a)
             tk.layers.set_eval_mode(m)
-            return m(x, adj)
+            return m(x, a)
 
         def f(*args, **kwargs):
             assert_allclose_(h(*args, **kwargs), g(*args, **kwargs))
 
         inputs = [T.random.randn(in_shape)
                   for in_shape in [[50, 3], [50, 7, 3]]]
-        adj = make_random_adj_matrix(50)
+        adj = [make_random_adj_matrix(50) for _ in range(3)]
 
-        for x in inputs:
-            f(x, adj, in_features=3, out_features=4,
-              use_self_loop=False, self_weight=1.0, merge_mode='add',
-              use_bias=False, normalizer=None, activation=None,
-              bias_init=tk.init.zeros, weight_norm=False)
-            f(x, adj, in_features=3, out_features=4,
-              use_self_loop=False, self_weight=1.0, merge_mode='concat',
-              use_bias=None, normalizer=None, activation=None,
-              bias_init=tk.init.zeros, weight_norm=False)
+        for n_partitions in [1, 3]:
+            for x in inputs:
+                f(x, adj, in_features=3, out_features=4,
+                  use_self_loop=False, self_weight=1.0, merge_mode='add',
+                  use_bias=False, normalizer=None, activation=None,
+                  bias_init=tk.init.zeros, weight_norm=False,
+                  n_partitions=n_partitions)
+                f(x, adj, in_features=3, out_features=4,
+                  use_self_loop=False, self_weight=1.0, merge_mode='concat',
+                  use_bias=None, normalizer=None, activation=None,
+                  bias_init=tk.init.zeros, weight_norm=False,
+                  n_partitions=n_partitions)
 
-            f(x, adj, in_features=3, out_features=4,
-              use_self_loop=True, self_weight=1.0, merge_mode='add',
-              use_bias=None, normalizer=tk.layers.BatchNorm,
-              activation=tk.layers.LeakyReLU, bias_init=tk.init.uniform,
-              weight_norm=True)
-            f(x, adj, in_features=3, out_features=4,
-              use_self_loop=True, self_weight=2.0, merge_mode='concat',
-              use_bias=True, normalizer=tk.layers.Sigmoid(),
-              activation=tk.layers.LeakyReLU(), bias_init=tk.init.uniform,
-              weight_norm=True)
+                f(x, adj, in_features=3, out_features=4,
+                  use_self_loop=True, self_weight=1.0, merge_mode='add',
+                  use_bias=None, normalizer=tk.layers.BatchNorm,
+                  activation=tk.layers.LeakyReLU, bias_init=tk.init.uniform,
+                  weight_norm=True, n_partitions=n_partitions)
+                f(x, adj, in_features=3, out_features=4,
+                  use_self_loop=True, self_weight=2.0, merge_mode='concat',
+                  use_bias=True, normalizer=tk.layers.Sigmoid(),
+                  activation=tk.layers.LeakyReLU(), bias_init=tk.init.uniform,
+                  weight_norm=True, n_partitions=n_partitions)
