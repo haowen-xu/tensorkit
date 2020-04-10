@@ -25,10 +25,8 @@ __all__ = [
 
     # sparse tensor operations
     'coalesce', 'is_coalesced', 'get_indices', 'get_values',
-
-    # sparse tensor math operators
     'rank', 'length', 'shape', 'get_dtype', 'get_device',
-    'eye', 'reduce_sum', 'matmul',
+    'to_dtype', 'to_device', 'eye', 'reduce_sum', 'matmul',
 
     # sparse tensor grad utilities
     'stop_grad',
@@ -195,7 +193,6 @@ def get_values(input: Tensor) -> Tensor:
     return input.values()
 
 
-# ---- sparse tensor math operators ----
 @sparse_jit
 def rank(input: Tensor) -> int:
     return input.dim()
@@ -224,6 +221,27 @@ def get_dtype(input: Tensor) -> str:
 @sparse_jit
 def get_device(input: Tensor) -> str:
     return str(input.device)
+
+
+@sparse_jit
+def to_dtype(input: Tensor, dtype: str) -> Tensor:
+    if dtype == 'float32':
+        target_dtype = torch.float32
+    elif dtype == 'int32':
+        target_dtype = torch.int32
+    else:
+        target_dtype = {'int8': torch.int8, 'uint8': torch.uint8, 'int16': torch.int16, 'int64': torch.int64, 'float16': torch.float16, 'float64': torch.float64, 'bool': torch.bool}[dtype]
+
+    if target_dtype != input.dtype:
+        input = input.to(dtype=target_dtype)
+    return input
+
+
+@sparse_jit
+def to_device(input: Tensor, device: str) -> Tensor:
+    if str(input.device) != device:
+        input = input.to(device=device)
+    return input
 
 
 @jit_ignore

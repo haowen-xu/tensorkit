@@ -38,6 +38,7 @@ __all__ = [
     # tensor constructors
     'as_tensor', 'from_numpy',
     'float_scalar', 'float_scalar_like', 'int_scalar', 'int_scalar_like',
+    'float_list', 'float_list_like', 'int_list', 'int_list_like',
     'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like',
     'arange', 'one_hot', 'eye', 'diag',
 
@@ -382,6 +383,25 @@ def float_scalar_like(data: float, like: Tensor) -> Tensor:
 
 
 @jit
+def float_list(data: List[float],
+               dtype: str = settings.float_x,
+               device: Optional[str] = None) -> Tensor:
+   if dtype == 'float32':
+       real_dtype = torch.float32
+   else:
+       real_dtype = {'float16': torch.float16, 'float64': torch.float64}[dtype]
+
+   if device is None:
+       device = current_device()
+   return torch.tensor(data, dtype=real_dtype, device=device)
+
+
+@jit
+def float_list_like(data: List[float], like: Tensor) -> Tensor:
+    return torch.tensor(data, dtype=like.dtype, device=like.device)
+
+
+@jit
 def int_scalar(data: int,
                dtype: str = 'int32',
                device: Optional[str] = None) -> Tensor:
@@ -397,6 +417,25 @@ def int_scalar(data: int,
 
 @jit
 def int_scalar_like(data: int, like: Tensor) -> Tensor:
+    return torch.tensor(data, dtype=like.dtype, device=like.device)
+
+
+@jit
+def int_list(data: List[int],
+             dtype: str = 'int32',
+             device: Optional[str] = None):
+    if dtype == 'int32':
+        int_dtype = torch.int32
+    else:
+        int_dtype = {'int8': torch.int8, 'int16': torch.int16, 'int64': torch.int64}[dtype]
+
+    if device is None:
+        device = current_device()
+    return torch.tensor(data, dtype=int_dtype, device=device)
+
+
+@jit
+def int_list_like(data: List[int], like: Tensor) -> Tensor:
     return torch.tensor(data, dtype=like.dtype, device=like.device)
 
 

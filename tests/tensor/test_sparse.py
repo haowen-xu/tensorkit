@@ -103,6 +103,15 @@ class SparseTestCase(TestCase):
             )
             self.assertEqual(T.sparse.get_dtype(z), T.sparse.get_dtype(y))
 
+            # test to_dtype
+            z = T.sparse.make_sparse(
+                T.as_tensor(np.stack([row, col], axis=0)),
+                T.as_tensor(values),
+                shape=shape,
+            )
+            z = T.sparse.to_dtype(z, T.sparse.get_dtype(y))
+            self.assertEqual(T.sparse.get_dtype(z), T.sparse.get_dtype(y))
+
         # test ordinary
         for force_coalesced in [None, True, False]:
             for dtype in [None, 'float32', T.float64, T.int32, 'int64']:
@@ -113,14 +122,18 @@ class SparseTestCase(TestCase):
                   values=np.random.randn(10).reshape([5, 2]), shape=[5, 6, 2],
                   dtype=dtype, force_coalesced=force_coalesced)
 
-        # test with device
+        # test with_device and to_device
+        f = lambda: T.sparse.make_sparse(
+            T.as_tensor([[0, 1], [1, 0]]),
+            T.random.randn([2]),
+            shape=[3, 3]
+        )
         with T.use_device(T.CPU_DEVICE):
-            t = T.sparse.make_sparse(
-                T.as_tensor([[0, 1], [1, 0]]),
-                T.random.randn([2]),
-                shape=[3, 3]
-            )
+            t = f()
             self.assertEqual(T.sparse.get_device(t), T.CPU_DEVICE)
+
+        t = T.sparse.to_device(f(), T.CPU_DEVICE)
+        self.assertEqual(T.sparse.get_device(t), T.CPU_DEVICE)
 
         # test errors
         with pytest.raises(ValueError, match='`indices` must be a 2d tensor'):

@@ -268,11 +268,52 @@ class TensorCoreTestCase(TestCase):
             assert_equal(t, value)
 
             # int_scalar_like
-            t2 = T.float_scalar_like(value, t)
+            t2 = T.int_scalar_like(value, t)
             self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
             self.assertEqual(T.get_device(t2), T.get_device(t))
 
         t = T.int_scalar(125)
+        assert_equal(t, 125)
+        self.assertEqual(T.get_dtype(t), T.int32)
+        self.assertEqual(T.get_device(t), T.current_device())
+
+        # float_list
+        for value, dtype, device in itertools.product(
+                ([1.25, 125],),
+                (T.float16, T.float32, T.float64),
+                (None, T.CPU_DEVICE)):
+            t = T.float_list(value, dtype=dtype, device=device)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, value)
+
+            # float_list_like
+            t2 = T.float_list_like(value, t)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+
+        t = T.float_list([1.25])
+        assert_equal(t, [1.25])
+        self.assertEqual(T.get_dtype(t), T.float_x())
+        self.assertEqual(T.get_device(t), T.current_device())
+
+        # int_list
+        for value, dtype, device in itertools.product(
+                ([2, 125],),
+                (T.int8, T.int16, T.int32, T.int64),
+                (None, T.CPU_DEVICE)):
+            t = T.int_list(value, dtype=dtype, device=device)
+            self.assertEqual(T.get_dtype(t), dtype)
+            self.assertEqual(T.get_device(t), device or T.current_device())
+            assert_equal(t, value)
+
+            # int_list_like
+            t2 = T.int_list_like(value, t)
+            self.assertEqual(T.get_dtype(t2), T.get_dtype(t))
+            self.assertEqual(T.get_device(t2), T.get_device(t))
+
+        t = T.int_list([125])
+        assert_equal(t, [125])
         self.assertEqual(T.get_dtype(t), T.int32)
         self.assertEqual(T.get_device(t), T.current_device())
 
