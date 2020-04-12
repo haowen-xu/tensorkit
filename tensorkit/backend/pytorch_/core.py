@@ -53,7 +53,7 @@ __all__ = [
 
     # shape utils
     'length', 'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze',
-    'expand_dim', 'swap_axes', 'transpose',
+    'squeeze_axis', 'expand_dim', 'swap_axes', 'transpose',
     'get_broadcast_shape', 'broadcast_to_shape', 'strict_broadcast_to_shape',
     'broadcast_to', 'strict_broadcast_to', 'explicit_broadcast',
     'flatten_to_ndims', 'unflatten_from_ndims', 'reshape_tail',
@@ -795,6 +795,11 @@ def squeeze(input: Tensor, axis: Optional[List[int]] = None) -> Tensor:
             return input.reshape(new_shape)
     else:
         return torch.squeeze(input)
+
+
+@jit
+def squeeze_axis(input: Tensor, axis: int) -> Tensor:
+    return torch.squeeze(input, axis)
 
 
 @jit

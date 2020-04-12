@@ -141,7 +141,7 @@ def main(exp: mltk.Experiment[Config]):
     )
 
     utils.print_experiment_summary(
-        exp, train_stream=train_stream, test_stream=test_stream)
+        exp, train_data=train_stream, test_data=test_stream)
 
     # build the network
     vae: VAE = VAE(train_stream.data_shapes[0][0], exp.config)
@@ -208,12 +208,12 @@ def main(exp: mltk.Experiment[Config]):
     loop.add_callback(mltk.callbacks.StopOnNaN())
     optimizer = tk.optim.Adam(params)
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
-        loop=loop,
         optimizer=optimizer,
         initial_lr=exp.config.initial_lr,
         ratio=exp.config.lr_anneal_ratio,
         epochs=exp.config.lr_anneal_epochs
     )
+    lr_scheduler.bind(loop)
     loop.run_after_every(
         lambda: loop.test().run(partial(eval_step, n_z=10), test_stream),
         epochs=10

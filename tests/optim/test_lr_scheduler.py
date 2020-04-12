@@ -1,4 +1,5 @@
 import mltk
+import pytest
 from mock import Mock
 
 import tensorkit as tk
@@ -21,6 +22,14 @@ def standard_lr_scheduler_check(ctx, scheduler_factory, lr_func):
     ev_hosts = mltk.EventHost()
     loop = Mock(epoch=0, on_epoch_end=ev_hosts['on_epoch_end'])
     scheduler = scheduler_factory(loop, optimizer)
+
+    scheduler.bind(loop)
+    ctx.assertIs(scheduler.loop, loop)
+    scheduler.bind(loop)
+    ctx.assertIs(scheduler.loop, loop)
+    with pytest.raises(RuntimeError, match='Already bind to a train loop'):
+        _ = scheduler.bind(Mock())
+
     assert_allclose(optimizer.lr, lr_func(loop, optimizer))
 
     for epoch in range(1, 29):
@@ -32,16 +41,16 @@ def standard_lr_scheduler_check(ctx, scheduler_factory, lr_func):
         assert_allclose(optimizer.lr, lr_func(loop, optimizer))
 
     final_lr = optimizer.lr
-    scheduler.unbind_events()
+    scheduler.unbind()
     for epoch in range(29, 39):
         loop.epoch = epoch
         ev_hosts.fire('on_epoch_end')
         assert_allclose(optimizer.lr, final_lr)
 
-    for epoch in range(29, 39):
-        loop.epoch = epoch
-        scheduler.update_lr()  # still can update the lr if manually called
-        assert_allclose(optimizer.lr, lr_func(loop, optimizer))
+    # for epoch in range(29, 39):
+    #     loop.epoch = epoch
+    #     scheduler.update_lr()  # still can update the lr if manually called
+    #     assert_allclose(optimizer.lr, lr_func(loop, optimizer))
 
     # test start with epoch = some value
     optimizer = _MyFakeOptimizer(0.1)
@@ -50,6 +59,8 @@ def standard_lr_scheduler_check(ctx, scheduler_factory, lr_func):
     ev_hosts = mltk.EventHost()
     loop = Mock(epoch=40, on_epoch_end=ev_hosts['on_epoch_end'])
     scheduler = scheduler_factory(loop, optimizer)
+    scheduler.bind(loop)
+    ctx.assertIs(scheduler.loop, loop)
     assert_allclose(optimizer.lr, lr_func(loop, optimizer))
 
 
@@ -59,7 +70,7 @@ class LRSchedulerTestCaes(TestCase):
         standard_lr_scheduler_check(
             self,
             lambda loop, optimizer: tk.optim.lr_scheduler.AnnealingLR(
-                loop, optimizer, initial_lr=0.01, ratio=0.5, epochs=2
+                optimizer, initial_lr=0.01, ratio=0.5, epochs=2
             ),
             lambda loop, optimizer: 0.01 * 0.5 ** int(loop.epoch // 2)
         )

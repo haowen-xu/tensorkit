@@ -31,8 +31,8 @@ def main(exp: mltk.Experiment[Config]):
     )
 
     utils.print_experiment_summary(
-        exp, train_stream=train_stream, val_stream=val_stream,
-        test_stream=test_stream
+        exp, train_data=train_stream, val_data=val_stream,
+        test_data=test_stream
     )
 
     # build the network
@@ -74,12 +74,12 @@ def main(exp: mltk.Experiment[Config]):
     loop = mltk.TrainLoop(max_epoch=exp.config.max_epoch)
     optimizer = tk.optim.Adam(tk.layers.iter_parameters(net))
     lr_scheduler = tk.optim.lr_scheduler.AnnealingLR(
-        loop=loop,
         optimizer=optimizer,
         initial_lr=exp.config.initial_lr,
         ratio=exp.config.lr_anneal_ratio,
         epochs=exp.config.lr_anneal_epochs
     )
+    lr_scheduler.bind(loop)
 
     # add a callback to do early-stopping on the network parameters
     # according to the validation metric.

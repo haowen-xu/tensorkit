@@ -1,3 +1,5 @@
+from typing import *
+
 import mltk
 
 from .core import *
@@ -13,14 +15,19 @@ class LRScheduler(object):
     during a :class:`mltk.TrainLoop`.
     """
 
-    loop: mltk.TrainLoop
+    loop: Optional[mltk.TrainLoop]
     optimizer: Optimizer
 
-    def __init__(self,
-                 loop: mltk.TrainLoop,
-                 optimizer: Optimizer):
-        self.loop = loop
+    def __init__(self, optimizer: Optimizer):
+        self.loop = None
         self.optimizer = optimizer
+
+    def bind(self, loop: mltk.TrainLoop):
+        if self.loop is not None:
+            if loop is self.loop:
+                return
+            raise RuntimeError('Already bind to a train loop.')
+        self.loop = loop
         self._bind_events(loop)
         self.update_lr()
 
@@ -28,9 +35,10 @@ class LRScheduler(object):
         """Update the learning rate of the optimizer according to the loop."""
         raise NotImplementedError()
 
-    def unbind_events(self):
-        """Unregister this scheduler from the loop events."""
-        self._unbind_events(self.loop)
+    def unbind(self):
+        if self.loop is not None:
+            self._unbind_events(self.loop)
+            self.loop = None
 
     def _bind_events(self, loop: mltk.TrainLoop):
         raise NotImplementedError()
@@ -50,7 +58,6 @@ class AnnealingLR(LRScheduler):
     epochs: int
 
     def __init__(self,
-                 loop: mltk.TrainLoop,
                  optimizer: Optimizer,
                  initial_lr: float,
                  ratio: float,
@@ -59,7 +66,7 @@ class AnnealingLR(LRScheduler):
         self.initial_lr = float(initial_lr)
         self.ratio = float(ratio)
         self.epochs = int(epochs)
-        super().__init__(loop, optimizer)
+        super().__init__(optimizer)
 
     def _bind_events(self, loop: mltk.TrainLoop):
         loop.on_epoch_end.do(self.update_lr)

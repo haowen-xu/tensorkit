@@ -33,19 +33,19 @@ def get_params_and_names(layer: T.Module
 
 
 def print_experiment_summary(exp: mltk.Experiment,
-                             train_stream: mltk.DataStream,
-                             val_stream: Optional[mltk.DataStream] = None,
-                             test_stream: Optional[mltk.DataStream] = None):
+                             train_data: Any,  # anything that has '__len__'
+                             val_data: Optional[Any] = None,
+                             test_data: Optional[Any] = None):
     # the config
     mltk.print_config(exp.config)
     print('')
 
     # the dataset info
     data_info = []
-    for name, stream in [('Train', train_stream), ('Validation', val_stream),
-                         ('Test', test_stream)]:
-        if stream is not None:
-            data_info.append((name, len(stream)))
+    for name, data in [('Train', train_data), ('Validation', val_data),
+                         ('Test', test_data)]:
+        if data is not None:
+            data_info.append((name, len(data)))
     if data_info:
         print(mltk.format_key_values(data_info, 'Number of Data'))
         print('')

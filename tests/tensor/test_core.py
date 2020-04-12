@@ -686,6 +686,17 @@ class TensorCoreTestCase(TestCase):
         with pytest.raises(Exception, match='Axis .* cannot be squeezed'):
             _ = T.squeeze(t, [-1, -2])
 
+        # test squeeze-axis
+        t2 = T.squeeze_axis(t, -1)
+        s2 = [1, 2, 1, 3, 1, 4]
+        self.assertEqual(T.shape(t2), s2)
+        assert_equal(t2, x.reshape(s2))
+
+        t2 = T.squeeze_axis(t, 2)
+        s2 = [1, 2, 3, 1, 4, 1]
+        self.assertEqual(T.shape(t2), s2)
+        assert_equal(t2, x.reshape(s2))
+
         # test expand dim
         x = np.random.randn(2, 3)
         t = T.as_tensor(x)
