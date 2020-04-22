@@ -54,6 +54,16 @@ def _col_div(m: T.SparseTensor, v: T.Tensor) -> T.SparseTensor:
     return T.sparse.make_sparse(indices, v, T.sparse.shape(m))
 
 
+def _compute_degree(adj_matrix: T.SparseTensor) -> T.Tensor:
+    if T.sparse.value_count(adj_matrix) == 0:
+        size = T.sparse.length(adj_matrix)
+        degree = T.zeros([size], dtype=T.sparse.get_dtype(adj_matrix),
+                         device=T.sparse.get_device(adj_matrix))
+    else:
+        degree = T.sparse.to_dense(T.sparse.reduce_sum(adj_matrix, axis=-1))
+    return degree
+
+
 @T.jit_ignore
 def normalize_adj(adj_matrix: T.SparseTensor,
                   undirected: bool = False,
@@ -63,7 +73,7 @@ def normalize_adj(adj_matrix: T.SparseTensor,
 
     # normalize the adj matrix
     # TODO: do we need to check whether or not all degrees are non-negative?
-    degree = T.sparse.to_dense(T.sparse.reduce_sum(adj_matrix, axis=-1))
+    degree = _compute_degree(adj_matrix)
     if epsilon != 0.:
         degree = T.clip_left(degree, epsilon)
 
@@ -94,7 +104,7 @@ def normalize_partitioned_adj(adj_matrices: List[T.SparseTensor],
 
     # normalize the adj matrices
     degree = T.add_n([
-        T.sparse.to_dense(T.sparse.reduce_sum(adj, axis=-1))
+        _compute_degree(adj)
         for adj in adj_matrices
     ])
     if epsilon != 0.:

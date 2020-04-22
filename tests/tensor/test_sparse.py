@@ -59,6 +59,7 @@ class SparseTestCase(TestCase):
                     **kwargs
                 )
                 g(x, y)
+                self.assertEqual(T.sparse.value_count(y), len(row))
 
             # from_dense
             y = T.sparse.from_dense(
@@ -229,6 +230,19 @@ class SparseTestCase(TestCase):
                     np.sum(y, axis=axis),
                     rtol=1e-4, atol=1e-6,
                 )
+
+    def test_no_element_sparse_tensor(self):
+        for coord_first in [True, False]:
+            # construct the no-element sparse tensor
+            indices_shape = [2, 0] if coord_first else [0, 2]
+            x = T.sparse.make_sparse(
+                T.zeros(indices_shape, dtype=T.index_dtype),
+                T.zeros([0], dtype=T.float32),
+                coord_first=coord_first,
+                shape=[3, 4],
+            )
+            assert_allclose(x, np.zeros([3, 4]))
+            self.assertEqual(T.sparse.value_count(x), 0)
 
     def test_matmul(self):
         indices = T.as_tensor(np.random.randint(0, 50, size=[2, 200]))

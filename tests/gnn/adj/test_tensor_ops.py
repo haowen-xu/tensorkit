@@ -46,7 +46,15 @@ class AdjMatrixTestCase(TestCase):
         def G(d, y):
             return np.dot(D(d), y)
 
-        x_list = [make_random_adj_matrix(node_count) for _ in range(3)]
+        empty_adj = T.sparse.from_dense(T.zeros([node_count, node_count]))
+        self.assertEqual(
+            T.shape(T.sparse.get_indices(empty_adj, coord_first=True))[1],
+            0
+        )
+        x_list = (
+            [make_random_adj_matrix(node_count) for _ in range(3)] +
+            [empty_adj]
+        )
         y_list = [T.sparse.to_numpy(x) for x in x_list]
         d_list = [np.maximum(np.sum(y, axis=-1), eps) for y in y_list]
         d_sum = sum(d_list, 0.)

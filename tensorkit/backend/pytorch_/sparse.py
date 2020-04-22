@@ -25,7 +25,7 @@ __all__ = [
 
     # sparse tensor operations
     'coalesce', 'is_coalesced', 'get_indices', 'get_values',
-    'rank', 'length', 'shape', 'get_dtype', 'get_device',
+    'rank', 'length', 'shape', 'value_count', 'get_dtype', 'get_device',
     'to_dtype', 'to_device', 'eye', 'reduce_sum', 'matmul',
 
     # sparse tensor grad utilities
@@ -206,6 +206,13 @@ def length(input: Tensor) -> int:
 @sparse_jit
 def shape(input: Tensor) -> List[int]:
     return list(input.shape)
+
+
+@sparse_jit
+def value_count(input: Tensor) -> List[int]:
+    if not input.is_coalesced():
+        input = input.coalesce()
+    return input.indices().shape[1]
 
 
 @sparse_jit
