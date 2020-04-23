@@ -209,7 +209,7 @@ def shape(input: Tensor) -> List[int]:
 
 
 @sparse_jit
-def value_count(input: Tensor) -> List[int]:
+def value_count(input: Tensor) -> int:
     if not input.is_coalesced():
         input = input.coalesce()
     return input.indices().shape[1]
