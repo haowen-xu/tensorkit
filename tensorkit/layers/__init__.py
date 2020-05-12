@@ -3,6 +3,7 @@ from .builder import *
 from .composed import *
 from .contextual import *
 from .core import *
+from .edge_bias_conv_ import *
 from .flow_layer import *
 from .gated import *
 from .pixelcnn import *

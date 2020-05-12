@@ -3,9 +3,9 @@ from typing import *
 
 from .. import tensor as T
 from ..arg_check import *
-from ..tensor import Tensor, Module, rank, shift, shape, concat, ones_like
+from ..tensor import Tensor, Module, rank, shift
 from ..typing_ import *
-from . import resnet, core, composed
+from . import resnet, core, composed, conv_edge_bias
 from .core import *
 from .utils import flatten_nested_layers
 
@@ -109,51 +109,6 @@ class BranchAndAdd(BaseLayer):
         return output
 
 
-class AddOnesChannelNd(BaseLayer):
-
-    __constants__ = ('_channel_axis', '_spatial_ndims')
-
-    _channel_axis: int
-    _spatial_ndims: int
-
-    def __init__(self):
-        super().__init__()
-        spatial_ndims = self._get_spatial_ndims()
-        self._spatial_ndims = spatial_ndims
-        if T.IS_CHANNEL_LAST:
-            self._channel_axis = -1
-        else:
-            self._channel_axis = -(spatial_ndims + 1)
-
-    def _get_spatial_ndims(self) -> int:
-        raise NotImplementedError()
-
-    def forward(self, input: Tensor) -> Tensor:
-        channel_shape = shape(input)
-        channel_shape[self._channel_axis] = 1
-
-        return concat([input, ones_like(input, shape=channel_shape)],
-                      axis=self._channel_axis)
-
-
-class AddOnesChannel1d(AddOnesChannelNd):
-
-    def _get_spatial_ndims(self) -> int:
-        return 1
-
-
-class AddOnesChannel2d(AddOnesChannelNd):
-
-    def _get_spatial_ndims(self) -> int:
-        return 2
-
-
-class AddOnesChannel3d(AddOnesChannelNd):
-
-    def _get_spatial_ndims(self) -> int:
-        return 3
-
-
 class AddLeadingContext(BaseLayer):
 
     __constants__ = ('first_n',)
@@ -245,7 +200,7 @@ class PixelCNNInputNd(BaseLayer):
                  in_channels: int,
                  out_channels: int,
                  kernel_size: Union[int, Sequence[int]],
-                 add_ones_channel: bool = True,
+                 edge_bias: bool = True,
                  weight_norm: WeightNormArgType = False,
                  weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
                  bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
@@ -263,8 +218,10 @@ class PixelCNNInputNd(BaseLayer):
                 The actual kernel size used by the convolutional layers
                 will be re-calculated under the guide of this kernel size,
                 in order to ensure causality between pixels.
-            add_ones_channel: Whether or not add a channel to the input,
-                with all elements set to `1`?
+            edge_bias: Whether or not add a channel to the input,
+                with all elements set to `1`?  This will effectively make
+                the padded edges (i.e., with zero values) different from the
+                true pixel values.
             weight_norm: The weight norm mode for the convolutional layers.
                 If :obj:`True`, will use "full" weight norm for "conv1" and
                 "shortcut".  For "conv0", will use "full" if `normalizer`
@@ -278,7 +235,6 @@ class PixelCNNInputNd(BaseLayer):
         """
         super().__init__()
 
-        globals_dict = globals()
         spatial_ndims = self._get_spatial_ndims()
         kernel_size = validate_conv_size('kernel_size', kernel_size, spatial_ndims)
         
@@ -286,8 +242,9 @@ class PixelCNNInputNd(BaseLayer):
         super().__init__()
         self._spatial_ndims = spatial_ndims
         
-        if add_ones_channel:
-            self.add_ones_channel = globals_dict[f'AddOnesChannel{spatial_ndims}d']()
+        if edge_bias:
+            self.add_ones_channel = getattr(
+                conv_edge_bias, f'AddOnesChannel{spatial_ndims}d')()
             in_channels += 1
         else:
             self.add_ones_channel = Identity()

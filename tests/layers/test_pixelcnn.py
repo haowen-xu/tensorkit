@@ -126,7 +126,7 @@ class PixelCNNTestCase(TestCase):
                 input_layer_cls = getattr(
                     tk.layers, f'PixelCNNInput{spatial_ndims}d')
                 input_layer = input_layer_cls(
-                    1, 1, kernel_size=kernel_size, add_ones_channel=False,
+                    1, 1, kernel_size=kernel_size, edge_bias=False,
                     weight_init=tk.init.ones,
                 )
                 input_layer = tk.layers.jit_compile(input_layer)
