@@ -5,7 +5,7 @@ from .. import tensor as T
 from ..arg_check import *
 from ..tensor import Tensor, Module, rank, shift
 from ..typing_ import *
-from . import resnet, core, composed, conv_edge_bias
+from . import resnet, core, composed, edge_bias_conv_
 from .core import *
 from .utils import flatten_nested_layers
 
