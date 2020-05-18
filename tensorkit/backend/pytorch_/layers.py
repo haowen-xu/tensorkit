@@ -253,6 +253,8 @@ class ParamStore(Module):
 class SimpleParamStore(ParamStore):
     """A module that carries a direct variable as the parameter."""
 
+    value: Tensor
+
     def __init__(self,
                  shape: List[int],
                  initializer: TensorInitArgType,
@@ -504,7 +506,7 @@ class Sequential(torch_nn.Sequential):
 class CoreLinear(BaseLayer):
     """Base class for the core linear layers."""
 
-    __constants__ = ('weight_store', 'bias_store', 'use_bias')
+    __constants__ = ('use_bias',)
 
     weight_store: Module
     bias_store: Module
@@ -1010,8 +1012,6 @@ Dropout3d = torch_nn.Dropout3d
 
 # ---- embedding layers ----
 class Embedding(BaseLayer):
-
-    __constants__ = ('weight',)
 
     def __init__(self,
                  n_embeddings: int,

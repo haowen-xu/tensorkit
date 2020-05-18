@@ -13,8 +13,6 @@ class FlowLayer(BaseLayer):
     Wrap a :class:`tk.flows.BaseFlow` into a single-input, single-output layer.
     """
 
-    __constants__ = ('flow',)
-
     flow: Module
 
     def __init__(self, flow: Flow):

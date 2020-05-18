@@ -28,7 +28,7 @@ class ActNorm(FeatureMappingFlow):
     """
 
     __constants__ = FeatureMappingFlow.__constants__ + (
-        'num_features', 'scale', 'scale_type', 'epsilon',
+        'num_features', 'scale_type', 'epsilon',
     )
 
     num_features: int

@@ -28,7 +28,7 @@ class SplitFlow(Flow):
     """
 
     __constants__ = Flow.__constants__ + (
-        'left', 'right', 'x_sections', 'x_axis', 'y_sections', 'y_axis',
+        'x_sections', 'x_axis', 'y_sections', 'y_axis',
     )
 
     left: Module

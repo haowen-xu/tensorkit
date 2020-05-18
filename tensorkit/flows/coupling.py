@@ -42,9 +42,7 @@ class CouplingLayer(FeatureMappingFlow):
     according to the above transformation, respectively.
     """
 
-    __constants__ = FeatureMappingFlow.__constants__ + (
-        'shift_and_pre_scale', 'scale', 'secondary',
-    )
+    __constants__ = FeatureMappingFlow.__constants__ + ('secondary',)
 
     shift_and_pre_scale: Module
     scale: Module

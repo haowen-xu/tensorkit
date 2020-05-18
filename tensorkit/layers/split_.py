@@ -16,8 +16,6 @@ class Branch(BaseLayer):
         outputs = [branch(shared_output) for branch in branches]
     """
 
-    __constants__ = ('shared', 'branches')
-
     shared: Module
     branches: ModuleList
 

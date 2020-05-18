@@ -59,8 +59,6 @@ class Gated(BaseGated):
 
 class GatedWithActivation(BaseGated):
 
-    __constants__ = BaseGated.__constants__ + ('activation',)
-
     activation: Module
 
     def __init__(self,

@@ -250,8 +250,6 @@ class FeatureMappingFlow(Flow):
 class InverseFlow(Flow):
     """A flow that inverts another given flow."""
 
-    __constants__ = Flow.__constants__ + ('original_flow',)
-
     original_flow: Module
     """The original flow, which is inverted by this :class:`InverseFlow`."""
 
@@ -294,8 +292,6 @@ class _NotInvertibleFlow(Module):
 
 
 class SequentialFlow(Flow):
-
-    __constants__ = Flow.__constants__ + ('_chain', '_inverse_chain')
 
     _chain: ModuleList
     _inverse_chain: ModuleList
@@ -554,7 +550,7 @@ class InvertibleLinearNd(FeatureMappingFlow):
     """Base class for invertible linear transformation flows."""
 
     __constants__ = FeatureMappingFlow.__constants__ + (
-        'invertible_matrix', 'num_features', 'strict', 'epsilon',
+        'num_features', 'strict', 'epsilon',
     )
 
     invertible_matrix: Module

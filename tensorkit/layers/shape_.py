@@ -19,7 +19,7 @@ __all__ = [
 # ---- FlattenToNDims ----
 class FlattenToNDims(BaseLayer):
 
-    __constants__ = ('wrapped', 'ndims')
+    __constants__ = ('ndims',)
 
     wrapped: Module
     ndims: int

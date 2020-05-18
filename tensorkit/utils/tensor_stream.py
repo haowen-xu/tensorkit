@@ -1,6 +1,7 @@
 from typing import *
 
 import mltk
+import numpy as np
 from mltk import ArrayTuple
 
 from .. import tensor as T
@@ -49,7 +50,7 @@ class TensorStream(mltk.DataStream):
             for batch_data in g:
                 with T.no_grad():
                     batch_data = tuple(
-                        T.from_numpy(arr, device=self.device)
+                        T.from_numpy(np.copy(arr), device=self.device)
                         for arr in batch_data
                     )
                     yield batch_data

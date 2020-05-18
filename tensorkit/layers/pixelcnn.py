@@ -91,8 +91,6 @@ class SpatialShift(BaseLayer):
 
 class BranchAndAdd(BaseLayer):
 
-    __constants__ = ('branches',)
-
     branches: ModuleList
 
     def __init__(self, *branches: Union[Module, Sequence[Module]]):
@@ -129,7 +127,7 @@ class AddLeadingContext(BaseLayer):
 
 class IgnoreLeadingContext(BaseLayer):
 
-    __constants__ = ('wrapped', 'first_n',)
+    __constants__ = ('first_n',)
 
     wrapped: Module
     first_n: int
@@ -190,7 +188,7 @@ def validate_pixelcnn_kernel_size(kernel_size, spatial_ndims: int) -> List[int]:
 # ---- pixelcnn input layer, which constructs the multiple pixelcnn stacks ----
 class PixelCNNInputNd(BaseLayer):
 
-    __constants__ = ('_spatial_ndims', 'add_ones_channel', 'stacks',)
+    __constants__ = ('_spatial_ndims',)
 
     _spatial_ndims: int
     add_ones_channel: Module
@@ -393,8 +391,6 @@ class PixelCNNOutput3d(PixelCNNOutputNd):
 # ---- pixelcnn layers ----
 class PixelCNNResBlockNd(BaseLayer):
 
-    __constants__ = ('resnet_layers',)
-
     resnet_layers: ModuleList
     """The resnet layers for each PixelCNN stack."""
 
@@ -562,8 +558,6 @@ class PixelCNNResBlock3d(PixelCNNResBlockNd):
 # ---- pixelcnn down-sampling conv layers and up-sampling deconv layers ----
 class PixelCNNConvNd(BaseLayer):
 
-    __constants__ = ('conv_layers',)
-
     conv_layers: ModuleList
     """The conv layers for each PixelCNN stack."""
 
@@ -684,8 +678,6 @@ class PixelCNNConv3d(PixelCNNConvNd):
 
 
 class PixelCNNConvTransposeNd(BaseLayer):
-
-    __constants__ = ('deconv_layers',)
 
     deconv_layers: ModuleList
     """The deconv layers for each PixelCNN stack."""
@@ -811,8 +803,6 @@ class PixelCNNConvTranspose3d(PixelCNNConvTransposeNd):
 
 # ---- pixelcnn network composer ----
 class PixelCNNNd(BaseLayer):
-
-    __constants__ = ('input_layer', 'layers', 'output_layer')
 
     input_layer: Module
     layers: ModuleList

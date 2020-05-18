@@ -48,8 +48,6 @@ class GCNIdentity(BaseLayer):
 class GCNSequential(BaseLayer):
     """A GCN layer that sequentially calls its children GCN layers."""
 
-    __constants__ = ('gcn_modules',)
-
     gcn_modules: ModuleList
 
     def __init__(self, modules: List[Module]):
@@ -67,8 +65,6 @@ class PartitionedGCNSequential(BaseLayer):
     A partitioned GCN layer that sequentially calls its children partitioned
     GCN layers.
     """
-
-    __constants__ = ('gcn_modules',)
 
     gcn_modules: ModuleList
 
@@ -106,7 +102,6 @@ class PartitionedGCNLayer(BaseLayer):
     """
 
     __constants__ = (
-        'partition_modules', 'self_module', 'bias_store', 'post_linear',
         'use_bias', 'use_self_module', 'self_weight', 'use_post_linear',
         'merge_mode', 'n_partitions', 'feature_matrix_ndims', 'feature_axis',
     )
@@ -378,7 +373,7 @@ class GCNSelfLoop(BaseLayer):
     assumed to be identity matrix `I`.
     """
 
-    __constants__ = ('module', 'feature_matrix_ndims')
+    __constants__ = ('feature_matrix_ndims',)
 
     module: Module
     """The `f()` transformation."""

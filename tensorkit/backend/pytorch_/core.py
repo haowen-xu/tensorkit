@@ -339,9 +339,10 @@ def as_tensor(data,
         return data
 
     # or if `data` is other types
-    ret = torch.as_tensor(data, dtype=target_dtype, device=device)
     if force_copy:
-        ret = ret.clone()
+        ret = torch.tensor(data, dtype=target_dtype, device=device)
+    else:
+        ret = torch.as_tensor(data, dtype=target_dtype, device=device)
     return ret
 
 
@@ -1511,7 +1512,7 @@ def global_norm(inputs: List[Tensor]) -> Tensor:
 
     .. math::
 
-        global_norm = \sqrt{\sum_{i=1}^n \left|x_i\right|_2^2}
+        global_norm = \\sqrt{\\sum_{i=1}^n \\left|x_i\\right|_2^2}
 
     Args:
         inputs: The tensors

@@ -30,8 +30,6 @@ class _MyWrapper(BaseLayer):
 
 class _MyWrapper2(tk.layers.BaseLayer):
 
-    __constants__ = ('layers',)
-
     layers: ModuleList
 
     def __init__(self, layers: Iterable[Module]):

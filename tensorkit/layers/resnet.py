@@ -90,13 +90,6 @@ class ResBlockNd(BaseLayer):
         output = shortcut + residual
     """
 
-    __constants__ = (
-        'shortcut',
-        'pre_conv0', 'merge_context0', 'conv0',
-        'pre_conv1', 'merge_context1', 'conv1',
-        'post_conv1',
-    )
-
     shortcut: Module
     pre_conv0: Module
     merge_context0: Module
