@@ -244,7 +244,7 @@ class PixelCNNInputNd(BaseLayer):
         
         if edge_bias:
             self.add_ones_channel = getattr(
-                conv_edge_bias, f'AddOnesChannel{spatial_ndims}d')()
+                edge_bias_conv_, f'AddOnesChannel{spatial_ndims}d')()
             in_channels += 1
         else:
             self.add_ones_channel = Identity()
