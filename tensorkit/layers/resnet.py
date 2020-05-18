@@ -94,6 +94,7 @@ class ResBlockNd(BaseLayer):
         'shortcut',
         'pre_conv0', 'merge_context0', 'conv0',
         'pre_conv1', 'merge_context1', 'conv1',
+        'post_conv1',
     )
 
     shortcut: Module

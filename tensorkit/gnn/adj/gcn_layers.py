@@ -108,7 +108,7 @@ class PartitionedGCNLayer(BaseLayer):
     __constants__ = (
         'partition_modules', 'self_module', 'bias_store', 'post_linear',
         'use_bias', 'use_self_module', 'self_weight', 'use_post_linear',
-        'n_partitions', 'feature_matrix_ndims',
+        'merge_mode', 'n_partitions', 'feature_matrix_ndims', 'feature_axis',
     )
 
     partition_modules: ModuleList

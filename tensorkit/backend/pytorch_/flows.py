@@ -58,7 +58,9 @@ class Flow(BaseValidateTensorLayer):
     can derive :math:`\\log p(y)` from given :math:`\\log p(x)`.
     """
 
-    __constants__ = ('x_event_ndims', 'y_event_ndims', 'explicitly_invertible')
+    __constants__ = BaseValidateTensorLayer.__constants__ + (
+        'x_event_ndims', 'y_event_ndims', 'explicitly_invertible'
+    )
 
     x_event_ndims: int
     """Number of event dimensions in `x`."""
@@ -293,9 +295,15 @@ class _NotInvertibleFlow(Module):
 
 class SequentialFlow(Flow):
 
-    __constants__ = Flow.__constants__ + ('_chain',)
+    __constants__ = Flow.__constants__ + ('_chain', '_inverse_chain')
 
     _chain: ModuleList
+    _inverse_chain: ModuleList
+
+    def custom_compile_children(self):
+        flows = [jit_compile(m) for m in self._chain]
+        self._chain = torch.jit.script(ModuleList(flows))
+        self._inverse_chain = torch.jit.script(ModuleList(flows[::-1]))
 
     def __init__(self,
                  *flows: Union[Module, Sequence[Module]]):
@@ -324,23 +332,25 @@ class SequentialFlow(Flow):
             explicitly_invertible=all(
                 flow.is_explicitly_invertible() for flow in flows)
         )
-
         self._chain = ModuleList(flows)
+        self._inverse_chain = ModuleList(flows[::-1])
 
-    # The following method is not compiled by JIT, because:
-    #
-    # 1. PyTorch JIT does not support "self._chain[::-1]" yet, nor does it
-    #    support subscription in ModuleList.
-    # 2. If we provide a separated "_inverse_chain", then it will cost much
-    #    more time to compile the module by JIT, and will double the number
-    #    of parameters returned from `state_dict()`.
-    @jit_ignore
+    def _call_chain(self,
+                            output: Tensor,
+                            output_log_det: Optional[Tensor],
+                            compute_log_det: bool
+                            ) -> Tuple[Tensor, Optional[Tensor]]:
+        for flow in self._chain:
+            output, output_log_det = flow(
+                output, output_log_det, False, compute_log_det)
+        return output, output_log_det
+
     def _call_inverse_chain(self,
                             output: Tensor,
                             output_log_det: Optional[Tensor],
                             compute_log_det: bool
                             ) -> Tuple[Tensor, Optional[Tensor]]:
-        for flow in self._chain[::-1]:
+        for flow in self._inverse_chain:
             output, output_log_det = flow(
                 output, output_log_det, True, compute_log_det)
         return output, output_log_det
@@ -365,11 +375,8 @@ class SequentialFlow(Flow):
             output, output_log_det = self._call_inverse_chain(
                 output, output_log_det, compute_log_det)
         else:
-            # since the forward chain is more likely to be used in training then
-            # the inverse chain, we choose to optimize the forward chain by JIT.
-            for flow in self._chain:
-                output, output_log_det = flow(
-                    output, output_log_det, False, compute_log_det)
+            output, output_log_det = self._call_chain(
+                output, output_log_det, compute_log_det)
 
         if batch_shape is not None:
             output = unflatten_from_ndims(output, batch_shape)
@@ -382,7 +389,9 @@ class SequentialFlow(Flow):
 # ---- invertible linear flows ----
 class InvertibleMatrix(BaseValidateTensorLayer):
 
-    __constants__ = ('size', 'validate_tensors')
+    __constants__ = BaseValidateTensorLayer.__constants__ + (
+        'size', 'validate_tensors'
+    )
 
     size: int
 
@@ -824,7 +833,7 @@ class SigmoidScale(Scale):
             output_log_det = log(sigmoid(pre_scale))
     """
 
-    __constants__ = ('pre_scale_bias',)
+    __constants__ = Scale.__constants__ + ('pre_scale_bias',)
 
     pre_scale_bias: float
 
@@ -871,7 +880,7 @@ class LinearScale(Scale):
             output_log_det = log(abs(pre_scale))
     """
 
-    __constants__ = ('epsilon',)
+    __constants__ = Scale.__constants__ + ('epsilon',)
 
     epsilon: float
 

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 import tensorkit as tk
@@ -27,7 +29,7 @@ def check_act_norm(ctx, spatial_ndims: int, cls):
         if not initialized:
             # must initialize with sufficient data
             with pytest.raises(Exception,
-                               match='at least .* dimensions'):
+                               match='with at least .* dimensions'):
                 _ = flow(T.random.randn(
                     make_conv_shape([], num_features, [6, 7, 8][: spatial_ndims]),
                     dtype=dtype

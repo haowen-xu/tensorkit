@@ -9,7 +9,7 @@ __all__ = [
 
 class BaseGated(BaseLayer):
 
-    __constants__ = ('feature_axis', 'num_features', 'gate_bias', 'activation')
+    __constants__ = ('feature_axis', 'num_features', 'gate_bias')
 
     feature_axis: int
     num_features: int
@@ -58,6 +58,8 @@ class Gated(BaseGated):
 
 
 class GatedWithActivation(BaseGated):
+
+    __constants__ = BaseGated.__constants__ + ('activation',)
 
     activation: Module
 

@@ -94,7 +94,7 @@ class ReshapeFlow(Flow):
 
 class SpaceDepthTransformFlow(Flow):
 
-    __constants__ = ('block_size',)
+    __constants__ = Flow.__constants__ + ('block_size',)
 
     block_size: int
 

@@ -1,4 +1,5 @@
 import math
+import sys
 from functools import partial
 from typing import *
 
@@ -69,8 +70,7 @@ def jit_compile(m: Module) -> Module:
         The compiled `m` module.
     """
     if is_module_jit_enabled():
-        if isinstance(m, Module) and \
-                not isinstance(m, torch.jit.ScriptModule):
+        if isinstance(m, Module) and not is_jit_layer(m):
             m = jit_compile_children(m)
             m = torch_script(m)
     return m
@@ -89,27 +89,33 @@ def jit_compile_children(m: Module,
         The `m` module itself.
     """
     if is_module_jit_enabled():
-        excludes = set(excludes or ())
-        for attr in dir(m):
-            if attr in excludes:
-                continue
-            val = getattr(m, attr)
-            if isinstance(val, ModuleList):
-                # Here we specially deal with module list.  This allows us
-                # to use a module list inside `T.jit_ignore` decorated method,
-                # while still enjoying its compiled children.
-                val = ModuleList([jit_compile(c) for c in val])
-                setattr(m, attr, val)
-            elif isinstance(val, Module) and \
-                    not isinstance(val, torch.jit.ScriptModule):
-                val = jit_compile(val)
-                setattr(m, attr, val)
+        if hasattr(m, 'custom_compile_module'):
+            m.custom_compile_module()
+        else:
+            excludes = set(excludes or ())
+            m_allowed_attributes = set(
+                list(getattr(m, 'annotations', [])) +
+                list(getattr(m, '__constants__', []))
+            )
+
+            for attr in dir(m):
+                val = getattr(m, attr, None)
+                if attr not in excludes and \
+                        (not attr.startswith('_') or attr in m_allowed_attributes) and \
+                        isinstance(val, Module) and \
+                        not is_jit_layer(val):
+                    if isinstance(val, ModuleList):
+                        module_list = ModuleList([jit_compile(c) for c in val])
+                        setattr(m, attr, jit_compile(module_list))
+                    else:
+                        val = jit_compile(val)
+                        setattr(m, attr, val)
     return m
 
 
 def is_jit_layer(layer: Module) -> bool:
     """Check whether or not `layer` is a JIT compiled layer."""
-    return isinstance(layer, torch.jit.ScriptModule)
+    return isinstance(layer, (torch.jit.ScriptModule, torch.jit.RecursiveScriptModule))
 
 
 def layer_to_device(layer: Module, device: Optional[str] = None) -> Module:
@@ -443,23 +449,23 @@ class Identity(Module):
 
 
 # ---- base layers and composition layers ----
-# class BaseLayerMeta(type):
-#
-#     def __new__(cls, name, parents, dct):
-#         if torch.__version__ == '1.4.0':
-#             # strange bug, that PyTorch 1.4.0 does not support annotations
-#             # with type `Module` or `ModuleList`
-#             if '__annotations__' in dct:
-#                 annotations = dct['__annotations__']
-#                 annotation_keys = list(annotations)
-#                 for attr in annotation_keys:
-#                     if annotations[attr] in (Module, ModuleList):
-#                         annotations.pop(attr)
-#
-#         return super().__new__(cls, name, parents, dct)
+class BaseLayerMeta(type):
+
+    def __new__(cls, name, parents, dct):
+        if torch.__version__ != '1.3.1':
+            # strange bug, that PyTorch >= 1.4.0 does not support annotations
+            # with type `Module` or `ModuleList`
+            if '__annotations__' in dct:
+                annotations = dct['__annotations__']
+                annotation_keys = list(annotations)
+                for attr in annotation_keys:
+                    if annotations[attr] in (Module, ModuleList):
+                        annotations.pop(attr)
+
+        return super().__new__(cls, name, parents, dct)
 
 
-class BaseLayer(Module):
+class BaseLayer(Module, metaclass=BaseLayerMeta):
 
     def _is_attr_included_in_repr(self, attr: str, value: Any) -> bool:
         return True
@@ -498,16 +504,7 @@ class Sequential(torch_nn.Sequential):
 class CoreLinear(BaseLayer):
     """Base class for the core linear layers."""
 
-    __constants__ = (
-        # modules
-        'weight_store', 'bias_store',
-
-        # attributes
-        'in_features', 'out_features', 'in_channels', 'out_channels',
-        'kernel_size', 'stride', 'padding', 'output_padding', 'dilation',
-        'use_bias',
-        '_manual_padding', '_conv_padding', '_is_manual_padding', '_unpad_axis',
-    )
+    __constants__ = ('weight_store', 'bias_store', 'use_bias')
 
     weight_store: Module
     bias_store: Module
@@ -559,6 +556,10 @@ class CoreLinear(BaseLayer):
 
 class Linear(CoreLinear):
 
+    __constants__ = CoreLinear.__constants__ + (
+        'in_features', 'out_features',
+    )
+
     in_features: int
     out_features: int
 
@@ -598,6 +599,7 @@ class Linear(CoreLinear):
         return torch.nn.functional.linear(input, weight, bias)
 
 
+@jit_ignore
 def _get_manual_and_conv_padding(padding: List[Tuple[int, int]]):
     if all(p1 == p2 for p1, p2 in padding):
         return [], [p1 for p1, _ in padding],
@@ -606,6 +608,11 @@ def _get_manual_and_conv_padding(padding: List[Tuple[int, int]]):
 
 
 class LinearConvNd(CoreLinear):
+
+    __constants__ = CoreLinear.__constants__ + (
+        'in_channels', 'out_channels', 'kernel_size', 'stride', 'padding',
+        'dilation', '_manual_padding', '_conv_padding', '_is_manual_padding',
+    )
 
     in_channels: int
     out_channels: int
@@ -736,6 +743,12 @@ class LinearConv3d(LinearConvNd):
 
 
 class LinearConvTransposeNd(CoreLinear):
+
+    __constants__ = CoreLinear.__constants__ + (
+        'in_channels', 'out_channels', 'kernel_size', 'stride', 'padding',
+        'dilation', 'output_padding',
+        '_manual_padding', '_conv_padding', '_is_manual_padding', '_unpad_axis',
+    )
 
     in_channels: int
     out_channels: int

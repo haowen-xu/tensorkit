@@ -118,8 +118,8 @@ class ActNorm(FeatureMappingFlow):
 
         if not isinstance(input, Tensor) or input_rank < self.x_event_ndims + 1:
             raise ValueError(
-                '`input` is required to be a tensor with at least {} '
-                'dimensions: got input shape {}.'.
+                '`input` is required to be a tensor with at least {} dimensions: '
+                'got input shape {}.'.
                 format(self.x_event_ndims, shape(input))
             )
 

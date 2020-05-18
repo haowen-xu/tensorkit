@@ -5,13 +5,15 @@
 
 ### Dependencies
 
-* Python: 3.6/3.7
-* PyTorch: 1.3.1
+This package has been tested with the following dependencies:
+
+* Python: 3.6/3.8
+* PyTorch: 1.5.0
 
 ### Installation
 
 ```bash
-pip install git+https://github.com/haowen-xu/tensorkit.git
+pip install git+https://github.com/haowen-xu/ml-essentials.git
 pip install git+https://github.com/haowen-xu/tensorkit.git
 ```
 
