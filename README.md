@@ -7,7 +7,7 @@
 
 This package has been tested with the following dependencies:
 
-* Python: 3.6/3.8
+* Python: 3.6
 * PyTorch: 1.5.0
 
 ### Installation
