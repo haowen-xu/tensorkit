@@ -6,17 +6,17 @@ from mltk import StatefulObject
 from .. import tensor as T
 
 __all__ = [
-    'BaseWeightAveraging',
+    'WeightAveraging',
     'WeightMeanAveraging', 'StochasticWeightAveraging',
     'WeightMovingAveraging',
 ]
 
 
-class BaseWeightAveraging(StatefulObject):
+class WeightAveraging(StatefulObject):
 
     enabled: bool
     weights: List[T.Variable]
-    average: List[T.Variable]
+    averages: List[T.Variable]
     num_updates: int
 
     def __init__(self,
@@ -24,7 +24,7 @@ class BaseWeightAveraging(StatefulObject):
                  enabled: bool = True):
         self.enabled = bool(enabled)
         self.weights = list(weights)
-        self.average = [
+        self.averages = [
             T.variable(
                 shape=T.shape(weight),
                 dtype=T.get_dtype(weight),
@@ -38,18 +38,18 @@ class BaseWeightAveraging(StatefulObject):
     def get_state_dict(self) -> Dict[str, Any]:
         return {
             'enabled': self.enabled,
-            'average': self.average,
+            'averages': self.averages,
             'num_updates': self.num_updates,
         }
 
     def set_state_dict(self, state: Dict[str, Any]):
         enabled = bool(state['enabled'])
-        average = state['average']
+        averages = state['averages']
         num_updates = int(state['num_updates'])
-        if len(average) != len(self.weights):
-            raise ValueError('Bad state: `average` does not match the size '
+        if len(averages) != len(self.weights):
+            raise ValueError('Bad state: `averages` does not match the size '
                              'of `self.weights`.')
-        for avg, new_avg in zip(self.average, average):
+        for avg, new_avg in zip(self.averages, averages):
             T.assign(avg, new_avg)
         self.enabled = enabled
         self.num_updates = num_updates
@@ -69,7 +69,7 @@ class BaseWeightAveraging(StatefulObject):
         This method will take effect only if `self.enabled` is True.
         """
         if self.enabled:
-            for avg, weight in zip(self.average, self.weights):
+            for avg, weight in zip(self.averages, self.weights):
                 self._update_single(avg, weight)
             self.num_updates += 1
 
@@ -89,7 +89,7 @@ class BaseWeightAveraging(StatefulObject):
         """
         ret = []
 
-        for avg, weight in zip(self.average, self.weights):
+        for avg, weight in zip(self.averages, self.weights):
             avg_val = self._get_debiased_average(avg)
             if backup:
                 ret.append(T.copy(
@@ -116,7 +116,7 @@ class BaseWeightAveraging(StatefulObject):
                 T.assign(weight, val)
 
 
-class WeightMeanAveraging(BaseWeightAveraging):
+class WeightMeanAveraging(WeightAveraging):
     """
     Averaging the weight by statistical mean.
 
@@ -136,7 +136,7 @@ class WeightMeanAveraging(BaseWeightAveraging):
 StochasticWeightAveraging = WeightMeanAveraging
 
 
-class WeightMovingAveraging(BaseWeightAveraging):
+class WeightMovingAveraging(WeightAveraging):
     """
     Weight averaging by exponential moving average method.
 
@@ -173,5 +173,4 @@ class WeightMovingAveraging(BaseWeightAveraging):
             return average
 
     def _update_single(self, average: T.Variable, weight: Union[T.Tensor, T.Variable]):
-        new_val = self.decay * average + (1. - self.decay) * weight
-        T.assign(average, new_val)
+        T.assign_add(average, (weight - average) * (1. - self.decay))

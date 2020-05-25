@@ -63,7 +63,7 @@ def stepwise_average_check(ctx, factory, update_fn, get_fn):
         avg.update()
 
     avg.commit()  # should still affect weights even if enabled is False
-    for avg_val in avg.get_state_dict()['average']:
+    for avg_val in avg.get_state_dict()['averages']:
         assert_allclose(avg_val, T.zeros_like(avg_val), rtol=1e-4, atol=1e-6)
     for weight in weights:
         assert_allclose(weight, T.zeros_like(weight), rtol=1e-4, atol=1e-6)
@@ -87,7 +87,7 @@ def stepwise_average_check(ctx, factory, update_fn, get_fn):
     # try set bad state
     avg = factory(weights)
     state = dict(avg.get_state_dict())
-    state['average'] = []
+    state['averages'] = []
     with pytest.raises(ValueError, match='Bad state'):
         avg.set_state_dict(state)
 
