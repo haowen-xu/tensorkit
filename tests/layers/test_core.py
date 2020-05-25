@@ -3,6 +3,7 @@ from itertools import product
 from typing import *
 from unittest.mock import Mock
 
+import mltk
 import numpy as np
 import pytest
 
@@ -587,6 +588,7 @@ class BatchNormTestCase(TestCase):
                                       else f'BatchNorm{spatial_ndims}d'))
             layer = cls(5, momentum=0.1, epsilon=eps)
             self.assertIn('BatchNorm', repr(layer))
+            self.assertTrue(tk.layers.is_batch_norm(layer))
             layer = tk.layers.jit_compile(layer)
 
             # layer output
@@ -625,6 +627,92 @@ class BatchNormTestCase(TestCase):
                         [], 5, [6, 7, 8][:spatial_ndims]
                     ))
                 )
+
+    def test_is_batch_norm(self):
+        layers = [
+            tk.layers.Dense(3, 4),
+            tk.layers.BatchNorm(4),
+            tk.layers.jit_compile(tk.layers.BatchNorm(4))
+        ]
+
+        self.assertFalse(tk.layers.is_batch_norm(layers[0]))
+        self.assertTrue(tk.layers.is_batch_norm(layers[1]))
+        if not T.is_module_jit_enabled():
+            self.assertTrue(tk.layers.is_batch_norm(layers[2]))
+
+        self.assertFalse(tk.layers.has_batch_norm(layers[0]))
+        self.assertTrue(tk.layers.has_batch_norm(layers[1]))
+        if not T.is_module_jit_enabled():
+            self.assertTrue(tk.layers.has_batch_norm(layers[2]))
+
+        seq = tk.layers.Sequential(layers)
+        self.assertFalse(tk.layers.is_batch_norm(seq))
+        self.assertTrue(tk.layers.has_batch_norm(seq))
+        self.assertFalse(tk.layers.has_batch_norm(seq, recursive=False))
+
+    def test_batch_norm_reset(self):
+        T.random.seed(1234)
+        inputs = T.split(T.random.randn([21, 4]), sections=[7] * 3, axis=0)
+
+        layer = tk.layers.Sequential([
+            tk.layers.BatchNorm(4),
+            tk.layers.BatchNorm(4),
+        ])
+        outputs = []
+
+        for i in range(3):
+            if i == 1:
+                tk.layers.batch_norm_reset(layer)
+            tk.layers.set_train_mode(layer)
+            for x in inputs[:-1]:
+                _ = layer(x)
+            tk.layers.set_eval_mode(layer)
+            outputs.append(layer(inputs[-1]))
+
+        assert_allclose(outputs[0], outputs[1], rtol=1e-4, atol=1e-6)
+        assert_not_allclose(outputs[1], outputs[2], rtol=1e-4, atol=1e-6)
+
+    def test_batch_norm_full_init(self):
+        T.random.seed(1234)
+        orig_input = T.random.randn([35, 4])
+        inputs = T.split(orig_input, sections=[7] * 5, axis=0)
+        mean, var = T.calculate_mean_and_var(orig_input, axis=[0])
+
+        layer = tk.layers.Sequential([
+            tk.layers.BatchNorm(4, momentum=0.125),
+        ])
+
+        def step_fn(input):
+            _ = layer(input)
+
+        def data_generator():
+            for input in inputs:
+                yield (input,)
+
+        for i in range(4):
+            if i == 2:
+                loop = mltk.TrainLoop()
+            elif i == 3:
+                loop = mltk.TestLoop()
+            else:
+                loop = None
+
+            fn = lambda: tk.layers.batch_norm_full_init(
+                layer, data_generator(), step_fn, loop=loop)
+            tk.layers.set_train_mode(layer)
+
+            if loop is not None:
+                with loop:
+                    fn()
+            else:
+                fn()
+            tk.layers.set_eval_mode(layer)
+
+            if T.backend_name == 'PyTorch':
+                self.assertEqual(layer[0].momentum, 0.125)
+                assert_allclose(layer[0].running_mean, mean, atol=1e-4, rtol=1e-6)
+            else:
+                raise NotImplementedError()
 
 
 class DropoutTestCase(TestCase):

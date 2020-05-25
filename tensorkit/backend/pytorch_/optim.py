@@ -7,7 +7,7 @@ from torch.optim.optimizer import Optimizer as TorchOptimizer
 from .core import *
 
 __all__ = [
-    'Optimizer', 'SGD', 'Adam',
+    'Optimizer', 'SGD', 'Adam', 'Adamax',
 ]
 
 
@@ -195,6 +195,10 @@ class SGD(BackendOptimizer):
 
 
 class Adam(BackendOptimizer):
+    """
+    The Adam algorithm from
+    D. P. Kingma and J. Ba, “Adam: A Method for Stochastic Optimization”.
+    """
 
     def __init__(self,
                  params: Iterable[Variable],
@@ -213,5 +217,30 @@ class Adam(BackendOptimizer):
                 betas=(beta_1, beta_2),
                 eps=epsilon,
                 amsgrad=amsgrad,
+            )
+        )
+
+
+class Adamax(BackendOptimizer):
+    """
+    The AdaMax algorithm from
+    D. P. Kingma and J. Ba, “Adam: A Method for Stochastic Optimization”.
+    """
+
+    def __init__(self,
+                 params: Iterable[Variable],
+                 lr: float = 0.002,
+                 beta_1: float = 0.9,
+                 beta_2: float = 0.999,
+                 epsilon: float = 1e-8):
+        params = list(params)
+        super().__init__(
+            params=params,
+            lr=lr,
+            torch_optimizer=torch.optim.Adamax(
+                params=params,
+                lr=lr,
+                betas=(beta_1, beta_2),
+                eps=epsilon,
             )
         )

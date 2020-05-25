@@ -225,3 +225,6 @@ class OptimizerTestCase(TestCase):
     def test_adam(self):
         optimizer_standard_check(self, partial(tk.optim.Adam), 0.1)
         optimizer_standard_check(self, partial(tk.optim.Adam, amsgrad=True), 0.1)
+
+    def test_adamax(self):
+        optimizer_standard_check(self, partial(tk.optim.Adamax), 0.1)

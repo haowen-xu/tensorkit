@@ -56,19 +56,23 @@ class TensorCoreTestCase(TestCase):
             self.assertIs(layer.c, c)
             self.assertIs(layer.d, d)
 
-        # test with excludes
-        layer = _MyParent(a=a, b=b, c=c, d=d)
-        layer2 = tk.layers.jit_compile_children(layer, excludes=('c',))
-        self.assertIs(layer2, layer)
-        self.assertEqual(layer.a, a)
-        if T.is_module_jit_enabled():
-            self.assertTrue(tk.layers.is_jit_layer(layer.b))
-            self.assertFalse(tk.layers.is_jit_layer(layer.c))
-            self.assertIs(layer.d, d)
-        else:
-            self.assertIs(layer.b, b)
-            self.assertIs(layer.c, c)
-            self.assertIs(layer.d, d)
+        # test with filter
+        def fn(**filter_args):
+            layer = _MyParent(a=a, b=b, c=c, d=d)
+            layer2 = tk.layers.jit_compile_children(layer, **filter_args)
+            self.assertIs(layer2, layer)
+            self.assertEqual(layer.a, a)
+            if T.is_module_jit_enabled():
+                self.assertTrue(tk.layers.is_jit_layer(layer.b))
+                self.assertFalse(tk.layers.is_jit_layer(layer.c))
+                self.assertIs(layer.d, d)
+            else:
+                self.assertIs(layer.b, b)
+                self.assertIs(layer.c, c)
+                self.assertIs(layer.d, d)
+
+        fn(filter=lambda m: m is not c)
+        fn(filter_key=lambda p, attr: attr != 'c')
 
     def test_device(self):
         # ensure we're using GPU if GPU is available
@@ -495,6 +499,13 @@ class TensorCoreTestCase(TestCase):
         self.assertEqual(out.dtype, np.bool)
         assert_equal(out, x)
 
+        # test force_copy
+        x_val = np.random.randn(2, 3, 4)
+        x = T.as_tensor(x_val, force_copy=False)
+        x_out = T.to_numpy(x, force_copy=True)
+        self.assertIsNot(x_out, T.to_numpy(x))
+        self.assertIsNot(x_out, x_val)
+
     def test_variable_and_initializer(self):
         def is_requires_grad(t):
             try:
@@ -616,6 +627,71 @@ class TensorCoreTestCase(TestCase):
                 with pytest.raises(Exception,
                                    match='`dst.shape` != `src.shape`'):
                     T.assign_data(x, T.zeros([2], dtype=dtype))
+
+            # assign_add
+            for dtype in float_dtypes:
+                x = T.variable([3, 2], dtype=dtype, initializer=tk.init.uniform)
+
+                for dtype2 in ('float32', 'float64'):
+                    val = np.random.randn(2).astype(dtype2)
+                    ans = T.to_numpy(x) + val
+                    self.assertIs(T.assign_add(x, T.as_tensor(val)), x)
+                    assert_allclose(x, ans, rtol=1e-4, atol=1e-6)
+
+            # swap_assign
+            for dtype in float_dtypes:
+                x = T.variable([3], dtype=dtype, initializer=tk.init.uniform)
+                y = T.variable([3], dtype=dtype, initializer=tk.init.uniform)
+                x_val = T.to_numpy(x, force_copy=True)
+                y_val = T.to_numpy(y, force_copy=True)
+                out_x, out_y = T.swap_assign(x, y)
+                self.assertIs(out_x, x)
+                self.assertIs(out_y, y)
+                assert_equal(x, y_val)
+                assert_equal(y, x_val)
+
+    def test_copy(self):
+        def compare(x, y):
+            self.assertIsNot(x, y)
+            self.assertEqual(x.dtype, y.dtype)
+            self.assertEqual(x.shape, y.shape)
+            assert_equal(x, y)
+
+        def check_grad(v, requires_grad):
+            tmp = T.requires_grad(T.float_scalar(1))
+            fn = lambda: T.grad([tmp * T.reduce_sum(v * v)], [v])[0]
+            if requires_grad:
+                assert_allclose(fn(), 2 * v, atol=1e-4, rtol=1e-6)
+            else:
+                try:
+                    self.assertTrue(T.is_null_grad(v, fn()))
+                except Exception:
+                    pass
+
+        # test copy
+        for requires_grad in [True, False]:
+            for dtype in float_dtypes:
+                x = T.random.randn([2, 3, 4], dtype=dtype)
+
+                y = T.copy(x, requires_grad=requires_grad)
+                self.assertIsInstance(y, T.Tensor)
+                compare(x, y)
+                check_grad(y, requires_grad)
+
+                y = T.copy_as_variable(x, requires_grad=requires_grad)
+                self.assertIsInstance(y, T.Variable)
+                compare(x, y)
+                check_grad(y, requires_grad)
+
+        # test copy and assign
+        for fn in [T.copy, T.copy_as_variable]:
+            x = T.variable([2, 3, 4], initializer=tk.init.uniform)
+            x_val = T.to_numpy(x, force_copy=True)
+            y = fn(x)
+            x_new_val = T.to_numpy(x, force_copy=True)
+            T.assign_data(x, x_new_val)
+            assert_allclose(x, x_new_val, atol=1e-4, rtol=1e-6)
+            assert_allclose(y, x_val, atol=1e-4, rtol=1e-6)
 
     def test_shape_utils(self):
         # test shape and length

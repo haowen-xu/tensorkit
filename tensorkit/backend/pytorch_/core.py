@@ -50,6 +50,10 @@ __all__ = [
 
     # assignment to variable
     'fill', 'fill_zeros', 'assign', 'assign_data',
+    'assign_add', 'swap_assign',
+
+    # tensor copy
+    'copy', 'copy_as_variable',
 
     # shape utils
     'length', 'shape', 'rank', 'reshape', 'repeat', 'expand', 'squeeze',
@@ -611,10 +615,13 @@ def diag(v: Tensor, k: int = 0) -> Tensor:
 
 # ---- to_numpy ----
 @jit_ignore
-def to_numpy(input: Tensor) -> np.ndarray:
+def to_numpy(input: Tensor, force_copy: bool = False) -> np.ndarray:
     if not isinstance(input, Tensor):
         raise TypeError(f'Not a Tensor: got {input!r}')
-    return input.detach().cpu().numpy()
+    r = input.detach().cpu().numpy()
+    if force_copy:
+        r = np.copy(r)
+    return r
 
 
 # ---- variable and initializer ----
@@ -723,6 +730,41 @@ def assign_data(dst: Tensor, src) -> Tensor:
                          format(shape(dst), shape(src)))
     dst.data = src
     return dst
+
+
+@jit
+def assign_add(dst: Tensor, src: Tensor) -> Tensor:
+    dst.add_(src.detach())
+    return dst
+
+
+@jit
+def swap_assign(x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
+    tmp = torch.empty_like(x)
+    tmp.copy_(x.detach())
+    x.data.copy_(y.detach())
+    y.data.copy_(tmp.detach())
+    return x, y
+
+
+# ---- tensor copy ----
+@jit
+def copy(input: Tensor, device: Optional[str] = None, requires_grad: bool = False) -> Tensor:
+    if not requires_grad:
+        input = input.detach()
+    input = input.clone()
+    if device is not None:
+        if device != str(input.device):
+            input = input.to(device=device)
+    input = input.requires_grad_(requires_grad)
+    return input
+
+
+@jit
+def copy_as_variable(input: Tensor,
+                     device: Optional[str] = None,
+                     requires_grad: bool = True) -> Variable:
+    return copy(input, device, requires_grad=requires_grad)
 
 
 # ---- shape utils ----

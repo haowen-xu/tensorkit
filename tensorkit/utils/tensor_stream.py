@@ -50,7 +50,7 @@ class TensorStream(mltk.DataStream):
             for batch_data in g:
                 with T.no_grad():
                     batch_data = tuple(
-                        T.from_numpy(np.copy(arr), device=self.device)
+                        T.as_tensor(np.copy(arr), device=self.device)
                         for arr in batch_data
                     )
                     yield batch_data

@@ -1,8 +1,9 @@
 import math
-import sys
 from functools import partial
 from typing import *
 
+import mltk
+import numpy as np
 import torch
 from mltk import NOT_SET
 from torch import nn as torch_nn
@@ -43,6 +44,8 @@ __all__ = [
 
     # normalizer layers
     'BatchNorm', 'BatchNorm1d', 'BatchNorm2d', 'BatchNorm3d',
+    'has_batch_norm', 'is_batch_norm', 'batch_norm_reset',
+    'batch_norm_full_init',
 
     # dropout layers
     'Dropout', 'Dropout1d', 'Dropout2d', 'Dropout3d',
@@ -59,40 +62,55 @@ DEFAULT_BIAS_INIT = init.zeros
 
 
 # ---- utils ----
-def jit_compile(m: Module) -> Module:
+def jit_compile(m: Module,
+                filter: Optional[Callable[[Module], bool]] = None,
+                filter_key: Optional[Callable[[Module, str], bool]] = None) -> Module:
     """
     Compile `m` and all children modules of `m`  with JIT.
 
     Args:
         m: The module.
+        filter: ``(m: Module) -> bool``
+            Should return True if `m` should be compiled.
+            The `m` module itself will not be affected by this filter.
+        filter_key: ``(parent: Module, attribute: str) -> bool``.
+            Should return True if the child `attribute` of `parent` should be
+            compiled. The `m` module itself will not be affected by this filter.
 
     Returns:
         The compiled `m` module.
     """
     if is_module_jit_enabled():
         if isinstance(m, Module) and not is_jit_layer(m):
-            m = jit_compile_children(m)
+            m = jit_compile_children(m, filter, filter_key)
             m = torch_script(m)
     return m
 
 
 def jit_compile_children(m: Module,
-                         excludes: Optional[Sequence[str]] = None) -> Module:
+                         filter: Optional[Callable[[Module], bool]] = None,
+                         filter_key: Optional[Callable[[Module, str], bool]] = None) -> Module:
     """
     Compile all children modules of `m` in-place with JIT.
 
     Args:
         m: The parent module.
-        excludes: The attribute names to be excluded.
+        filter: ``(m: Module) -> bool``
+            Should return True if `m` should be compiled.
+        filter_key: ``(parent: Module, attribute: str) -> bool``.
+            Should return True if the child `attribute` of `parent` should be
+            compiled.
 
     Returns:
         The `m` module itself.
     """
+    filter = filter or (lambda module: True)
+    filter_key = filter_key or (lambda parent, attribute: True)
+
     if is_module_jit_enabled():
         if hasattr(m, 'custom_compile_module'):
             m.custom_compile_module()
         else:
-            excludes = set(excludes or ())
             m_allowed_attributes = set(
                 list(getattr(m, 'annotations', [])) +
                 list(getattr(m, '__constants__', []))
@@ -100,15 +118,19 @@ def jit_compile_children(m: Module,
 
             for attr in dir(m):
                 val = getattr(m, attr, None)
-                if attr not in excludes and \
-                        (not attr.startswith('_') or attr in m_allowed_attributes) and \
+                if (not attr.startswith('_') or attr in m_allowed_attributes) and \
                         isinstance(val, Module) and \
-                        not is_jit_layer(val):
+                        not is_jit_layer(val) and \
+                        filter(val) and \
+                        filter_key(m, attr):
                     if isinstance(val, ModuleList):
-                        module_list = ModuleList([jit_compile(c) for c in val])
-                        setattr(m, attr, jit_compile(module_list))
+                        module_list = ModuleList([
+                            jit_compile(c, filter, filter_key)
+                            for c in val
+                        ])
+                        setattr(m, attr, jit_compile(module_list, filter, filter_key))
                     else:
-                        val = jit_compile(val)
+                        val = jit_compile(val, filter, filter_key)
                         setattr(m, attr, val)
     return m
 
@@ -971,6 +993,135 @@ class BatchNorm3d(torch_nn.BatchNorm3d):
         if rank(input) != 5:
             raise ValueError('`BatchNorm2d` only supports 5d input, '
                              'but the input shape is {}'.format(shape(input)))
+
+
+def has_batch_norm(module: Module, recursive: bool = True) -> bool:
+    """
+    Check whether or not `module` is a Batch Norm module (if `recursive` is
+    False), or any children of `module` is Batch Norm module (if `recursive`
+    is True).
+
+    JIT compiled Batch Norm module is not recognized by this method.
+
+    Args:
+        module: The module to be checked.
+        recursive: Whether or not to check the module recursively.
+
+    Returns:
+        Whether or not `module` is a Batch Norm module.
+    """
+    ret = [False]
+
+    def fn(m):
+        ret[0] = ret[0] or isinstance(
+            m,
+            (torch_nn.BatchNorm1d, torch_nn.BatchNorm2d, torch_nn.BatchNorm3d)
+        )
+
+    if recursive:
+        module.apply(fn)
+    else:
+        fn(module)
+
+    return ret[0]
+
+
+def is_batch_norm(module: Module) -> bool:
+    """
+    Check whether or not `module` is a Batch Norm module.
+    JIT compiled Batch Norm module is not recognized by this method.
+
+    Args:
+        module: The module to be checked.
+
+    Returns:
+        Whether or not `module` is a Batch Norm module.
+    """
+    return has_batch_norm(module, recursive=False)
+
+
+def batch_norm_reset(model: Module):
+    """
+    Reset the running statistics of Batch Norm modules in a model recursively.
+    JIT compiled Batch Norm modules are not supported.
+
+    Args:
+        model: The root module of the module.
+
+    Returns:
+        The `model` itself.
+    """
+    def fn(m: Module):
+        if is_batch_norm(m):
+            m.running_mean = torch.zeros_like(
+                m.running_mean, device=m.running_mean.device)
+            m.running_var = torch.ones_like(
+                m.running_var, device=m.running_var.device)
+    model.apply(fn)
+    return model
+
+
+def batch_norm_full_init(model: Module,
+                         data_generator,
+                         step_fn: Callable[[Sequence[Tensor]], None],
+                         loop=None) -> Module:
+    """
+    Run a full epoch to initialize the mean and variance of BatchNorm layers
+    in the given `model` recursively.  JIT compiled BatchNorm layers are not
+    supported.
+
+    Args:
+        model: The model, whose BatchNorm children to be initialized.
+        data_generator: The epoch data generator.
+        step_fn: The callback function, which executes each mini-batch.
+        loop: Optional mltk loop object.
+
+    Returns:
+        The `model` itself.
+
+    Notes:
+        Remember to set the train mode of `model` before calling this method.
+    """
+
+    # backup the momentum of all BatchNorm layers
+    def backup_momentum(m):
+        if is_batch_norm(m):
+            orig_momentum[m] = m.momentum
+
+    def restore_momentum(m):
+        if m in orig_momentum:
+            m.momentum = orig_momentum[m]
+
+    orig_momentum = {}
+    model.apply(backup_momentum)
+    batch_norm_reset(model)
+
+    # run the full epoch to update the BatchNorm stats
+    if orig_momentum:
+        try:
+            def step(*batch_data):
+                batch_size = mltk.utils.get_array_shape(batch_data[0])[0]
+                total_size[0] += batch_size
+                for m in orig_momentum.keys():
+                    m.momentum = float(batch_size) / (total_size[0])
+                step_fn(*batch_data)
+
+            total_size = [0]
+            batch_norm_reset(model)
+            if isinstance(loop, mltk.TrainLoop):
+                for _ in loop.iter_epochs(count=1):
+                    loop.run_batches(step, data_generator)
+            elif loop is not None:
+                loop.run(step, data_generator)
+            else:
+                for b in data_generator:
+                    step(*b)
+
+        finally:
+            # restore the momentum
+            model.apply(restore_momentum)
+
+    return model
 
 
 # ---- dropout layers ----
