@@ -1866,6 +1866,19 @@ class TensorCoreTestCase(TestCase):
                 allow_unused=False,
             )
 
+    def test_is_all_any(self):
+        x = np.array([True, True, True])
+        y = np.array([True, False, False])
+        z = np.array([False, False, False])
+
+        def f(a):
+            self.assertEqual(np.any(a), T.is_any(T.as_tensor(a)))
+            self.assertEqual(np.all(a), T.is_all(T.as_tensor(a)))
+
+        f(x)
+        f(y)
+        f(z)
+
     def test_assertions(self):
         # is_finite and assert_finite
         for x in [np.array([-1, 0, 1]), np.array([1., 2., 3.]),

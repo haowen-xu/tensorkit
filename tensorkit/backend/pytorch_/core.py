@@ -103,7 +103,7 @@ __all__ = [
     'grad', 'is_null_grad', 'requires_grad', 'stop_grad', 'no_grad',
 
     # debug utilities
-    'is_all', 'is_finite', 'assert_finite',
+    'is_all', 'is_any', 'is_finite', 'assert_finite',
 ]
 
 
@@ -1854,6 +1854,11 @@ def is_finite(input: Tensor) -> Tensor:
 @jit
 def is_all(condition: Tensor) -> bool:
     return bool(torch.all(condition).item())
+
+
+@jit
+def is_any(condition: Tensor) -> bool:
+    return bool(torch.any(condition).item())
 
 
 @jit
