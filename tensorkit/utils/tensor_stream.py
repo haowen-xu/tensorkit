@@ -53,7 +53,7 @@ class TensorStream(mltk.DataStream):
                         T.as_tensor(np.copy(arr), device=self.device)
                         for arr in batch_data
                     )
-                    yield batch_data
+                yield batch_data
         finally:
             g.close()
 
