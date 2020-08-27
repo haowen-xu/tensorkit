@@ -931,6 +931,11 @@ class TensorCoreTestCase(TestCase):
         for axis in [0, 1, 2, -1, -2, -3]:
             check_broadcast_concat([4, 1, 3], [2, 3], axis)
 
+        with pytest.raises(Exception, match='`axis` out of range'):
+            check_broadcast_concat([], [2, 3], -3)
+        with pytest.raises(Exception, match='`axis` out of range'):
+            check_broadcast_concat([4, 1, 3], [2, 3], 3)
+
         # test flatten_to_ndims
         def run_check(x, k):
             t = T.as_tensor(x, dtype=T.int32)
