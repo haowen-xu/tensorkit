@@ -60,7 +60,7 @@ __all__ = [
     'squeeze_axis', 'expand_dim', 'swap_axes', 'transpose',
     'get_broadcast_shape', 'broadcast_to_shape', 'strict_broadcast_to_shape',
     'broadcast_to', 'strict_broadcast_to', 'explicit_broadcast',
-    'flatten_to_ndims', 'unflatten_from_ndims', 'reshape_tail',
+    'broadcast_concat', 'flatten_to_ndims', 'unflatten_from_ndims', 'reshape_tail',
 
     # split / join / indexing / gathering ...
     'index_select', 'concat', 'split', 'stack', 'unstack', 'slice', 'slice_axis',
@@ -862,19 +862,25 @@ def transpose(input: Tensor, axis: List[int]) -> Tensor:
 
 @jit
 def get_broadcast_shape(x: List[int], y: List[int]) -> List[int]:
-    x_len, y_len = len(x), len(y)
-    max_length = max(x_len, y_len)
-    x_ex = [1] * (max_length - x_len) + x
-    y_ex = [1] * (max_length - y_len) + y
-    for i in range(max_length):
-        a, b = x_ex[i], y_ex[i]
-        if b != a and b != 1:
-            if a != 1:
-                raise ValueError('Shape x and y cannot broadcast against '
-                                 'each other: {} vs {}.'.format(x, y))
-            else:
-                x_ex[i] = b
-    return x_ex
+    o = (
+        torch.zeros(x, dtype=torch.float32) +
+        torch.zeros(y, dtype=torch.float32)
+    )
+    return list(o.shape)
+
+    # x_len, y_len = len(x), len(y)
+    # max_length = max(x_len, y_len)
+    # x_ex = [1] * (max_length - x_len) + x
+    # y_ex = [1] * (max_length - y_len) + y
+    # for i in range(max_length):
+    #     a, b = x_ex[i], y_ex[i]
+    #     if b != a and b != 1:
+    #         if a != 1:
+    #             raise ValueError('Shape x and y cannot broadcast against '
+    #                              'each other: {} vs {}.'.format(x, y))
+    #         else:
+    #             x_ex[i] = b
+    # return x_ex
 
 
 @jit
@@ -893,6 +899,55 @@ def strict_broadcast_to_shape(input: Tensor, new_shape: List[int]) -> Tensor:
             '`input` cannot be broadcast to `new_shape`: shape(input) {} '
             'vs new_shape {}'.format(shape(input), new_shape))
     return output
+
+
+@jit
+def broadcast_concat(x: Tensor, y: Tensor, axis: int) -> Tensor:
+    # check the shapes of inputs
+    x_shape = list(x.shape)
+    y_shape = list(y.shape)
+    x_rank = len(x_shape)
+    y_rank = len(y_shape)
+    final_rank = max(x_rank, y_rank)  # the final rank
+
+    # validate `axis`.  Note that `final_rank == 0` will be rejected,
+    # since no integer can be simultaneously >= 0 and < 0
+    if axis < -final_rank or axis >= final_rank:
+        raise ValueError(
+            '`axis` out of range: got {}, but expected to be >= {} and < {}'.
+            format(axis, -final_rank, final_rank))
+    elif axis >= 0:
+        # normalize `axis` to be negative
+        axis = axis - final_rank
+
+    # calculate the broadcast shape along other axis
+    if x_rank < y_rank:
+        x_shape = [1] * (y_rank - x_rank) + x_shape
+    elif x_rank > y_rank:
+        y_shape = [1] * (x_rank - y_rank) + y_shape
+
+    x_shape[axis] = 1
+    y_shape[axis] = 1
+    b_shape = get_broadcast_shape(x_shape, y_shape)
+
+    # expand x shape
+    if b_shape != x_shape:
+        if -x_rank <= axis:
+            b_shape[axis] = x.shape[axis]
+        else:
+            b_shape[axis] = 1
+        x = x.expand(b_shape)
+
+    # expand y shape
+    if b_shape != y_shape:
+        if -y_rank <= axis:
+            b_shape[axis] = y.shape[axis]
+        else:
+            b_shape[axis] = 1
+        y = y.expand(b_shape)
+
+    # now concat two tensors
+    return torch.cat([x, y], dim=axis)
 
 
 @jit

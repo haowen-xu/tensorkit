@@ -834,7 +834,7 @@ class TensorCoreTestCase(TestCase):
             [4, 1, 5]
         )
 
-        with pytest.raises(Exception, match='cannot broadcast'):
+        with pytest.raises(Exception, match='must match the size'):
             _ = T.get_broadcast_shape([2], [3])
 
         # test broadcast_to
@@ -902,6 +902,34 @@ class TensorCoreTestCase(TestCase):
         check_explicit_broadcast([1, 2], [5, 3, 1])
         check_explicit_broadcast([5, 3, 1], [1, 2])
         check_explicit_broadcast([], [1, 1, 1, 1])
+
+        # test broadcast_concat
+        def broadcast_concat(x, y, axis):
+            x_shape = list(x.shape)
+            y_shape = list(y.shape)
+            if len(x_shape) < len(y_shape):
+                x_shape = [1] * (len(y_shape) - len(x_shape)) + x_shape
+            if len(y_shape) < len(x_shape):
+                y_shape = [1] * (len(x_shape) - len(y_shape)) + y_shape
+            x_shape[axis] = y_shape[axis] = 1
+            b_shape = list((np.ones(x_shape) * np.ones(y_shape)).shape)
+            return np.concatenate(
+                [x * np.ones(b_shape), y * np.ones(b_shape)],
+                axis=axis
+            )
+
+        def check_broadcast_concat(shape1, shape2, axis):
+            x = np.asarray(np.random.randn(*shape1))
+            y = np.asarray(np.random.randn(*shape2))
+            out = T.broadcast_concat(T.as_tensor(x), T.as_tensor(y), axis)
+            out = T.to_numpy(out)
+            ans = broadcast_concat(x, y, axis)
+            assert_equal(out, ans)
+
+        for axis in [0, 1, -1, -2]:
+            check_broadcast_concat([], [2, 3], axis)
+        for axis in [0, 1, 2, -1, -2, -3]:
+            check_broadcast_concat([4, 1, 3], [2, 3], axis)
 
         # test flatten_to_ndims
         def run_check(x, k):
