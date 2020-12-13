@@ -1,4 +1,5 @@
 import math
+import types
 from functools import partial
 from typing import *
 
@@ -492,6 +493,10 @@ class BaseLayerMeta(type):
 class BaseLayer(Module, metaclass=BaseLayerMeta):
 
     def _is_attr_included_in_repr(self, attr: str, value: Any) -> bool:
+        if attr in getattr(Module, '__annotations__', ()):
+            return False
+        # if callable(value) or isinstance(value, types.MethodType):
+        #     return False
         return True
 
     def extra_repr(self) -> str:

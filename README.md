@@ -8,7 +8,7 @@
 This package has been tested with the following dependencies:
 
 * Python: 3.6
-* PyTorch: 1.5.0
+* PyTorch: 1.7.1
 
 ### Installation
 

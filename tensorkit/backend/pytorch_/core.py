@@ -717,7 +717,7 @@ def fill_zeros(dst: Tensor) -> Tensor:
 def assign(dst: Tensor, src: Tensor) -> Tensor:
     if src.shape != dst.shape:
         raise ValueError('`dst.shape` != `src.shape`: {} vs {}'.
-                         format(shape(dst), shape(src)))
+                         format(dst.shape, src.shape))
     dst.copy_(src.detach())
     return dst
 
@@ -727,7 +727,7 @@ def assign_data(dst: Tensor, src) -> Tensor:
     src = as_tensor(src, force_copy=True).detach()
     if src.shape != dst.shape:
         raise ValueError('`dst.shape` != `src.shape`: {} vs {}'.
-                         format(shape(dst), shape(src)))
+                         format(dst.shape, src.shape))
     dst.data = src
     return dst
 

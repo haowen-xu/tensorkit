@@ -42,10 +42,11 @@ def seed(seed: int):
 
 
 def set_deterministic(deterministic: bool = True):
-    if hasattr(torch, 'backends') and hasattr(torch.backends, 'cudnn'):
-        torch.backends.cudnn.enabled = not deterministic
-        torch.backends.cudnn.benchmark = not deterministic
-        torch.backends.cudnn.deterministic = deterministic
+    # if hasattr(torch, 'backends') and hasattr(torch.backends, 'cudnn'):
+    #     torch.backends.cudnn.enabled = not deterministic
+    #     torch.backends.cudnn.benchmark = not deterministic
+    #     torch.backends.cudnn.deterministic = deterministic
+    torch.set_deterministic(deterministic)
 
 
 # ---- uniform distribution ----

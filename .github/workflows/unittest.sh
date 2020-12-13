@@ -13,8 +13,8 @@ python --version
 pytest --version
 coveralls --version
 
-# Test with PyTorch 1.5.0
-pip install "torch==1.5.0"
+# Test with PyTorch 1.7.1
+pip install "torch==1.7.1" "torchvision==0.8.2"
 
 export TENSORKIT_BACKEND=PyTorch TENSORKIT_JIT_MODE=none TENSORKIT_VALIDATE_TENSORS=false
 pytest --cov=tensorkit --cov-append
