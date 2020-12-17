@@ -84,6 +84,22 @@ class LayerArgsTestCase(TestCase):
                 self.assertIsNot(args2, def_args)
                 self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {})
 
+        # as default should affect a subclass of BaseLayer
+        with LayerArgs().as_default() as def_args:
+            # RecordInitArgsLayer
+            def_args.set_args([_RecordInitArgsLayer], c=5)
+            o = args.build(_RecordInitArgsLayer)
+            self.assertIsInstance(o, _RecordInitArgsLayer)
+            self.assertEqual(o, ((), {'c': 5}))
+
+            # A simple dense layer
+            l1 = tk.layers.Dense(2, 2)
+            self.assertEqual(len(l1), 1)
+            def_args.set_args([tk.layers.Dense], activation=tk.layers.ReLU)
+            l2 = tk.layers.Dense(2, 2)
+            self.assertEqual(len(l2), 2)
+            self.assertIsInstance(l2[-1], tk.layers.ReLU)
+
     def test_layer_names_as_types(self):
         args = tk.layers.LayerArgs()
         args.set_args(['dense', 'conv2d'], activation=tk.layers.LeakyReLU)
@@ -100,6 +116,17 @@ class LayerArgsTestCase(TestCase):
         l2 = args.build('conv2d', 4, 4)
         self.assertIsInstance(l2[1], tk.layers.LeakyReLU)
         self.assertEqual(T.shape(l2[0].weight_store()), [4, 4, 3, 3])
+
+    def ensure_all_layers_and_flows_have_layer_args_decorated(self):
+        from tensorkit import layers as L, flows as F
+        for pkg in [L, F]:
+            for name in dir(pkg):
+                val = getattr(pkg, name)
+                if isinstance(val, T.Module):
+                    self.assertTrue(
+                        val.__with_layer_args_decorated__,
+                        msg=f'{val!r}.__with_layer_args_decorated__ == False'
+                    )
 
 
 def sequential_builder_standard_check(ctx,

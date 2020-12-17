@@ -1,6 +1,7 @@
 import math
 import types
-from functools import partial
+from functools import partial, wraps
+from logging import getLogger
 from typing import *
 
 import mltk
@@ -225,6 +226,32 @@ def set_train_mode(layer: Module, training: bool = True):
 def set_eval_mode(layer: Module):
     layer.train(False)
     return layer
+
+
+def with_layer_args(cls):
+    def make_wrapper(type_, method):
+        @wraps(method)
+        def wrapper(*args, **kwargs):
+            from tensorkit.layers import get_default_layer_args
+            layer_args = get_default_layer_args()
+            default_kwargs = layer_args.get_kwargs(type_)
+            if default_kwargs:
+                getLogger(__name__).debug(
+                    'Build instance of layer %r with default kwargs %r',
+                    type_, default_kwargs
+                )
+                for k, v in default_kwargs.items():
+                    kwargs.setdefault(k, v)
+            return method(*args, **kwargs)
+
+        type_.__with_layer_args_decorated__ = True
+        return wrapper
+
+    if not isinstance(cls, type) or not issubclass(cls, Module):
+        raise TypeError(f'`with_layer_args` can only be applied on a Module class.')
+
+    cls.__init__ = make_wrapper(cls, cls.__init__)
+    return cls
 
 
 # ---- weight wrapper: a simple weight, or a normed weight ----
@@ -487,7 +514,9 @@ class BaseLayerMeta(type):
                     if annotations[attr] in (Module, ModuleList):
                         annotations.pop(attr)
 
-        return super().__new__(cls, name, parents, dct)
+        kclass = super().__new__(cls, name, parents, dct)
+        kclass = with_layer_args(kclass)
+        return kclass
 
 
 class BaseLayer(Module, metaclass=BaseLayerMeta):
@@ -522,7 +551,7 @@ class BaseLayer(Module, metaclass=BaseLayerMeta):
         return ', '.join(buf)
 
 
-class Sequential(torch_nn.Sequential):
+class Sequential(torch_nn.Sequential, metaclass=BaseLayerMeta):
 
     def __init__(self, *layers: Union[Module, Sequence[Module]]):
         from tensorkit.layers import flatten_nested_layers
@@ -924,7 +953,7 @@ class LinearConvTranspose3d(LinearConvTransposeNd):
 
 
 # ---- normalizer layers ----
-class BatchNorm(torch_nn.BatchNorm1d):
+class BatchNorm(torch_nn.BatchNorm1d, metaclass=BaseLayerMeta):
     """Batch normalization for dense layers."""
 
     def __init__(self,
@@ -943,7 +972,7 @@ class BatchNorm(torch_nn.BatchNorm1d):
                              'but the input shape is {}'.format(shape(input)))
 
 
-class BatchNorm1d(torch_nn.BatchNorm1d):
+class BatchNorm1d(torch_nn.BatchNorm1d, metaclass=BaseLayerMeta):
     """Batch normalization for 1D convolutional layers."""
 
     def __init__(self,
@@ -962,7 +991,7 @@ class BatchNorm1d(torch_nn.BatchNorm1d):
                              'but the input shape is {}'.format(shape(input)))
 
 
-class BatchNorm2d(torch_nn.BatchNorm2d):
+class BatchNorm2d(torch_nn.BatchNorm2d, metaclass=BaseLayerMeta):
     """Batch normalization for 2D convolutional layers."""
 
     def __init__(self,
@@ -981,7 +1010,7 @@ class BatchNorm2d(torch_nn.BatchNorm2d):
                              'but the input shape is {}'.format(shape(input)))
 
 
-class BatchNorm3d(torch_nn.BatchNorm3d):
+class BatchNorm3d(torch_nn.BatchNorm3d, metaclass=BaseLayerMeta):
     """Batch normalization for 3D convolutional layers."""
 
     def __init__(self,
@@ -1130,7 +1159,8 @@ def batch_norm_full_init(model: Module,
 
 
 # ---- dropout layers ----
-Dropout = torch_nn.Dropout
+class Dropout(torch_nn.Dropout, metaclass=BaseLayerMeta):
+    pass
 
 
 class Dropout1d(BaseLayer):
@@ -1162,8 +1192,12 @@ class Dropout1d(BaseLayer):
         return input
 
 
-Dropout2d = torch_nn.Dropout2d
-Dropout3d = torch_nn.Dropout3d
+class Dropout2d(torch_nn.Dropout2d, metaclass=BaseLayerMeta):
+    pass
+
+
+class Dropout3d(torch_nn.Dropout3d, metaclass=BaseLayerMeta):
+    pass
 
 
 # ---- embedding layers ----
