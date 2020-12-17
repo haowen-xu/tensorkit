@@ -30,7 +30,7 @@ class _RecordInitArgsLayer(BaseLayer):
 
 class LayerArgsTestCase(TestCase):
 
-    def test_set_args(self):
+    def test_copy_and_set_args(self):
         # empty default args
         args = tk.layers.LayerArgs()
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {})
@@ -43,7 +43,6 @@ class LayerArgsTestCase(TestCase):
         self.assertIs(args.set_args(_RecordInitArgsLayer, d=4), args)
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {'d': 4})
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer, c=3, d=5), {'c': 3, 'd': 5})
-
         o = args.build(_RecordInitArgsLayer)
         self.assertIsInstance(o, _RecordInitArgsLayer)
         self.assertEqual(o, ((), {'d': 4}))
@@ -53,10 +52,37 @@ class LayerArgsTestCase(TestCase):
         self.assertEqual(o, ((1, 2), {'c': 3, 'd': 5}))
 
         # inherit default args from previous instance
+        args2 = args.copy()
+        args2.set_args(_RecordInitArgsLayer, c=5)
+        self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {'c': 5, 'd': 4})
+        self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {'d': 4})  # should not change
+
         args2 = tk.layers.LayerArgs(args)
         args2.set_args([_RecordInitArgsLayer], c=5)
         self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {'c': 5, 'd': 4})
         self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {'d': 4})  # should not change
+
+    def test_as_default(self):
+        # the default default
+        def_args = get_default_layer_args()
+        args = LayerArgs()
+        self.assertIsNot(args, def_args)
+        with args.as_default() as args2:
+            self.assertIs(args2, args)
+            self.assertIs(get_default_layer_args(), args)
+            self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {})
+        self.assertIs(get_default_layer_args(), def_args)
+
+        # test inherit from default and inherit from none
+        with LayerArgs().as_default() as def_args:
+            def_args.set_args([_RecordInitArgsLayer], c=5)
+            self.assertEqual(def_args.get_kwargs(_RecordInitArgsLayer), {'c': 5})
+            with LayerArgs().as_default() as args2:
+                self.assertIsNot(args2, def_args)
+                self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {'c': 5})
+            with LayerArgs(None).as_default() as args2:
+                self.assertIsNot(args2, def_args)
+                self.assertEqual(args2.get_kwargs(_RecordInitArgsLayer), {})
 
     def test_layer_names_as_types(self):
         args = tk.layers.LayerArgs()

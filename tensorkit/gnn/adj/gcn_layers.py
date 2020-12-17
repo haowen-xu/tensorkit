@@ -227,6 +227,7 @@ class PartitionedGCNLayer(BaseLayer):
         # compute the outputs of modules
         merge_mode = self.merge_mode
         outputs: List[Tensor] = []
+        output = input
         output_shape = (
             [-1] +
             input_shape[i_rank - self.feature_matrix_ndims + 1:]
@@ -243,7 +244,15 @@ class PartitionedGCNLayer(BaseLayer):
 
             # apply the `f_i()` transformation
             m_output = m(m_output)
-            outputs.append(m_output)
+
+            # merge if "concat", or sum if "add"
+            if merge_mode == 0:
+                if i == 0:
+                    output = m_output
+                else:
+                    output = output + m_output
+            else:
+                outputs.append(m_output)
 
             # move to next module
             i += 1
@@ -253,25 +262,31 @@ class PartitionedGCNLayer(BaseLayer):
             if not two_dimensional_case:
                 input = reshape(input, output_shape)
             m_output = self.self_module(input)
-            outputs.append(m_output)
 
-        # merge if "concat", or sum if "add"
-        if merge_mode == 0:
-            input = add_n(outputs)
-        else:
-            input = concat(outputs, axis=self.feature_axis)
+            # merge if "concat", or sum if "add"
+            if merge_mode == 0:
+                if i == 0:
+                    output = m_output
+                else:
+                    output = output + m_output
+            else:
+                outputs.append(m_output)
+
+        # do final merge
+        if merge_mode != 0 and len(outputs) > 0:
+            output = concat(outputs, axis=self.feature_axis)
 
         # de-reference intermediate results to free the memory immediately
         outputs = []
-        m_output = input
+        input = m_output = output
 
         # add bias
         if self.use_bias:
-            m_output = input = input + self.bias_store()
+            output = input = m_output = output + self.bias_store()
 
         # apply post-linear
         if self.use_post_linear:
-            m_output = input = self.post_linear(input)
+            output = input = m_output = self.post_linear(output)
 
         # reshape to the final output shape: `(N, B1, B2, ..., K1, K2, ...)`
         if not two_dimensional_case:
@@ -279,9 +294,9 @@ class PartitionedGCNLayer(BaseLayer):
                 input_shape[:i_rank - self.feature_matrix_ndims + 1] +
                 shape(input)[1:]
             )
-            m_output = input = reshape(input, output_shape)
+            output = input = m_output = reshape(output, output_shape)
 
-        return input
+        return output
 
     def forward(self, input: Tensor, adj: List[Tensor]) -> Tensor:
         return self._forward(input, adj)
@@ -492,60 +507,7 @@ class GCNDense(GCNLayer):
         if use_bias:
             out_dup = 1 + int(use_self_loop and merge_mode == 'concat')
             bias_shape = [out_features * out_dup]
-            bias_store = SimpleParamStore(
-                bias_shape, initializer=bias_init, device=device)
-        else:
-            bias_store = None
-
-        if normalizer is not None:
-            normalizer = get_layer_from_layer_or_factory(
-                'normalizer', normalizer, args=(out_features,))
-
-        if activation is not None:
-            activation = get_layer_from_layer_or_factory('activation', activation)
-
-        super().__init__(
-            module=module, self_module=self_module, self_weight=self_weight,
-            bias_store=bias_store, normalizer=normalizer, activation=activation,
-            merge_mode=merge_mode,
-        )
-class GCNDense(GCNLayer):
-    """A standard dense GCN layer."""
-
-    def __init__(self,
-                 in_features: int,
-                 out_features: int,
-                 use_self_loop: bool = True,
-                 self_weight: float = 1.,
-                 merge_mode: Union[str, GCNMergeMode] = 'add',
-                 use_bias: Optional[bool] = None,
-                 normalizer: Optional[NormalizerOrNormalizerFactory] = None,
-                 activation: Optional[LayerOrLayerFactory] = None,
-                 weight_norm: WeightNormArgType = False,
-                 weight_init: TensorInitArgType = DEFAULT_WEIGHT_INIT,
-                 bias_init: TensorInitArgType = DEFAULT_BIAS_INIT,
-                 data_init: Optional[DataInitArgType] = None,
-                 device: Optional[str] = None,
-                 ):
-        if use_bias is None:
-            use_bias = normalizer is None
-        linear_kwargs = dict(
-            use_bias=False,
-            weight_norm=weight_norm,
-            weight_init=weight_init,
-            data_init=data_init,
-            device=device,
-        )
-        module = Linear(in_features, out_features, **linear_kwargs)
-        self_module = (Linear(in_features, out_features, **linear_kwargs)
-                       if use_self_loop else None)
-
-        if use_bias:
-            out_dup = (1 + int(use_self_loop)
-                       if merge_mode == 'concat' else 1)
-            bias_shape = [out_features * out_dup]
-            bias_store = SimpleParamStore(
-                bias_shape, initializer=bias_init, device=device)
+            bias_store = SimpleParamStore(bias_shape, initializer=bias_init, device=device)
         else:
             bias_store = None
 

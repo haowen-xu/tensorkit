@@ -84,14 +84,14 @@ class BackendOptimizer(Optimizer):
     def __init__(self,
                  params: Iterable[Variable],
                  lr: float,
-                 torch_optimizer: TorchOptimizer):
+                 torch_optimizer_factory: Callable[[], TorchOptimizer]):
         self.params = []
         for p in params:
             if any(id(p) == id(pp) for pp in self.params):
                 raise ValueError(f'Duplicated parameter: {p!r}')
             self.params.append(p)
 
-        self.torch_optimizer = torch_optimizer
+        self.torch_optimizer = torch_optimizer_factory()
         self.set_lr(lr)
 
     @property
@@ -185,7 +185,7 @@ class SGD(BackendOptimizer):
         super().__init__(
             params=params,
             lr=lr,
-            torch_optimizer=torch.optim.SGD(
+            torch_optimizer_factory=lambda: torch.optim.SGD(
                 params=params,
                 lr=lr,
                 momentum=momentum,
@@ -211,7 +211,7 @@ class Adam(BackendOptimizer):
         super().__init__(
             params=params,
             lr=lr,
-            torch_optimizer=torch.optim.Adam(
+            torch_optimizer_factory=lambda: torch.optim.Adam(
                 params=params,
                 lr=lr,
                 betas=(beta_1, beta_2),
@@ -237,7 +237,7 @@ class Adamax(BackendOptimizer):
         super().__init__(
             params=params,
             lr=lr,
-            torch_optimizer=torch.optim.Adamax(
+            torch_optimizer_factory=lambda: torch.optim.Adamax(
                 params=params,
                 lr=lr,
                 betas=(beta_1, beta_2),

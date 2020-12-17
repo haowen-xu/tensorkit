@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import *
 
-from mltk.utils import NOT_SET
+from mltk.utils import NOT_SET, ContextStack
 
 from .activation import *
 from .composed import *
@@ -13,7 +13,7 @@ from .. import tensor as T
 from ..arg_check import *
 from ..typing_ import *
 
-__all__ = ['LayerArgs', 'SequentialBuilder']
+__all__ = ['LayerArgs', 'get_default_layer_args', 'SequentialBuilder']
 
 
 def _get_layer_class(name: str) -> type:
@@ -90,18 +90,39 @@ class LayerArgs(object):
 
     args: Dict[type, Dict[str, Any]]
 
-    def __init__(self, layer_args: Optional['LayerArgs'] = None):
+    def __init__(self, layer_args: Optional['LayerArgs'] = NOT_SET):
         """
         Construct a new :class:`LayerArgs` instance.
 
         Args:
             layer_args: Clone from this :class:`LayerArgs` instance.
         """
-        if layer_args is not None:
+        if layer_args is NOT_SET:
+            layer_args = get_default_layer_args()
+
+        if layer_args is None:
+            self.args = {}
+        else:
             self.args = {type_: {key: val for key, val in type_args.items()}
                          for type_, type_args in layer_args.args.items()}
-        else:
-            self.args = {}
+
+    @contextmanager
+    def as_default(self) -> ContextManager['LayerArgs']:
+        """Push this `LayerArgs` instance as the default."""
+        try:
+            _layer_args_stack.push(self)
+            yield self
+        finally:
+            _layer_args_stack.pop()
+
+    def copy(self) -> 'LayerArgs':
+        """
+        Copy a new `LayerArgs` instance.
+
+        Returns:
+            A new :class:`LayerArgs` instance.
+        """
+        return LayerArgs(self)
 
     def set_args(self,
                  type_or_types_: Union[
@@ -113,6 +134,9 @@ class LayerArgs(object):
         Args:
             type_or_types_: The layer type or types.
             **kwargs: The default arguments to be set.
+
+        Returns:
+            This :class:`LayerArgs` instance.
         """
         if isinstance(type_or_types_, (str, type)):
             type_or_types_ = [type_or_types_]
@@ -163,6 +187,14 @@ class LayerArgs(object):
         return type_(*args, **self.get_kwargs(type_, **kwargs))
 
 
+def get_default_layer_args() -> LayerArgs:
+    """Get the global default `LayerArgs` instance."""
+    return _layer_args_stack.top()
+
+
+_layer_args_stack = ContextStack[LayerArgs](lambda: LayerArgs(None))
+
+
 class SequentialBuilder(object):
     """A class that helps to build a sequence layers."""
 
@@ -201,7 +233,6 @@ class SequentialBuilder(object):
                 to the new sequential builder.  This will also override
                 the layer args of `in_builder`.
         """
-
         # parse the argument
         if int(in_spec is not NOT_SET) + int(in_shape is not NOT_SET) + \
                 int(in_channels is not NOT_SET) + int(in_builder is not NOT_SET) != 1:
