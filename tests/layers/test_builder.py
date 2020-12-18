@@ -168,6 +168,24 @@ class LayerArgsTestCase(TestCase):
                                              'argument: c'):
             LayerArgs().set_args(MyLayer4, c=3)
 
+    def test_wildcard_args(self):
+        args = LayerArgs()
+
+        args.set_args('*', out_channels=3, out_features=4, activation=LeakyReLU)
+        self.assertEqual(args.get_kwargs(Linear), {'out_features': 4})
+        self.assertEqual(args.get_kwargs(Dense), {'out_features': 4, 'activation': LeakyReLU})
+        self.assertEqual(args.get_kwargs(LinearConv2d), {'out_channels': 3})
+        self.assertEqual(args.get_kwargs(Conv2d), {'out_channels': 3, 'activation': LeakyReLU})
+        self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {})
+
+        args.set_args(_RecordInitArgsLayer, out_channels=3, out_features=4, activation=LeakyReLU)
+        self.assertEqual(args.get_kwargs(_RecordInitArgsLayer), {'out_channels': 3, 'out_features': 4, 'activation': LeakyReLU})
+
+        l = args.build(Dense, in_features=2)
+        self.assertEqual(l[0].in_features, 2)
+        self.assertEqual(l[0].out_features, 4)
+        self.assertIsInstance(l[1], LeakyReLU)
+
     def ensure_all_layers_and_flows_have_layer_args_decorated(self):
         from tensorkit import layers as L, flows as F
         for pkg in [L, F]:
@@ -419,6 +437,14 @@ class SequentialBuilderTestCase(TestCase):
                                      '`in_channels` is specified, or `in_spec` '
                                      'is None or an integer'):
                 _ = SequentialBuilder(in_size=[8, 9], **{arg: arg_values[arg]})
+
+    def test_wildcard_type(self):
+        builder = SequentialBuilder(5)
+        builder.set_args('*', activation=LeakyReLU)
+        self.assertEqual(builder.layer_args.get_kwargs(Dense),
+                         {'activation': LeakyReLU})
+        self.assertEqual(builder.layer_args.get_kwargs(Conv2d),
+                         {'activation': LeakyReLU})
 
     def test_arg_scope(self):
         builder = SequentialBuilder(5)

@@ -16,7 +16,10 @@ from ..typing_ import *
 __all__ = ['LayerArgs', 'get_default_layer_args', 'SequentialBuilder']
 
 
-def _get_layer_class(name: str) -> type:
+def _get_layer_class(name: str, support_wildcard: bool = False) -> Optional[type]:
+    if support_wildcard and name == '*':
+        return None
+
     if not _cached_layer_class_names_map:
         # map the standard names of the layers to the layer classes
         import tensorkit as tk
@@ -88,7 +91,9 @@ else:
 class LayerArgs(object):
     """A class that manages the default arguments for constructing layers."""
 
-    args: Dict[type, Dict[str, Any]]
+    # type? => {arg_name: arg_val}.
+    # None type indicates arguments for all types.
+    args: Dict[Optional[type], Dict[str, Any]]
 
     def __init__(self, layer_args: Optional['LayerArgs'] = NOT_SET):
         """
@@ -145,21 +150,24 @@ class LayerArgs(object):
 
         for type_ in type_or_types_:
             if isinstance(type_, str):
-                type_ = _get_layer_class(type_)
+                type_ = _get_layer_class(type_, support_wildcard=True)
             if type_ not in self.args:
                 self.args[type_] = {}
 
-            if layer_args_ is NOT_SET:
-                layer_args_ = getattr(type_, '__layer_args__', None)
-            layer_has_kwargs = getattr(type_, '__layer_has_kwargs__', False)
-            if layer_args_ is not None and not layer_has_kwargs:
-                for k in kwargs:
-                    if k not in layer_args_:
-                        raise ValueError(
-                            f'The constructor of {type_!r} does not have '
-                            f'the specified keyword argument: {k}'
-                        )
+            # validate the arguments
+            if type_ is not None:
+                if layer_args_ is NOT_SET:
+                    layer_args_ = getattr(type_, '__layer_args__', None)
+                layer_has_kwargs = getattr(type_, '__layer_has_kwargs__', False)
+                if layer_args_ is not None and not layer_has_kwargs:
+                    for k in kwargs:
+                        if k not in layer_args_:
+                            raise ValueError(
+                                f'The constructor of {type_!r} does not have '
+                                f'the specified keyword argument: {k}'
+                            )
 
+            # update the arguments
             self.args[type_].update(kwargs)
 
         return self
@@ -177,10 +185,22 @@ class LayerArgs(object):
         """
         if isinstance(type_, str):
             type_ = _get_layer_class(type_)
-        layer_args = self.args.get(type_)
-        if layer_args:
-            for key, val in layer_args.items():
+
+        # get the arguments for this type
+        args = self.args.get(type_)
+        if args:
+            for key, val in args.items():
                 kwargs.setdefault(key, val)
+
+        # get the arguments for all types
+        layer_args = getattr(type_, '__layer_args__', None)
+        if layer_args:  # only use known args
+            args = self.args.get(None)
+            if args:
+                for key, val in args.items():
+                    if key in layer_args:
+                        kwargs.setdefault(key, val)
+
         return kwargs
 
     def build(self, type_: Union[str, type], *args, **kwargs):
@@ -349,19 +369,22 @@ class SequentialBuilder(object):
             type_or_types_ = [type_or_types_]
 
         for type_ in type_or_types_:
-            if isinstance(type_, str):
-                type_ = _get_layer_class(type_)
+            if type_ == '*':
+                self.layer_args.set_args(type_, **kwargs)
+            else:
+                if isinstance(type_, str):
+                    type_ = _get_layer_class(type_)
 
-            layer_args_ = getattr(type_, '__layer_args__', None)
-            if layer_args_ and 'output_padding' in layer_args_:
-                # suggest it's a deconv layer, add 'output_size' to the valid args list
-                layer_args_ = list(layer_args_) + ['output_size']
+                layer_args_ = getattr(type_, '__layer_args__', None)
+                if layer_args_ and 'output_padding' in layer_args_:
+                    # suggest it's a deconv layer, add 'output_size' to the valid args list
+                    layer_args_ = list(layer_args_) + ['output_size']
 
-            self.layer_args.set_args(
-                type_or_types_=type_,
-                layer_args_=layer_args_,
-                **kwargs
-            )
+                self.layer_args.set_args(
+                    type_or_types_=type_,
+                    layer_args_=layer_args_,
+                    **kwargs
+                )
 
         return self
 
