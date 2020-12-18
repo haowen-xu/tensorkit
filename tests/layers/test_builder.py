@@ -117,6 +117,57 @@ class LayerArgsTestCase(TestCase):
         self.assertIsInstance(l2[1], tk.layers.LeakyReLU)
         self.assertEqual(T.shape(l2[0].weight_store()), [4, 4, 3, 3])
 
+    def test_LayerArgs_check(self):
+        # MyLayer
+        class MyLayer(tk.layers.BaseLayer):
+            def __init__(self, a, b):
+                super().__init__()
+
+        self.assertEqual(MyLayer.__layer_args__, ['a', 'b'])
+        with pytest.raises(ValueError, match='The constructor of .* does not '
+                                             'have the specified keyword '
+                                             'argument: c'):
+            LayerArgs().set_args(MyLayer, c=3)
+
+        # inherit from MyLayer with no __init__
+        class MyLayer2(MyLayer):
+            pass
+        self.assertEqual(MyLayer2.__layer_args__, ['a', 'b'])
+        with pytest.raises(ValueError, match='The constructor of .* does not '
+                                             'have the specified keyword '
+                                             'argument: c'):
+            LayerArgs().set_args(MyLayer2, c=3)
+
+        # inherit from MyLayer with overrided __init__
+        class MyLayer3(MyLayer):
+            def __init__(self, c):
+                super().__init__(1, 2)
+        self.assertEqual(MyLayer3.__layer_args__, ['c'])
+        self.assertEqual(
+            LayerArgs().set_args(MyLayer3, c=3).get_kwargs(MyLayer3),
+            {'c': 3}
+        )
+        with pytest.raises(ValueError, match='The constructor of .* does not '
+                                             'have the specified keyword '
+                                             'argument: a'):
+            LayerArgs().set_args(MyLayer3, a=1)
+
+        # inherit from MyLayer with manual __layer_args__
+        class MyLayer4(MyLayer):
+            __layer_args__ = ['a', 'b']
+
+            def __init__(self, a, b, c):
+                super().__init__(a, b)
+        self.assertEqual(MyLayer4.__layer_args__, ['a', 'b'])
+        self.assertEqual(
+            LayerArgs().set_args(MyLayer4, a=1, b=2).get_kwargs(MyLayer4),
+            {'a': 1, 'b': 2}
+        )
+        with pytest.raises(ValueError, match='The constructor of .* does not '
+                                             'have the specified keyword '
+                                             'argument: c'):
+            LayerArgs().set_args(MyLayer4, c=3)
+
     def ensure_all_layers_and_flows_have_layer_args_decorated(self):
         from tensorkit import layers as L, flows as F
         for pkg in [L, F]:
@@ -124,8 +175,8 @@ class LayerArgsTestCase(TestCase):
                 val = getattr(pkg, name)
                 if isinstance(val, T.Module):
                     self.assertTrue(
-                        val.__with_layer_args_decorated__,
-                        msg=f'{val!r}.__with_layer_args_decorated__ == False'
+                        hasattr(val, '__layer_args__'),
+                        msg=f'{val!r}.__layer_args__ does not present'
                     )
 
 

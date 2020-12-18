@@ -1,3 +1,4 @@
+import inspect
 import math
 import types
 from functools import partial, wraps
@@ -244,7 +245,11 @@ def with_layer_args(cls):
                     kwargs.setdefault(k, v)
             return method(*args, **kwargs)
 
-        type_.__with_layer_args_decorated__ = True
+        if not any(method is kclass.__init__ for kclass in type_.__bases__):
+            if '__layer_args__' not in type_.__dict__:
+                arg_spec = inspect.getfullargspec(method)
+                type_.__layer_args__ = arg_spec.args[1:]
+                type_.__layer_has_kwargs__ = arg_spec.varkw is not None
         return wrapper
 
     if not isinstance(cls, type) or not issubclass(cls, Module):

@@ -127,12 +127,14 @@ class LayerArgs(object):
     def set_args(self,
                  type_or_types_: Union[
                      str, Type[T.Module], Sequence[Union[str, Type[T.Module]]]],
+                 layer_args_: Optional[Sequence[str]] = NOT_SET,
                  **kwargs) -> 'LayerArgs':
         """
         Set default arguments for the specified layer types.
 
         Args:
             type_or_types_: The layer type or types.
+            layer_args_: If specified, override the `__layer_args__` of the layer.
             **kwargs: The default arguments to be set.
 
         Returns:
@@ -146,6 +148,18 @@ class LayerArgs(object):
                 type_ = _get_layer_class(type_)
             if type_ not in self.args:
                 self.args[type_] = {}
+
+            if layer_args_ is NOT_SET:
+                layer_args_ = getattr(type_, '__layer_args__', None)
+            layer_has_kwargs = getattr(type_, '__layer_has_kwargs__', False)
+            if layer_args_ is not None and not layer_has_kwargs:
+                for k in kwargs:
+                    if k not in layer_args_:
+                        raise ValueError(
+                            f'The constructor of {type_!r} does not have '
+                            f'the specified keyword argument: {k}'
+                        )
+
             self.args[type_].update(kwargs)
 
         return self
@@ -331,13 +345,30 @@ class SequentialBuilder(object):
         Returns:
             This sequential builder object.
         """
-        self.layer_args.set_args(type_or_types_, **kwargs)
+        if isinstance(type_or_types_, (str, type)):
+            type_or_types_ = [type_or_types_]
+
+        for type_ in type_or_types_:
+            if isinstance(type_, str):
+                type_ = _get_layer_class(type_)
+
+            layer_args_ = getattr(type_, '__layer_args__', None)
+            if layer_args_ and 'output_padding' in layer_args_:
+                # suggest it's a deconv layer, add 'output_size' to the valid args list
+                layer_args_ = list(layer_args_) + ['output_size']
+
+            self.layer_args.set_args(
+                type_or_types_=type_,
+                layer_args_=layer_args_,
+                **kwargs
+            )
+
         return self
 
     @contextmanager
     def arg_scope(self,
                   type_or_types_: Union[str, type, Sequence[Union[str, type]]],
-                  **kwargs) -> Generator[None, None, None]:
+                  **kwargs) -> Generator['SequentialBuilder', None, None]:
         """
         Set layer default arguments within a scope, which will be restore to
         the previous values after exiting the scope.
@@ -345,13 +376,14 @@ class SequentialBuilder(object):
         Args:
             type_or_types_: The layer type or types.
             **kwargs: The default arguments.
+
+        Yields:
+            This builder object itself.
         """
-        old_layer_args = self.layer_args
-        layer_args = LayerArgs(old_layer_args)
-        layer_args.set_args(type_or_types_, **kwargs)
-        self.layer_args = layer_args
+        old_layer_args = self.layer_args.copy()
+        self.set_args(type_or_types_, **kwargs)
         try:
-            yield
+            yield self
         finally:
             self.layer_args = old_layer_args
 
