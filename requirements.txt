@@ -3,5 +3,3 @@ heapdict >= 1.0.0
 numpy
 scipy
 typing_extensions
-
-git+https://github.com/haowen-xu/ml-essentials.git

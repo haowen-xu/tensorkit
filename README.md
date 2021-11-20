@@ -7,8 +7,8 @@
 
 This package has been tested with the following dependencies:
 
-* Python: 3.6
-* PyTorch: 1.7.1
+* Python: 3.8
+* PyTorch: 1.10.0
 
 ### Installation
 
@@ -29,4 +29,3 @@ to enable certain utilities of graph neural networks.
    * VAE: [auto_encoders/vae.py](tensorkit/examples/auto_encoders/vae.py)
    * ResNet VAE: [auto_encoders/vae_resnet.py](tensorkit/examples/auto_encoders/vae_resnet.py)
    * VAE with RealNVP posterior: [auto_encoders/vae_realnvp_posterior.py](tensorkit/examples/auto_encoders/vae_realnvp_posterior.py)
- 

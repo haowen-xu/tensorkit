@@ -46,7 +46,10 @@ def set_deterministic(deterministic: bool = True):
     #     torch.backends.cudnn.enabled = not deterministic
     #     torch.backends.cudnn.benchmark = not deterministic
     #     torch.backends.cudnn.deterministic = deterministic
-    torch.set_deterministic(deterministic)
+    if hasattr(torch, 'set_deterministic'):
+        torch.set_deterministic(deterministic)
+    else:
+        torch.use_deterministic_algorithms(deterministic)
 
 
 # ---- uniform distribution ----
