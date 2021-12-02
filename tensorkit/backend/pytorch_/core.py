@@ -5,7 +5,6 @@ from typing import *
 import numpy as np
 import torch
 import torch.jit
-import torch.sparse
 import torch.nn.functional
 
 from ...settings_ import settings, JitMode
@@ -15,11 +14,11 @@ __all__ = [
     'IS_CHANNEL_LAST', 'EPSILON', 'CPU_DEVICE',
 
     # typing
-    'Tensor', 'SparseTensor', 'Variable', 'Module',
+    'Tensor', 'Variable', 'Module',
 
     # ordinary module base classes
     # jit
-    'is_function_jit_enabled', 'is_module_jit_enabled', 'is_sparse_jit_enabled',
+    'is_function_jit_enabled', 'is_module_jit_enabled',
     'jit', 'jit_ignore', 'jit_method',
 
     # device
@@ -120,7 +119,6 @@ CPU_DEVICE = 'cpu'
 
 # ---- typing ----
 Tensor = torch.Tensor
-SparseTensor = torch.Tensor
 Variable = torch.Tensor
 Module = torch.nn.Module
 
@@ -132,10 +130,6 @@ def is_function_jit_enabled() -> bool:
 
 def is_module_jit_enabled() -> bool:
     return settings.jit_mode is not None and settings.jit_mode == JitMode.ALL
-
-
-def is_sparse_jit_enabled() -> bool:
-    return settings.sparse_enable_jit is not False
 
 
 def jit(fn):

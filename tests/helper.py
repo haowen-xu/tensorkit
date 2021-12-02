@@ -20,7 +20,7 @@ __all__ = [
 
     'check_distribution_instance', 'flow_standard_check',
 
-    'make_ndarray_by_coo', 'make_random_adj_matrix',
+    'make_ndarray_by_coo',
 
     'TestCase',
 ]
@@ -38,8 +38,6 @@ n_samples = 10000
 
 def wrap_numpy_testing_assertion_fn(fn):
     def f(t):
-        if T.sparse.is_sparse_tensor(t):
-            t = T.sparse.to_numpy(t)
         if isinstance(t, (T.Tensor, StochasticTensor)):
             t = T.to_numpy(T.as_tensor(t))
         if isinstance(t, sp.spmatrix):
@@ -245,21 +243,6 @@ def make_ndarray_by_coo(row, col, values, shape) -> np.ndarray:
     ret = np.zeros(shape, dtype=values.dtype)
     ret[row, col] = values
     return ret
-
-
-def make_random_adj_matrix(node_count: int, p=0.1, dtype=T.float_x(),
-                           directed=True) -> T.SparseTensor:
-    edge_count = int(node_count * node_count * p)
-    indices = np.random.randint(0, node_count, size=[2, edge_count])
-    if not directed:
-        indices = np.concatenate(
-            [indices, np.stack([indices[1], indices[0]], axis=0)],
-            axis=1
-        )
-    indices = T.as_tensor(indices, dtype=T.int64)
-    values = T.abs(T.random.randn([T.shape(indices)[1]], dtype=dtype)) + 1e-6
-    return T.sparse.make_sparse(
-        indices, values, shape=[node_count, node_count], coord_first=True)
 
 
 class TestCaseMeta(type):
