@@ -621,7 +621,7 @@ class BatchNormTestCase(TestCase):
             assert_allclose(y2, expected, rtol=1e-4, atol=1e-6)
 
             # check invalid dimensions
-            with pytest.raises(Exception, match='only supports .d input'):
+            with pytest.raises(Exception, match='torch'):
                 _ = layer(
                     T.random.randn(make_conv_shape(
                         [], 5, [6, 7, 8][:spatial_ndims]

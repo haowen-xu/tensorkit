@@ -22,32 +22,36 @@ class ELBOObjectiveTestCase(TestCase):
         obj = elbo_objective(log_p, log_q)
         assert_allclose(
             T.reduce_mean(obj),
-            elbo_objective(log_p, log_q, reduction='mean')
+            elbo_objective(log_p, log_q, reduction='mean'),
+            rtol=1e-4, atol=1e-6
         )
         assert_allclose(
             T.reduce_sum(obj),
             elbo_objective(log_p, log_q, reduction='sum')
         )
         obj_shape = T.shape(obj)
-        assert_allclose(obj, log_p - log_q)
+        assert_allclose(obj, log_p - log_q, rtol=1e-4, atol=1e-6)
 
         obj_r = elbo_objective(log_p, log_q, axis=[0])
         self.assertListEqual(obj_shape[1:], T.shape(obj_r))
-        assert_allclose(obj_r, T.reduce_mean(log_p - log_q, axis=[0]))
+        assert_allclose(obj_r, T.reduce_mean(log_p - log_q, axis=[0]), rtol=1e-4, atol=1e-6)
 
         obj_rk = elbo_objective(log_p, log_q, axis=[0], keepdims=True)
         assert_allclose(
             T.reduce_mean(obj_rk),
-            elbo_objective(log_p, log_q, axis=[0], keepdims=True, reduction='mean')
+            elbo_objective(log_p, log_q, axis=[0], keepdims=True, reduction='mean'),
+            rtol=1e-4, atol=1e-6
         )
         assert_allclose(
             T.reduce_sum(obj_rk),
-            elbo_objective(log_p, log_q, axis=[0], keepdims=True, reduction='sum')
+            elbo_objective(log_p, log_q, axis=[0], keepdims=True, reduction='sum'),
+            rtol=1e-4, atol=1e-6
         )
         self.assertListEqual([1] + obj_shape[1:], T.shape(obj_rk))
         assert_allclose(
             obj_rk,
-            T.reduce_mean(log_p - log_q, axis=[0], keepdims=True)
+            T.reduce_mean(log_p - log_q, axis=[0], keepdims=True),
+            rtol=1e-4, atol=1e-6
         )
 
 
@@ -70,11 +74,13 @@ class MonteCarloObjectiveTestCase(TestCase):
         obj = monte_carlo_objective(log_p, log_q, axis=[0])
         assert_allclose(
             T.reduce_mean(obj),
-            monte_carlo_objective(log_p, log_q, axis=[0], reduction='mean')
+            monte_carlo_objective(log_p, log_q, axis=[0], reduction='mean'),
+            rtol=1e-4, atol=1e-6
         )
         assert_allclose(
             T.reduce_sum(obj),
-            monte_carlo_objective(log_p, log_q, axis=[0], reduction='sum')
+            monte_carlo_objective(log_p, log_q, axis=[0], reduction='sum'),
+            rtol=1e-4, atol=1e-6
         )
         obj_shape = T.shape(obj)
         assert_allclose(obj, T.log_mean_exp(log_p - log_q, axis=[0]))

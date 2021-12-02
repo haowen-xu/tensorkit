@@ -269,7 +269,7 @@ class DataDependentInitializer(object):
                 Defaults to :obj:`False`.
         """
         _ = DataDependentInitializerForwardPreHook(
-            self, layer, initialized=initialized)
+            'DataDependentInitializerForwardPreHook', self, layer, initialized=initialized)
 
     def _init(self, layer: Module, inputs: List[Tensor]) -> None:
         raise NotImplementedError()
@@ -293,10 +293,12 @@ class DataDependentInitializerForwardPreHook(object):
     is_calling: bool  # whether or not the initializer is being called
 
     def __init__(self,
+                 name: str,
                  layer_init: DataDependentInitializer,
                  layer: Module,
                  initialized: bool = False):
         super().__init__()
+        self.__name__ = name
         self.initializer = layer_init
         self.hook_handle = layer.register_forward_pre_hook(self)
         self.initialized = initialized

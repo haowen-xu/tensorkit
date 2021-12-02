@@ -49,13 +49,13 @@ class VariationalInferenceTestCase(TestCase):
         vi = VariationalInference(log_p, log_q)
         output = vi.lower_bound.elbo()
         answer = elbo_objective(log_p, log_q)
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
         # test with sampling axis
         vi = VariationalInference(log_p, log_q, axis=[0, 1])
         output = vi.lower_bound.elbo()
         answer = elbo_objective(log_p, log_q, axis=[0, 1])
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
     def test_importance_weighted_objective(self):
         log_p = T.random.randn(shape=[5, 7])
@@ -64,7 +64,7 @@ class VariationalInferenceTestCase(TestCase):
         vi = VariationalInference(log_p, log_q, axis=[0, 1])
         output = vi.lower_bound.monte_carlo_objective()
         answer = monte_carlo_objective(log_p, log_q, axis=[0, 1])
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
     def test_sgvb(self):
         log_p = T.random.randn(shape=[5, 7])
