@@ -74,13 +74,13 @@ class VariationalInferenceTestCase(TestCase):
         vi = VariationalInference(log_p, log_q)
         output = vi.training.sgvb()
         answer = -sgvb_estimator(log_p - log_q)
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
         # test with sampling axis
         vi = VariationalInference(log_p, log_q, axis=[0, 1])
         output = vi.training.sgvb()
         answer = -sgvb_estimator(log_p - log_q, axis=[0, 1])
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
     def test_iwae(self):
         log_p = T.random.randn(shape=[5, 7])
@@ -89,7 +89,7 @@ class VariationalInferenceTestCase(TestCase):
         vi = VariationalInference(log_p, log_q, axis=[0, 1])
         output = vi.training.iwae()
         answer = -iwae_estimator(log_p - log_q, axis=[0, 1])
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
 
     def test_is_loglikelihood(self):
         log_p = T.random.randn(shape=[5, 7])
@@ -98,4 +98,4 @@ class VariationalInferenceTestCase(TestCase):
         vi = VariationalInference(log_p, log_q, axis=[0, 1])
         output = vi.evaluation.importance_sampling_log_likelihood()
         answer = importance_sampling_log_likelihood(log_p, log_q, axis=[0, 1])
-        assert_allclose(output, answer)
+        assert_allclose(output, answer, rtol=1e-4, atol=1e-6)
