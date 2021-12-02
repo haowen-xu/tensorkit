@@ -35,14 +35,6 @@ __all__ = [
 SPARSE_INDICES_DEFAULT_IS_COORD_FIRST = True
 MAKE_SPARSE_DEFAULT_FORCE_COALESCED = True
 
-SPRASE_CONSTRUCTOR = {
-    torch.int32: torch.sparse.IntTensor,
-    torch.int64: torch.sparse.LongTensor,
-    torch.float16: torch.sparse.HalfTensor,
-    torch.float32: torch.sparse.FloatTensor,
-    torch.float64: torch.sparse.DoubleTensor,
-}
-
 if is_sparse_jit_enabled():
     # Note: sparse tensor support for JIT is only experimental in PyTorch 1.3.1
     sparse_jit = jit
@@ -72,11 +64,6 @@ def make_sparse(indices: Tensor,
     else:
         target_dtype = dtype
 
-    # get the sparse constructor
-    if target_dtype not in SPRASE_CONSTRUCTOR:
-        raise ValueError(f'`dtype` not supported: {target_dtype!r}')
-    sparse_ctor = SPRASE_CONSTRUCTOR[target_dtype]
-
     # Ensure that the index tensor is 2d and is int64.
     # Transpose the `indices` tensor into `(K, N)`, instead of `(N, K)`.
     if indices.dim() != 2:
@@ -95,7 +82,7 @@ def make_sparse(indices: Tensor,
     if target_dtype != values.dtype:
         values = values.to(target_dtype)
 
-    m = sparse_ctor(indices, values, shape, device=values.device)
+    m = torch.sparse_coo_tensor(indices, values, shape, device=values.device)
     if force_coalesced:
         m = m.coalesce()
     return m
@@ -274,7 +261,7 @@ def eye(n: int,
     indices = torch.stack([indices, indices], dim=0)
     values = torch.ones([k], dtype=target_dtype, device=device)
 
-    return torch.sparse.FloatTensor(indices, values, [n, m], device=values.device)
+    return torch.sparse_coo_tensor(indices, values, [n, m], device=values.device)
 
 
 @sparse_jit

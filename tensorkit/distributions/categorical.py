@@ -87,7 +87,7 @@ class BaseCategorical(Distribution):
     def probs(self) -> T.Tensor:
         """The probabilities of being each class."""
         if self._probs is None:
-            self._probs = T.random.categorical_logits_to_probs(self._logits)
+            self._probs = T.clip(T.random.categorical_logits_to_probs(self._logits), 0., 1.)
         return self._probs
 
     def to_indexed(self, dtype: str = T.categorical_dtype) -> 'Categorical':
