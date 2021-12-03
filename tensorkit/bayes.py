@@ -21,7 +21,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
     and to derive the variational lower-bounds.
     """
 
-    __slots__ = ('_observed', '_original_observed', '_stochastic_tensors')
+    __slots__ = ('_observed', '_original_observed', '_stochastic_tensors', 'meta')
 
     _observed: Mapping[str, T.Tensor]
     """The observation tensors."""
@@ -31,6 +31,9 @@ class BayesianNet(Mapping[str, StochasticTensor]):
 
     _stochastic_tensors: Mapping[str, StochasticTensor]
     """The stochastic tensors added to this Bayesian net."""
+
+    meta: Dict[str, Any]
+    """Store any metadata for this Bayesian network."""
 
     def __init__(self, observed: Optional[Mapping[str, TensorOrData]] = None):
         """
@@ -51,6 +54,7 @@ class BayesianNet(Mapping[str, StochasticTensor]):
             for name, t in self._original_observed.items()
         ])
         self._stochastic_tensors: Dict[str, StochasticTensor] = {}
+        self.meta = {}
 
     @property
     def observed(self) -> Mapping[str, T.Tensor]:
