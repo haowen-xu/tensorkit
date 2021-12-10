@@ -100,7 +100,11 @@ class Bernoulli(Distribution):
     def probs(self) -> T.Tensor:
         """Get the probability of being 1."""
         if self._probs is None:
-            self._probs = T.random.bernoulli_logits_to_probs(self._logits)
+            self._probs = T.clip(
+                T.random.bernoulli_logits_to_probs(self._logits),
+                0.,
+                1.
+            )
         return self._probs
 
     def _sample(self,
