@@ -18,7 +18,8 @@ def fit_model(loop: mltk.TrainLoop,
               clip_norm: Optional[float] = None,
               global_clip_norm: Optional[float] = None,
               grad_processor: Optional[Callable[[tk.optim.Optimizer], None]] = None,
-              param_names: Optional[Sequence[str]] = None):
+              param_names: Optional[Sequence[str]] = None,
+              **kwargs):
     def step(*train_data):
         # clear the captured gradient from the last step
         optimizer.clear_grad()
@@ -62,4 +63,4 @@ def fit_model(loop: mltk.TrainLoop,
         return metrics
 
     param_names = list(param_names) if param_names else None
-    loop.run(step, stream)
+    loop.run(step, stream, **kwargs)

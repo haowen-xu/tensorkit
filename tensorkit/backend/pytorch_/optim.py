@@ -7,7 +7,8 @@ from torch.optim.optimizer import Optimizer as TorchOptimizer
 from .core import *
 
 __all__ = [
-    'Optimizer', 'SGD', 'Adam', 'Adamax',
+    'Optimizer', 'BackendOptimizer',
+    'SGD', 'Adadelta', 'Adagrad', 'Adam', 'Adamax', 'RMSprop',
 ]
 
 
@@ -194,6 +195,42 @@ class SGD(BackendOptimizer):
         )
 
 
+class Adadelta(BackendOptimizer):
+
+    def __init__(self, params, lr=1.0, rho=0.9, eps=1e-6, weight_decay=0):
+        params = list(params)
+        super().__init__(
+            params=params,
+            lr=lr,
+            torch_optimizer_factory=lambda: torch.optim.Adadelta(
+                params=params,
+                lr=lr,
+                rho=rho,
+                eps=eps,
+                weight_decay=weight_decay,
+            )
+        )
+
+
+class Adagrad(BackendOptimizer):
+
+    def __init__(self, params, lr=1e-2, lr_decay=0, weight_decay=0,
+                 initial_accumulator_value=0, eps=1e-10):
+        params = list(params)
+        super().__init__(
+            params=params,
+            lr=lr,
+            torch_optimizer_factory=lambda: torch.optim.Adagrad(
+                params=params,
+                lr=lr,
+                lr_decay=lr_decay,
+                weight_decay=weight_decay,
+                initial_accumulator_value=initial_accumulator_value,
+                eps=eps,
+            )
+        )
+
+
 class Adam(BackendOptimizer):
     """
     The Adam algorithm from
@@ -242,5 +279,25 @@ class Adamax(BackendOptimizer):
                 lr=lr,
                 betas=(beta_1, beta_2),
                 eps=epsilon,
+            )
+        )
+
+
+class RMSprop(BackendOptimizer):
+
+    def __init__(self, params, lr=1e-2, alpha=0.99, eps=1e-8, weight_decay=0,
+                 momentum=0, centered=False):
+        params = list(params)
+        super().__init__(
+            params=params,
+            lr=lr,
+            torch_optimizer_factory=lambda: torch.optim.RMSprop(
+                params=params,
+                lr=lr,
+                alpha=alpha,
+                eps=eps,
+                weight_decay=weight_decay,
+                momentum=momentum,
+                centered=centered,
             )
         )
