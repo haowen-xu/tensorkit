@@ -81,6 +81,12 @@ class BayesianNetTestCase(TestCase):
                 match="Stochastic tensor 'x' already exists."):
             _ = net.add('x', d)
 
+        # test remove
+        net.remove('x')
+        self.assertNotIn('x', net)
+        del net['y']
+        self.assertNotIn('y', net)
+
     def test_add_reparameterized_arg(self):
         normal = UnitNormal(shape=[2, 3])
 

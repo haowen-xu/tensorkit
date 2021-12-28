@@ -155,6 +155,15 @@ class BayesianNet(Mapping[str, StochasticTensor]):
         """
         return self._stochastic_tensors.get(name)
 
+    def remove(self, name: str):
+        """
+        Remove a stochastic node from the Bayesian net.
+
+        Args:
+            name: Name of the stochastic node.
+        """
+        del self._stochastic_tensors[name]
+
     def __getitem__(self, name) -> StochasticTensor:
         """
         Get the :class:`StochasticTensor` of a stochastic node.
@@ -166,6 +175,9 @@ class BayesianNet(Mapping[str, StochasticTensor]):
             The :class:`StochasticTensor` of the queried node.
         """
         return self._stochastic_tensors[name]
+
+    def __delitem__(self, name):
+        del self._stochastic_tensors[name]
 
     def __contains__(self, name) -> bool:
         """Test whether or not a stochastic node with `name` exists."""
