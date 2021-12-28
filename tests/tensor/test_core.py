@@ -735,10 +735,22 @@ class TensorCoreTestCase(TestCase):
         self.assertEqual(T.shape(t2), [5, 8, 3, 6])
         assert_equal(t2, np.tile(x, [5, 4, 3, 2]))
 
+        t2 = T.repeat(t, [1, 4, 3, 2])
+        self.assertEqual(T.shape(t2), [1, 8, 3, 6])
+        assert_equal(t2, np.tile(x, [1, 4, 3, 2]))
+
+        t2 = T.repeat(t, [1, 1, 1, 1])
+        self.assertEqual(T.shape(t2), [1, 2, 1, 3])
+        assert_equal(t2, np.tile(x, [1, 1, 1, 1]))
+
         # test expand
         t2 = T.expand(t, [4, -1, 5, -1])
         self.assertEqual(T.shape(t2), [4, 2, 5, 3])
         assert_equal(t2, np.tile(x, [4, 1, 5, 1]))
+
+        t2 = T.expand(t, [1, 2, 1, 3])
+        self.assertEqual(T.shape(t2), [1, 2, 1, 3])
+        assert_equal(t2, np.tile(x, [1, 1, 1, 1]))
 
         # test squeeze
         x = np.random.randn(1, 2, 1, 3, 1, 4, 1)
@@ -930,6 +942,8 @@ class TensorCoreTestCase(TestCase):
             check_broadcast_concat([], [2, 3], axis)
         for axis in [0, 1, 2, -1, -2, -3]:
             check_broadcast_concat([4, 1, 3], [2, 3], axis)
+        for axis in [0, 1, 2, 3, -1, -2, -3, -4]:
+            check_broadcast_concat([1, 5, 6, 1], [5, 6, 1], axis)
 
         with pytest.raises(Exception, match='`axis` out of range'):
             check_broadcast_concat([], [2, 3], -3)

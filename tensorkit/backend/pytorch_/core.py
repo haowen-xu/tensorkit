@@ -783,6 +783,11 @@ def reshape(input: Tensor, shape: List[int]) -> Tensor:
 
 
 @jit
+def expand(input: Tensor, desired_shape: List[int]) -> Tensor:
+    return input.expand(desired_shape)
+
+
+@jit
 def repeat(input: Tensor, repeats: List[int]) -> Tensor:
     in_shape = list(input.shape)
     in_shape_len, repeats_len = len(in_shape), len(repeats)
@@ -804,11 +809,6 @@ def repeat(input: Tensor, repeats: List[int]) -> Tensor:
         return input.expand(expands)
     else:
         return input.repeat(repeats)
-
-
-@jit
-def expand(input: Tensor, desired_shape: List[int]) -> Tensor:
-    return input.expand(desired_shape)
 
 
 @jit
@@ -923,9 +923,10 @@ def broadcast_concat(x: Tensor, y: Tensor, axis: int) -> Tensor:
     x_shape[axis] = 1
     y_shape[axis] = 1
     b_shape = get_broadcast_shape(x_shape, y_shape)
+    b_rank = len(b_shape)
 
     # expand x shape
-    if b_shape != x_shape:
+    if x_rank < b_rank or b_shape != x_shape:
         if -x_rank <= axis:
             b_shape[axis] = x.shape[axis]
         else:
@@ -933,7 +934,7 @@ def broadcast_concat(x: Tensor, y: Tensor, axis: int) -> Tensor:
         x = x.expand(b_shape)
 
     # expand y shape
-    if b_shape != y_shape:
+    if y_rank < b_rank or b_shape != y_shape:
         if -y_rank <= axis:
             b_shape[axis] = y.shape[axis]
         else:
